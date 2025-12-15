@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Color Picker Tool</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            height: 100vh;
+            padding: 15px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        .container {
+            background: #1e1e2e;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            padding: 20px;
+            max-width: 1400px;
+            width: 100%;
+            height: calc(100vh - 30px);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border: 1px solid #2a2a3e;
+        }
+
+        h1 {
+            text-align: center;
+            color: #e0e0e0;
+            margin-bottom: 15px;
+            font-size: 1.8em;
+        }
+
+        .upload-section {
+            text-align: center;
+            margin-bottom: 15px;
+        }
+
+        .upload-area {
+            border: 2px dashed #4a5568;
+            border-radius: 10px;
+            padding: 20px;
+            background: #252535;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .upload-area:hover {
+            background: #2d2d3f;
+            border-color: #667eea;
+        }
+
+        .upload-area.dragover {
+            background: #32324a;
+            border-color: #818cf8;
+        }
+
+        .upload-icon {
+            font-size: 2em;
+            margin-bottom: 5px;
+        }
+
+        .upload-text {
+            color: #a0a0b0;
+            font-size: 0.95em;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .content-wrapper {
+            flex: 1;
+            display: flex;
+            gap: 15px;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        .canvas-container {
+            display: none;
+            flex: 1;
+            min-height: 0;
+        }
+
+        .canvas-container.active {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .canvas-wrapper {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border: 2px solid #2a2a3e;
+            border-radius: 10px;
+            background: #16161f;
+            padding: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        #canvas {
+            cursor: crosshair;
+            max-width: 100%;
+            max-height: 100%;
+            border-radius: 5px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.4);
+        }
+
+        .sidebar {
+            width: 320px;
+            display: none;
+            flex-direction: column;
+            gap: 15px;
+            overflow-y: auto;
+        }
+
+        .sidebar.active {
+            display: flex;
+        }
+
+        .instructions {
+            text-align: center;
+            color: #d4a574;
+            padding: 10px;
+            background: #2d2416;
+            border-radius: 8px;
+            border-left: 3px solid #f59e0b;
+            font-size: 0.85em;
+        }
+
+        .color-card {
+            background: #252535;
+            border-radius: 12px;
+            padding: 15px;
+            text-align: center;
+            flex-shrink: 0;
+            border: 1px solid #2a2a3e;
+        }
+
+        .color-label {
+            font-weight: bold;
+            color: #e0e0e0;
+            margin-bottom: 10px;
+            font-size: 1em;
+        }
+
+        .color-preview {
+            height: 50px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            border: 2px solid #3a3a4e;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+        }
+
+        .color-values {
+            margin-bottom: 12px;
+        }
+
+        .color-value {
+            font-size: 1em;
+            color: #818cf8;
+            font-weight: bold;
+            margin: 6px 0;
+            user-select: all;
+            padding: 6px;
+            background: #1a1a26;
+            border-radius: 6px;
+            border: 1px solid #2a2a3e;
+        }
+
+        .color-format-label {
+            font-size: 0.75em;
+            color: #888899;
+            font-weight: normal;
+            display: block;
+            margin-bottom: 2px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .copy-button {
+            background: #10b981;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.8em;
+            transition: all 0.2s ease;
+            flex: 1;
+            min-width: 100px;
+        }
+
+        .copy-button:hover {
+            background: #059669;
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+
+        .copy-button.copied {
+            background: #6366f1;
+        }
+
+        @media (max-width: 968px) {
+            .content-wrapper {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                width: 100%;
+                max-height: 50%;
+                flex-shrink: 0;
+            }
+
+            .color-card {
+                display: grid;
+                grid-template-columns: 120px 1fr;
+                gap: 15px;
+                text-align: left;
+            }
+
+            .color-preview {
+                height: auto;
+                min-height: 50px;
+            }
+
+            .color-info-section {
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+            }
+
+            .button-group {
+                justify-content: flex-start;
+            }
+
+            .copy-button {
+                flex: 0;
+                min-width: auto;
+            }
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 1.3em;
+                margin-bottom: 10px;
+            }
+
+            .upload-area {
+                padding: 15px;
+            }
+
+            .upload-icon {
+                font-size: 1.5em;
+            }
+
+            .upload-text {
+                font-size: 0.85em;
+            }
+
+            .container {
+                padding: 15px;
+            }
+
+            .sidebar {
+                width: 100%;
+            }
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #10b981;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            opacity: 0;
+            transform: translateY(-20px);
+            transition: all 0.3s ease;
+            z-index: 1000;
+            font-size: 0.9em;
+        }
+
+        .notification.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        /* Custom scrollbar for sidebar */
+        .sidebar::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .sidebar::-webkit-scrollbar-track {
+            background: #1a1a26;
+            border-radius: 10px;
+        }
+
+        .sidebar::-webkit-scrollbar-thumb {
+            background: #4a4a5e;
+            border-radius: 10px;
+        }
+
+        .sidebar::-webkit-scrollbar-thumb:hover {
+            background: #5a5a6e;
+        }
+    </style>
+</head>
+<body>
+    <div class="notification" id="notification"></div>
+    
+    <div class="container">
+        <h1>🎨 Easy Color Picker</h1>
+        
+        <div class="upload-section">
+            <div class="upload-area" id="uploadArea">
+                <div class="upload-icon">📁</div>
+                <div class="upload-text">
+                    Click to upload or drag & drop an image
+                    <span style="display: block; font-size: 0.85em; margin-top: 3px;">or press Ctrl+V to paste</span>
+                </div>
+            </div>
+            <input type="file" id="fileInput" accept="image/*">
+        </div>
+
+        <div class="content-wrapper">
+            <div class="canvas-container" id="canvasContainer">
+                <div class="canvas-wrapper" id="canvasWrapper">
+                    <canvas id="canvas"></canvas>
+                </div>
+            </div>
+
+            <div class="sidebar" id="sidebar">
+                <!-- <div class="instructions">
+                    💡 <strong>Tip:</strong> Click on the image to pick a color
+                </div> -->
+
+                <div class="color-card">
+                    <div class="color-preview" id="selectedColor"></div>
+                    <div class="color-info-section">
+                        <div class="color-label">Selected Color</div>
+                        <div class="color-values">
+                            <span class="color-format-label">HEX</span>
+                            <div class="color-value" id="selectedHex">#000000</div>
+                            <span class="color-format-label">RGB</span>
+                            <div class="color-value" id="selectedRgb">rgb(0, 0, 0)</div>
+                        </div>
+                        <div class="button-group">
+                            <button class="copy-button" onclick="copyToClipboard('selected', 'hex')">
+                                📋 Copy HEX
+                            </button>
+                            <button class="copy-button" onclick="copyToClipboard('selected', 'rgb')">
+                                📋 Copy RGB
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="color-card">
+                    <div class="color-preview" id="complementaryColor"></div>
+                    <div class="color-info-section">
+                        <div class="color-label">Complementary Color</div>
+                        <div class="color-values">
+                            <span class="color-format-label">HEX</span>
+                            <div class="color-value" id="complementaryHex">#FFFFFF</div>
+                            <span class="color-format-label">RGB</span>
+                            <div class="color-value" id="complementaryRgb">rgb(255, 255, 255)</div>
+                        </div>
+                        <div class="button-group">
+                            <button class="copy-button" onclick="copyToClipboard('complementary', 'hex')">
+                                📋 Copy HEX
+                            </button>
+                            <button class="copy-button" onclick="copyToClipboard('complementary', 'rgb')">
+                                📋 Copy RGB
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        const canvasContainer = document.getElementById('canvasContainer');
+        const canvasWrapper = document.getElementById('canvasWrapper');
+        const sidebar = document.getElementById('sidebar');
+        const selectedColor = document.getElementById('selectedColor');
+        const selectedHex = document.getElementById('selectedHex');
+        const selectedRgb = document.getElementById('selectedRgb');
+        const complementaryColor = document.getElementById('complementaryColor');
+        const complementaryHex = document.getElementById('complementaryHex');
+        const complementaryRgb = document.getElementById('complementaryRgb');
+        const notification = document.getElementById('notification');
+
+        let currentImage = null;
+        let currentColors = {
+            selected: { r: 0, g: 0, b: 0 },
+            complementary: { r: 255, g: 255, b: 255 }
+        };
+
+        // Upload area click
+        uploadArea.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        // File input change
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file && file.type.startsWith('image/')) {
+                loadImage(file);
+            } else if (file) {
+                showNotification('Please select a valid image file', true);
+            }
+        });
+
+        // Drag and drop
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                loadImage(file);
+            } else {
+                showNotification('Please drop a valid image file', true);
+            }
+        });
+
+        // Paste functionality
+        document.addEventListener('paste', (e) => {
+            const items = e.clipboardData.items;
+            for (let item of items) {
+                if (item.type.startsWith('image/')) {
+                    const file = item.getAsFile();
+                    if (file) {
+                        loadImage(file);
+                    }
+                    break;
+                }
+            }
+        });
+
+        // Load image
+        function loadImage(file) {
+            console.log('Loading image:', file.name, file.type, file.size);
+            
+            const reader = new FileReader();
+            
+            reader.onerror = (error) => {
+                console.error('FileReader error:', error);
+                showNotification('Error reading file', true);
+            };
+            
+            reader.onload = (e) => {
+                console.log('File read successfully, creating image...');
+                const img = new Image();
+                
+                img.onerror = (error) => {
+                    console.error('Image load error:', error);
+                    showNotification('Error loading image', true);
+                };
+                
+                img.onload = () => {
+                    console.log('Image loaded successfully:', img.width, 'x', img.height);
+                    currentImage = img;
+                    
+                    // Wait a brief moment for layout to settle
+                    setTimeout(() => {
+                        drawImageOnCanvas(img);
+                        canvasContainer.classList.add('active');
+                        sidebar.classList.add('active');
+                        showNotification('Image loaded! Click to pick colors.');
+                    }, 50);
+                };
+                
+                img.src = e.target.result;
+            };
+            
+            reader.readAsDataURL(file);
+        }
+
+        // Draw image on canvas
+        function drawImageOnCanvas(img) {
+            console.log('Drawing image on canvas...');
+            
+            // Get the actual dimensions of the canvas wrapper
+            const wrapperWidth = canvasWrapper.clientWidth;
+            const wrapperHeight = canvasWrapper.clientHeight;
+            
+            console.log('Wrapper dimensions:', wrapperWidth, 'x', wrapperHeight);
+            
+            if (wrapperWidth === 0 || wrapperHeight === 0) {
+                console.error('Canvas wrapper has no dimensions yet');
+                // Try again after a short delay
+                setTimeout(() => drawImageOnCanvas(img), 100);
+                return;
+            }
+            
+            // Calculate available space (accounting for padding)
+            const maxWidth = wrapperWidth - 20;
+            const maxHeight = wrapperHeight - 20;
+            
+            let width = img.width;
+            let height = img.height;
+            
+            console.log('Original image size:', width, 'x', height);
+            console.log('Max available space:', maxWidth, 'x', maxHeight);
+
+            // Calculate scale to fit within container while maintaining aspect ratio
+            const scaleX = maxWidth / width;
+            const scaleY = maxHeight / height;
+            const scale = Math.min(scaleX, scaleY, 1); // Don't scale up, only down
+            
+            width = Math.floor(width * scale);
+            height = Math.floor(height * scale);
+            
+            console.log('Scaled canvas size:', width, 'x', height);
+
+            // Set canvas size
+            canvas.width = width;
+            canvas.height = height;
+            
+            // Clear canvas first
+            ctx.clearRect(0, 0, width, height);
+            
+            // Draw the image
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            console.log('Image drawn successfully');
+        }
+
+        // Redraw on window resize
+        let resizeTimeout;
+        window.addEventListener('resize', () => {
+            if (currentImage) {
+                clearTimeout(resizeTimeout);
+                resizeTimeout = setTimeout(() => {
+                    drawImageOnCanvas(currentImage);
+                }, 250);
+            }
+        });
+
+        // Canvas click event
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const x = Math.floor((e.clientX - rect.left) * scaleX);
+            const y = Math.floor((e.clientY - rect.top) * scaleY);
+
+            console.log('Clicked at:', x, y);
+
+            try {
+                const imageData = ctx.getImageData(x, y, 1, 1);
+                const pixel = imageData.data;
+
+                const r = pixel[0];
+                const g = pixel[1];
+                const b = pixel[2];
+
+                console.log('RGB:', r, g, b);
+
+                const hex = rgbToHex(r, g, b);
+                const rgb = `rgb(${r}, ${g}, ${b})`;
+                
+                const compR = 255 - r;
+                const compG = 255 - g;
+                const compB = 255 - b;
+                const compHex = rgbToHex(compR, compG, compB);
+                const compRgb = `rgb(${compR}, ${compG}, ${compB})`;
+
+                // Store current colors
+                currentColors.selected = { r, g, b };
+                currentColors.complementary = { r: compR, g: compG, b: compB };
+
+                displayColors(hex, rgb, compHex, compRgb);
+            } catch (error) {
+                console.error('Error getting pixel data:', error);
+                showNotification('Error reading color', true);
+            }
+        });
+
+        // RGB to Hex conversion
+        function rgbToHex(r, g, b) {
+            return '#' + [r, g, b].map(x => {
+                const hex = x.toString(16);
+                return hex.length === 1 ? '0' + hex : hex;
+            }).join('').toUpperCase();
+        }
+
+        // Display colors
+        function displayColors(hex, rgb, compHex, compRgb) {
+            selectedColor.style.backgroundColor = hex;
+            selectedHex.textContent = hex;
+            selectedRgb.textContent = rgb;
+            
+            complementaryColor.style.backgroundColor = compHex;
+            complementaryHex.textContent = compHex;
+            complementaryRgb.textContent = compRgb;
+
+            // Animate the color cards
+            const cards = document.querySelectorAll('.color-card');
+            cards.forEach(card => {
+                card.style.animation = 'none';
+                setTimeout(() => {
+                    card.style.animation = 'pulse 0.3s ease';
+                }, 10);
+            });
+        }
+
+        // Copy to clipboard
+        function copyToClipboard(colorType, format) {
+            let text = '';
+            
+            if (colorType === 'selected') {
+                if (format === 'hex') {
+                    text = selectedHex.textContent;
+                } else {
+                    text = selectedRgb.textContent;
+                }
+            } else {
+                if (format === 'hex') {
+                    text = complementaryHex.textContent;
+                } else {
+                    text = complementaryRgb.textContent;
+                }
+            }
+            
+            navigator.clipboard.writeText(text).then(() => {
+                showNotification(`Copied ${text} to clipboard!`);
+                
+                // Visual feedback on button
+                // const button = event.target;
+                // const originalText = button.textContent;
+                // button.classList.add('copied');
+                // button.textContent = '✓ Copied!';
+                
+                // setTimeout(() => {
+                //     button.classList.remove('copied');
+                //     button.textContent = originalText;
+                // }, 2000);
+            }).catch(err => {
+                console.error('Clipboard error:', err);
+                showNotification('Failed to copy to clipboard', true);
+            });
+        }
+
+        // Show notification
+        function showNotification(message, isError = false) {
+            console.log('Notification:', message);
+            notification.textContent = message;
+            notification.style.background = isError ? '#ef4444' : '#10b981';
+            notification.classList.add('show');
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
