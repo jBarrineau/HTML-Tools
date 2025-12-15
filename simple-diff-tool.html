@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vanilla JS Diff</title>
+    <style>
+        /* --- CSS for Dark Theme and Layout --- */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #1e1e1e; /* Dark background */
+            color: #d4d4d4; /* Light text */
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1200px;
+        }
+
+        h1 {
+            color: #569cd6;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .input-area {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .input-block {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .input-block label {
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #ce9178;
+        }
+
+        textarea {
+            background-color: #252526;
+            color: #d4d4d4;
+            border: 1px solid #3c3c3c;
+            padding: 15px;
+            font-size: 14px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            height: 300px;
+            resize: vertical;
+            transition: border-color 0.3s;
+            outline: none;
+            line-height: 1.5;
+        }
+
+        textarea:focus {
+            border-color: #569cd6;
+        }
+
+        button {
+            background-color: #569cd6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+            margin-bottom: 20px;
+        }
+
+        button:hover {
+            background-color: #4a8ac7;
+        }
+
+        /* --- Diff Output Styles --- */
+        .output-area {
+            display: flex;
+            gap: 20px;
+            /* Ensure the two output blocks scroll together horizontally */
+            overflow-x: auto; 
+        }
+
+        .output-block {
+            flex: 1;
+            background-color: #252526;
+            border: 1px solid #3c3c3c;
+            /* === SCROLLING IMPLEMENTATION START === */
+            max-height: 500px; /* Set a fixed max height for the viewable area */
+            overflow-y: auto;  /* Enable vertical scrolling when content exceeds max-height */
+            /* === SCROLLING IMPLEMENTATION END === */
+            min-height: 200px; 
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            padding: 0; 
+        }
+
+        /* Line Styles */
+        .line {
+            padding: 2px 10px;
+            border-bottom: 1px solid #2d2d2d;
+            white-space: pre; 
+            min-height: 1.5em;
+        }
+
+        /* Highlight classes */
+        .removed {
+            background-color: #3f1e1e;
+            color: #cc6666;
+            border-left: 3px solid #ff3333;
+        }
+
+        .added {
+            background-color: #1e3f1e;
+            color: #88cc88;
+            border-left: 3px solid #66ff66;
+        }
+
+        .unchanged {
+            background-color: #252526;
+            color: #d4d4d4;
+            border-left: 3px solid transparent;
+        }
+
+        .empty-placeholder {
+            background-color: #2d2d2d;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Vanilla JS Line-by-Line Diff Tool</h1>
+
+        <div class="input-area">
+            <div class="input-block">
+                <label for="text-a">Text Block A (Original)</label>
+                <textarea id="text-a" placeholder="Paste your original text here..."></textarea>
+            </div>
+            <div class="input-block">
+                <label for="text-b">Text Block B (Modified)</label>
+                <textarea id="text-b" placeholder="Paste your modified text here..."></textarea>
+            </div>
+        </div>
+
+        <button onclick="runDiff()">Compare Texts</button>
+
+        <h2>Diff Output</h2>
+        <div class="output-area">
+            <div id="output-a" class="output-block"></div>
+            <div id="output-b" class="output-block"></div>
+        </div>
+    </div>
+
+    <script>
+        // --- JAVASCRIPT LOGIC (LCS-based Diff) ---
+
+        /**
+         * Simple function to split text into an array of lines.
+         */
+        function getLines(text) {
+            return text.replace(/\r\n/g, '\n').split('\n');
+        }
+
+        /**
+         * Implements a simplified Longest Common Subsequence (LCS) algorithm
+         * to find the diff path between two sequences of lines.
+         */
+        function computeLCSMatrix(linesA, linesB) {
+            const m = linesA.length;
+            const n = linesB.length;
+            const dp = Array(m + 1).fill(0).map(() => Array(n + 1).fill(0));
+
+            for (let i = 1; i <= m; i++) {
+                for (let j = 1; j <= n; j++) {
+                    const normA = linesA[i - 1].trim();
+                    const normB = linesB[j - 1].trim();
+
+                    if (normA === normB && normA.length > 0) {
+                        dp[i][j] = dp[i - 1][j - 1] + 1;
+                    } else {
+                        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+                    }
+                }
+            }
+            return dp;
+        }
+
+        /**
+         * Reconstructs the diff sequence from the LCS matrix.
+         */
+        function reconstructDiff(dp, linesA, linesB) {
+            let i = linesA.length;
+            let j = linesB.length;
+
+            const outputALines = [];
+            const outputBLines = [];
+
+            while (i > 0 || j > 0) {
+                // Check for Match
+                if (i > 0 && j > 0 && linesA[i - 1].trim() === linesB[j - 1].trim() && linesA[i - 1].trim().length > 0) {
+                    const line = linesA[i - 1];
+                    const htmlLine = `<div class="line unchanged">${line.length > 0 ? line : '&nbsp;'}</div>`;
+                    outputALines.push(htmlLine);
+                    outputBLines.push(htmlLine);
+                    i--;
+                    j--;
+                } 
+                // Check for Insertion (in B)
+                else if (j > 0 && (i === 0 || dp[i][j] === dp[i][j - 1])) {
+                    const lineB = linesB[j - 1];
+                    outputALines.push(`<div class="line empty-placeholder">&nbsp;</div>`);
+                    outputBLines.push(`<div class="line added">${lineB.length > 0 ? lineB : '&nbsp;'}</div>`);
+                    j--;
+                } 
+                // Check for Deletion (from A)
+                else if (i > 0 && (j === 0 || dp[i][j] === dp[i - 1][j])) {
+                    const lineA = linesA[i - 1];
+                    outputALines.push(`<div class="line removed">${lineA.length > 0 ? lineA : '&nbsp;'}</div>`);
+                    outputBLines.push(`<div class="line empty-placeholder">&nbsp;</div>`);
+                    i--;
+                }
+            }
+
+            return {
+                htmlA: outputALines.reverse().join(''),
+                htmlB: outputBLines.reverse().join('')
+            };
+        }
+
+
+        function runDiff() {
+            const textA = document.getElementById('text-a').value;
+            const textB = document.getElementById('text-b').value;
+            const outputA = document.getElementById('output-a');
+            const outputB = document.getElementById('output-b');
+
+            outputA.innerHTML = '';
+            outputB.innerHTML = '';
+
+            const linesA = getLines(textA);
+            const linesB = getLines(textB);
+
+            if (linesA.length === 0 && linesB.length === 0) {
+                 outputA.innerHTML = '<div class="line unchanged">Please enter text to compare.</div>';
+                 outputB.innerHTML = '<div class="line unchanged">Please enter text to compare.</div>';
+                 return;
+            }
+
+            const dp = computeLCSMatrix(linesA, linesB);
+            const { htmlA, htmlB } = reconstructDiff(dp, linesA, linesB);
+
+            outputA.innerHTML = htmlA;
+            outputB.innerHTML = htmlB;
+        }
+
+        // Add some default text for easy testing and run on load
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('text-a').value = 
+                'function initialize() {\n' +
+                '  // This is a comment\n' +
+                '  let x = 10;\n' +
+                '  console.log("Starting up...");\n' +
+                '  // New lines will go here\n' +
+                '  return x;\n' +
+                '}\n' +
+                // Adding enough lines to ensure scrolling is triggered
+                'Line 7\nLine 8\nLine 9\nLine 10\nLine 11\nLine 12\nLine 13\nLine 14\nLine 15\nLine 16\nLine 17\nLine 18\nLine 19\nLine 20\nLine 21\nLine 22\nLine 23\nLine 24\nLine 25\nLine 26\nLine 27\nLine 28\nLine 29\nLine 30';
+
+            document.getElementById('text-b').value = 
+                'function initialize() {\n' +
+                '  let y = 20; // Changed var name\n' +
+                '  console.log("Starting up...");\n' +
+                '  console.log("Processing data...");\n' +
+                '  return x + y;\n' +
+                '}\n' +
+                // Adding enough lines to ensure scrolling is triggered and diff is visible
+                'Line 7\nLine 8 changed\nLine 9\nLine 10\nLine 11\nLine 12\nLine 13\nLine 14\nLine 15\nLine 16\nLine 17\nLine 18\nLine 19\nLine 20\nLine 21\nLine 22\nLine 23\nLine 24\nLine 25\nLine 26\nLine 27\nLine 28\nLine 29\nLine 30';
+                
+            runDiff();
+        });
+
+    </script>
+</body>
+</html>
