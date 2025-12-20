@@ -1,0 +1,1911 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Power Apps Timeline Viewer</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #0b0c0f;
+      --panel: #12141a;
+      --panel-2: #0f1116;
+      --text: #e8eaf0;
+      --muted: #a6adbf;
+      --line: rgba(255, 255, 255, 0.10);
+      --line-2: rgba(255, 255, 255, 0.16);
+      --accent: #742774;
+      --accent-2: #00BCB4;
+      --accent-3: #0078D4;
+      --good: #107C10;
+      --warn: #FFB900;
+      --bad: #D13438;
+      --shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+        "Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial,
+        "Apple Color Emoji", "Segoe UI Emoji";
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #faf9f8;
+        --panel: #ffffff;
+        --panel-2: #ffffff;
+        --text: #201f1e;
+        --muted: #605e5c;
+        --line: rgba(0, 0, 0, 0.12);
+        --line-2: rgba(0, 0, 0, 0.18);
+        --shadow: 0 18px 50px rgba(0, 0, 0, 0.10);
+      }
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: var(--sans);
+      background: radial-gradient(1200px 600px at 10% -10%, rgba(116, 39, 116, 0.18), transparent 45%),
+        radial-gradient(1200px 600px at 90% -20%, rgba(0, 188, 180, 0.16), transparent 50%),
+        var(--bg);
+      color: var(--text);
+    }
+
+    .wrap {
+      max-width: none;
+      margin: 0;
+      padding: 22px 16px 42px;
+    }
+
+    header {
+      display: grid;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(22px, 3vw, 32px);
+      letter-spacing: 0.2px;
+    }
+
+    .sub {
+      margin: 6px 0 0;
+      color: var(--muted);
+      line-height: 1.35;
+      max-width: 70ch;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: flex-start;
+    }
+
+    .controls .field {
+      display: grid;
+      gap: 4px;
+      min-width: 180px;
+    }
+
+    .label {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    input[type="search"], input[type="number"], select {
+      font: inherit;
+      color: inherit;
+      border: 1px solid var(--line);
+      background: color-mix(in srgb, var(--panel) 92%, transparent);
+      border-radius: 10px;
+      padding: 10px 11px;
+      outline: none;
+    }
+
+    input[type="search"]:focus, input[type="number"]:focus, select:focus {
+      border-color: color-mix(in srgb, var(--accent) 60%, var(--line));
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+    }
+
+    .segmented {
+      display: inline-flex;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      overflow: hidden;
+      background: color-mix(in srgb, var(--panel) 92%, transparent);
+    }
+
+    .segmented button {
+      border: none;
+      padding: 9px 12px;
+      font: inherit;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      min-width: 74px;
+    }
+
+    .segmented button.active {
+      background: color-mix(in srgb, var(--accent) 16%, transparent);
+      color: var(--text);
+    }
+
+    .segmented button:focus-visible {
+      outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
+      outline-offset: -2px;
+    }
+
+    .btn {
+      border: 1px solid var(--line);
+      background: color-mix(in srgb, var(--panel) 92%, transparent);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font: inherit;
+      cursor: pointer;
+      transition: transform 80ms ease, border-color 120ms ease;
+    }
+
+    
+    .btn:hover { border-color: var(--line-2); }
+    .btn:active { transform: translateY(1px); }
+    .btn.primary {
+      border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+      background: color-mix(in srgb, var(--accent) 14%, transparent);
+    }
+
+    .btn:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .btnclear {background-color: color-mix(in srgb, var(--accent) 8%, transparent);}
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+    }
+
+    .input-panel {
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+
+    .filters-panel {
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+
+    .dropzone {
+      border: 1px dashed color-mix(in srgb, var(--accent) 40%, var(--line));
+      border-radius: 14px;
+      background: linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--accent) 12%, transparent),
+        transparent 45%,
+        color-mix(in srgb, var(--accent-2) 10%, transparent)
+      );
+      padding: 16px;
+      display: grid;
+      gap: 6px;
+      cursor: pointer;
+      min-height: 124px;
+      align-content: center;
+    }
+
+    .dropzone.dragover {
+      border-style: solid;
+      border-color: color-mix(in srgb, var(--accent) 70%, var(--line));
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+    }
+
+    .dropzone strong { font-size: 15px; }
+    .muted { color: var(--muted); }
+    .tiny { font-size: 12px; color: var(--muted); }
+
+    .status {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: color-mix(in srgb, var(--panel-2) 94%, transparent);
+      display: none;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .status.visible { display: block; }
+    .status.error { border-color: color-mix(in srgb, var(--bad) 60%, var(--line)); }
+    .status.good { border-color: color-mix(in srgb, var(--good) 55%, var(--line)); }
+    .status.warn { border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); }
+
+    main {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: 1fr;
+      min-height: 560px;
+    }
+
+    @media (min-width: 1060px) {
+      main {
+        grid-template-columns: 1fr 520px;
+        align-items: stretch;
+      }
+    }
+
+    .timeline-panel {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      min-height: 560px;
+    }
+
+    .stats {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .stats .big {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .timeline {
+      overflow: auto;
+      padding: 8px 0;
+    }
+
+    .timeline:focus-visible {
+      outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
+      outline-offset: -2px;
+      border-radius: 14px;
+    }
+
+    .day-sep {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      padding: 8px 14px;
+      background: color-mix(in srgb, var(--panel) 92%, transparent);
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      font-size: 12px;
+      color: var(--muted);
+      backdrop-filter: blur(6px);
+    }
+
+    .event {
+      display: grid;
+      grid-template-columns: 176px 1fr;
+      gap: 12px;
+      padding: 10px 14px;
+      border-bottom: 1px solid color-mix(in srgb, var(--line) 85%, transparent);
+      cursor: pointer;
+    }
+
+    .event:hover { background: color-mix(in srgb, var(--accent) 6%, transparent); }
+    .event.selected {
+      background: color-mix(in srgb, var(--accent) 12%, transparent);
+      outline: 2px solid color-mix(in srgb, var(--accent) 35%, transparent);
+      outline-offset: -2px;
+    }
+
+    .time {
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.35;
+      color: var(--muted);
+      display: grid;
+      gap: 3px;
+    }
+
+    .time .ts {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .badges {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .badge {
+      font-size: 17px;
+      font-family: var(--mono);
+      padding: 3px 11px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      background: color-mix(in srgb, var(--panel-2) 90%, transparent);
+    }
+
+    .badge.cat-Function { border-color: color-mix(in srgb, #107C10 55%, var(--line)); color: color-mix(in srgb, #107C10 78%, var(--text)); }
+    .badge.cat-Network { border-color: color-mix(in srgb, #00BCB4 55%, var(--line)); color: color-mix(in srgb, #00BCB4 78%, var(--text)); }
+    .badge.cat-ScreenLoad { border-color: color-mix(in srgb, #742774 55%, var(--line)); color: color-mix(in srgb, #742774 78%, var(--text)); }
+    .badge.cat-Performance { border-color: color-mix(in srgb, #FFB900 55%, var(--line)); color: color-mix(in srgb, #FFB900 75%, var(--text)); }
+    .badge.cat-UserAction { border-color: color-mix(in srgb, #E3008C 55%, var(--line)); color: color-mix(in srgb, #E3008C 78%, var(--text)); }
+    .badge.cat-DataOperation { border-color: color-mix(in srgb, #0078D4 55%, var(--line)); color: color-mix(in srgb, #0078D4 78%, var(--text)); }
+
+    .badge.level-0 { border-color: color-mix(in srgb, var(--muted) 55%, var(--line)); color: var(--muted); }
+    .badge.level-2 { border-color: color-mix(in srgb, var(--accent-3) 55%, var(--line)); color: color-mix(in srgb, var(--accent-3) 75%, var(--text)); }
+    .badge.level-3 { border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); color: color-mix(in srgb, var(--warn) 75%, var(--text)); }
+    .badge.level-4 { border-color: color-mix(in srgb, var(--bad) 55%, var(--line)); color: color-mix(in srgb, var(--bad) 75%, var(--text)); }
+
+    .detail {
+      display: grid;
+      grid-template-rows: auto auto auto 1fr;
+      min-height: 560px;
+    }
+
+    @media (min-width: 1060px) {
+      .detail {
+        position: sticky;
+        top: 16px;
+        align-self: start;
+        max-height: calc(100vh - 32px);
+      }
+    }
+
+    .detail.inline {
+      position: static;
+      top: auto;
+      align-self: auto;
+      max-height: none;
+      min-height: 0;
+      margin: 8px 14px 12px;
+      box-shadow: none;
+    }
+
+    .detail.inline pre {
+      max-height: 52vh;
+    }
+
+    .detail-head {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      display: grid;
+      gap: 8px;
+    }
+
+    .detail-title {
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1.25;
+      margin: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .detail-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: flex-start;
+    }
+
+    .check {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 12px;
+      user-select: none;
+    }
+
+    .detail-pretty {
+      padding: 14px;
+      border-bottom: 1px solid var(--line);
+      overflow: auto;
+      max-height: 50vh;
+    }
+
+    .detail.inline .detail-pretty {
+      max-height: 40vh;
+    }
+
+    .pretty-section {
+      margin-bottom: 14px;
+    }
+
+    .pretty-section:last-child {
+      margin-bottom: 0;
+    }
+
+    .pretty-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .pretty-content {
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .pretty-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    .pretty-table th,
+    .pretty-table td {
+      border: 1px solid var(--line);
+      padding: 6px 8px;
+      text-align: left;
+    }
+
+    .pretty-table th {
+      background: color-mix(in srgb, var(--panel-2) 85%, transparent);
+      font-weight: 600;
+      font-family: var(--mono);
+      color: var(--accent);
+    }
+
+    .pretty-table td {
+      font-family: var(--mono);
+      font-size: 11px;
+      word-break: break-word;
+    }
+
+    .pretty-table tr:hover {
+      background: color-mix(in srgb, var(--accent) 6%, transparent);
+    }
+
+    pre {
+      margin: 0;
+      padding: 12px 14px 16px;
+      overflow: auto;
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.45;
+      color: color-mix(in srgb, var(--text) 92%, transparent);
+      background: transparent;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .empty {
+      padding: 14px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    .json-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 14px;
+      border-bottom: 1px solid var(--line);
+      background: color-mix(in srgb, var(--panel-2) 50%, transparent);
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .json-toggle:hover {
+      background: color-mix(in srgb, var(--panel-2) 70%, transparent);
+    }
+
+    .json-toggle-label {
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    .json-toggle-icon {
+      font-size: 12px;
+      color: var(--muted);
+      transition: transform 150ms ease;
+    }
+
+    .json-toggle.expanded .json-toggle-icon {
+      transform: rotate(180deg);
+    }
+
+    .json-content {
+      display: none;
+      overflow-y: auto;
+    }
+
+    .json-content.expanded {
+      display: block;
+    }
+
+    .session-info {
+      display: grid;
+      gap: 8px;
+      padding: 12px 14px;
+      background: color-mix(in srgb, var(--accent) 8%, transparent);
+      border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line));
+      border-radius: 12px;
+      margin-bottom: 14px;
+      font-size: 12px;
+    }
+
+    .session-info .info-row {
+      display: flex;
+      gap: 8px;
+      align-items: baseline;
+    }
+
+    .session-info .info-label {
+      font-weight: 600;
+      color: var(--muted);
+      min-width: 80px;
+    }
+
+    .session-info .info-value {
+      font-family: var(--mono);
+      color: var(--text);
+    }
+
+    .duration-badge {
+      font-size: 17px;
+      font-family: var(--mono);
+      padding: 3px 9px;
+      border-radius: 4px;
+      background: color-mix(in srgb, var(--accent-2) 16%, transparent);
+      border: 1px solid color-mix(in srgb, var(--accent-2) 40%, var(--line));
+      color: var(--text);
+      margin-left: auto;
+    }
+
+    .duration-badge.slow {
+      background: color-mix(in srgb, var(--warn) 16%, transparent);
+      border-color: color-mix(in srgb, var(--warn) 50%, var(--line));
+    }
+
+    .duration-badge.very-slow {
+      background: color-mix(in srgb, var(--bad) 16%, transparent);
+      border-color: color-mix(in srgb, var(--bad) 50%, var(--line));
+    }
+
+    .size-badge {
+      font-size: 17px;
+      font-family: var(--mono);
+      padding: 3px 9px;
+      border-radius: 4px;
+      background: color-mix(in srgb, var(--accent-3) 16%, transparent);
+      border: 1px solid color-mix(in srgb, var(--accent-3) 40%, var(--line));
+      color: var(--text);
+      margin-left: 6px;
+    }
+
+    .size-badge.large {
+      background: color-mix(in srgb, var(--warn) 16%, transparent);
+      border-color: color-mix(in srgb, var(--warn) 50%, var(--line));
+    }
+
+    .size-badge.very-large {
+      background: color-mix(in srgb, var(--bad) 16%, transparent);
+      border-color: color-mix(in srgb, var(--bad) 50%, var(--line));
+    }
+
+    .datasource-badge {
+      font-size: 17px;
+      font-family: var(--mono);
+      padding: 3px 9px;
+      border-radius: 4px;
+      background: color-mix(in srgb, var(--accent-3) 16%, transparent);
+      border: 1px solid color-mix(in srgb, var(--accent-3) 40%, var(--line));
+      color: var(--text);
+      margin-left: 6px;
+    }
+
+    .entity-badge {
+      font-size: 17px;
+      font-family: var(--mono);
+      padding: 3px 9px;
+      border-radius: 4px;
+      background: color-mix(in srgb, var(--accent-2) 16%, transparent);
+      border: 1px solid color-mix(in srgb, var(--accent-2) 40%, var(--line));
+      color: var(--text);
+      margin-left: 6px;
+    }
+
+    .property-badge {
+      font-size: 17px;
+      font-family: var(--mono);
+      padding: 3px 9px;
+      border-radius: 4px;
+      background: color-mix(in srgb, var(--accent) 16%, transparent);
+      border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line));
+      color: var(--text);
+      margin-left: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>Power Apps Timeline Viewer</h1>
+        <p class="sub">Upload a Power Apps trace JSON file to explore events in an interactive timeline. Times are shown in UTC by default.</p>
+      </div>
+    </header>
+
+    <section class="panel input-panel" aria-label="Input">
+      <div id="dropzone" class="dropzone" tabindex="0">
+        <strong>Drop a JSON file here</strong>
+        <div class="muted">or click to choose a file</div>
+        <div class="tiny">Supports Power Apps trace JSON files (.json)</div>
+        <input id="file-input" type="file" accept=".json,application/json" hidden />
+      </div>
+
+      <div id="status" class="status" role="status" aria-live="polite"></div>
+    </section>
+
+    <div id="session-info" class="session-info" hidden>
+      <div class="info-row">
+        <span class="info-label">Session ID:</span>
+        <span class="info-value" id="session-id">-</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Version:</span>
+        <span class="info-value" id="session-version">-</span>
+      </div>
+    </div>
+
+    <section class="panel filters-panel" aria-label="Filters">
+      <div class="controls" aria-label="Timeline controls">
+        <div class="field" style="min-width: 150px">
+          <div class="label">Timezone</div>
+          <div class="segmented" role="group" aria-label="Timezone toggle">
+            <button type="button" id="tz-local">Local</button>
+            <button type="button" id="tz-utc" class="active">UTC</button>
+          </div>
+        </div>
+        <div class="field" style="min-width: 220px">
+          <div class="label">Search</div>
+          <input id="search" type="search" placeholder="Search events..." autocomplete="off" />
+        </div>
+        <div class="field" style="min-width: 190px">
+          <div class="label">Category</div>
+          <select id="category-filter"></select>
+        </div>
+        <div class="field" style="min-width: 160px">
+          <div class="label">Log Level</div>
+          <select id="level-filter"></select>
+        </div>
+        <div class="field" style="min-width: 180px">
+          <div class="label">Data Source</div>
+          <select id="datasource-filter"></select>
+        </div>
+        <div class="field" style="min-width: 200px">
+          <div class="label">Sort By</div>
+          <select id="sort-by"></select>
+        </div>
+        <div class="field" style="min-width: 60px">
+          <div class="label">Clear Filters</div>
+          <button type="button" class="btn btnclear" id="clear-filters">Clear</button>
+        </div>
+      </div>
+    </section>
+
+    <main>
+      <section class="panel timeline-panel" aria-label="Timeline">
+        <div class="stats">
+          <div class="big"><span id="stats-showing">0</span> <span class="muted">showing</span> <span class="muted">/</span> <span id="stats-total">0</span> <span class="muted">events</span></div>
+          <div class="muted" id="stats-range">-</div>
+        </div>
+        <div id="timeline" class="timeline" role="list" tabindex="0" aria-label="Events list"></div>
+      </section>
+
+      <aside class="panel detail" aria-label="Details">
+        <div class="detail-head">
+          <div class="detail-title" id="detail-title">Select an event</div>
+          <div class="detail-actions">
+            <button type="button" class="btn" id="copy-json" disabled>Copy JSON</button>
+            <label class="check" title="Truncate very long strings in the JSON preview">
+              <input type="checkbox" id="truncate-strings" checked />
+              Truncate long strings
+            </label>
+          </div>
+        </div>
+        <div id="detail-pretty" class="detail-pretty" hidden aria-label="Formatted event view"></div>
+        <div id="json-toggle" class="json-toggle" role="button" tabindex="0" aria-expanded="false" aria-controls="json-content">
+          <span class="json-toggle-label">Raw JSON</span>
+          <span class="json-toggle-icon">▼</span>
+        </div>
+        <div id="json-content" class="json-content">
+          <pre id="detail-json" aria-label="Selected event JSON" class="empty">Load a file to get started.</pre>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <script>
+    const els = {
+      dropzone: document.getElementById('dropzone'),
+      fileInput: document.getElementById('file-input'),
+      status: document.getElementById('status'),
+      sessionInfo: document.getElementById('session-info'),
+      sessionId: document.getElementById('session-id'),
+      sessionVersion: document.getElementById('session-version'),
+      timeline: document.getElementById('timeline'),
+      detailPanel: document.querySelector('aside.detail'),
+      detailTitle: document.getElementById('detail-title'),
+      detailPretty: document.getElementById('detail-pretty'),
+      detailJson: document.getElementById('detail-json'),
+      jsonToggle: document.getElementById('json-toggle'),
+      jsonContent: document.getElementById('json-content'),
+      copyJson: document.getElementById('copy-json'),
+      truncateStrings: document.getElementById('truncate-strings'),
+      tzLocal: document.getElementById('tz-local'),
+      tzUtc: document.getElementById('tz-utc'),
+      search: document.getElementById('search'),
+      categoryFilter: document.getElementById('category-filter'),
+      levelFilter: document.getElementById('level-filter'),
+      dataSourceFilter: document.getElementById('datasource-filter'),
+      sortBy: document.getElementById('sort-by'),
+      statsShowing: document.getElementById('stats-showing'),
+      statsTotal: document.getElementById('stats-total'),
+      statsRange: document.getElementById('stats-range'),
+      clearFilters: document.getElementById('clear-filters'),
+    };
+
+    const state = {
+      sourceLabel: null,
+      tzMode: 'utc',
+      sessionId: null,
+      version: null,
+      events: [],
+      filtered: [],
+      selectedId: null,
+      selected: null,
+      sortBy: 'timestamp',
+      filters: {
+        query: '',
+        category: 'all',
+        level: 'all',
+        dataSource: 'all',
+      },
+    };
+
+    let suppressUrlStateSync = false;
+    const wideLayoutMq = window.matchMedia('(min-width: 1060px)');
+    const detailDock = document.createElement('div');
+    detailDock.id = 'detail-dock';
+    detailDock.style.display = 'none';
+    els.detailPanel.parentElement.insertBefore(detailDock, els.detailPanel);
+
+    function updateDetailPlacement() {
+      const inline = !wideLayoutMq.matches;
+
+      if (!inline) {
+        if (els.detailPanel.previousSibling !== detailDock) detailDock.after(els.detailPanel);
+        els.detailPanel.classList.remove('inline');
+        return;
+      }
+
+      const selectedNode = els.timeline.querySelector('.event.selected');
+      if (!selectedNode) {
+        if (els.detailPanel.previousSibling !== detailDock) detailDock.after(els.detailPanel);
+        els.detailPanel.classList.remove('inline');
+        return;
+      }
+
+      if (selectedNode.nextSibling !== els.detailPanel) selectedNode.after(els.detailPanel);
+      els.detailPanel.classList.add('inline');
+    }
+
+    function setStatus(message, kind = 'good') {
+      if (!message) {
+        els.status.className = 'status';
+        els.status.textContent = '';
+        return;
+      }
+      els.status.className = `status visible ${kind}`;
+      els.status.textContent = message;
+    }
+
+    function pad2(number) {
+      return String(number).padStart(2, '0');
+    }
+
+    function pad3(number) {
+      return String(number).padStart(3, '0');
+    }
+
+    function getOffsetString(date) {
+      const offsetMinutes = -date.getTimezoneOffset();
+      const sign = offsetMinutes >= 0 ? '+' : '-';
+      const abs = Math.abs(offsetMinutes);
+      const hours = Math.floor(abs / 60);
+      const minutes = abs % 60;
+      return `${sign}${pad2(hours)}:${pad2(minutes)}`;
+    }
+
+    function formatTimestamp(date, tzMode) {
+      if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '-';
+      if (tzMode === 'utc') {
+        return `${date.getUTCFullYear()}-${pad2(date.getUTCMonth() + 1)}-${pad2(date.getUTCDate())} ` +
+          `${pad2(date.getUTCHours())}:${pad2(date.getUTCMinutes())}:${pad2(date.getUTCSeconds())}.` +
+          `${pad3(date.getUTCMilliseconds())}Z`;
+      }
+      return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())} ` +
+        `${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(date.getSeconds())}.` +
+        `${pad3(date.getMilliseconds())} ${getOffsetString(date)}`;
+    }
+
+    function dayKey(date, tzMode) {
+      if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '-';
+      if (tzMode === 'utc') {
+        return `${date.getUTCFullYear()}-${pad2(date.getUTCMonth() + 1)}-${pad2(date.getUTCDate())}`;
+      }
+      return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+    }
+
+    function formatDelta(ms) {
+      if (typeof ms !== 'number' || !Number.isFinite(ms)) return '';
+      const abs = Math.abs(ms);
+      const sign = ms < 0 ? '-' : '+';
+      if (abs < 1000) return `${sign}${Math.round(abs)}ms`;
+      if (abs < 60_000) return `${sign}${(abs / 1000).toFixed(abs < 10_000 ? 2 : 1)}s`;
+      if (abs < 3_600_000) {
+        const m = Math.floor(abs / 60_000);
+        const s = Math.floor((abs % 60_000) / 1000);
+        return `${sign}${m}m ${pad2(s)}s`;
+      }
+      if (abs < 86_400_000) {
+        const h = Math.floor(abs / 3_600_000);
+        const m = Math.floor((abs % 3_600_000) / 60_000);
+        return `${sign}${h}h ${m}m`;
+      }
+      const d = Math.floor(abs / 86_400_000);
+      const h = Math.floor((abs % 86_400_000) / 3_600_000);
+      return `${sign}${d}d ${h}h`;
+    }
+
+    function formatDuration(ms) {
+      if (typeof ms !== 'number' || !Number.isFinite(ms)) return '';
+      if (ms < 1) return `${ms.toFixed(2)}ms`;
+      if (ms < 1000) return `${ms.toFixed(1)}ms`;
+      if (ms < 60_000) return `${(ms / 1000).toFixed(2)}s`;
+      const m = Math.floor(ms / 60_000);
+      const s = ((ms % 60_000) / 1000).toFixed(1);
+      return `${m}m ${s}s`;
+    }
+
+    function safeJsonParse(text) {
+      try {
+        return { ok: true, value: JSON.parse(text) };
+      } catch (error) {
+        return { ok: false, error };
+      }
+    }
+
+    function getLevelName(level) {
+      const levels = {
+        0: 'Verbose',
+        1: 'Info',
+        2: 'Info',
+        3: 'Warning',
+        4: 'Error'
+      };
+      return levels[level] || `Level ${level}`;
+    }
+
+    function extractDuration(event) {
+      const data = event.data;
+      if (!data || typeof data !== 'object') return null;
+
+      if (typeof data.duration === 'number') return data.duration;
+
+      if (data.response && typeof data.response.duration === 'number') {
+        return data.response.duration;
+      }
+
+      return null;
+    }
+
+    function extractResponseSize(event) {
+      const data = event.data;
+      if (!data || typeof data !== 'object') return null;
+
+      if (data.response && typeof data.response.size === 'number') {
+        return data.response.size;
+      }
+
+      return null;
+    }
+
+    function extractEntityName(event) {
+      const data = event.data;
+      if (!data || typeof data !== 'object') return null;
+
+      if (data.context && typeof data.context.entityName === 'string') {
+        return data.context.entityName;
+      }
+
+      return null;
+    }
+
+    function extractPropertyName(event) {
+      const data = event.data;
+      if (!data || typeof data !== 'object') return null;
+
+      if (data.context && typeof data.context.propertyName === 'string') {
+        return data.context.propertyName;
+      }
+
+      return null;
+    }
+
+    function extractDataSource(event) {
+      const data = event.data;
+      if (!data || typeof data !== 'object') return null;
+
+      if (data.context &&
+          typeof data.context === 'object' &&
+          data.context.diagnosticContext &&
+          typeof data.context.diagnosticContext === 'object' &&
+          data.context.diagnosticContext.dataOperation &&
+          typeof data.context.diagnosticContext.dataOperation === 'object' &&
+          typeof data.context.diagnosticContext.dataOperation.dataSource === 'string') {
+        return data.context.diagnosticContext.dataOperation.dataSource;
+      }
+
+      return null;
+    }
+
+    function formatSize(bytes) {
+      if (typeof bytes !== 'number' || !Number.isFinite(bytes)) return '';
+      if (bytes < 1024) return `${bytes}B`;
+      const kb = bytes / 1024;
+      if (kb < 1024) return `${kb.toFixed(1)}KB`;
+      const mb = kb / 1024;
+      return `${mb.toFixed(2)}MB`;
+    }
+
+    function summarizeEvent(msg) {
+      const category = msg.category || 'Unknown';
+      const name = msg.name || 'Event';
+      const data = msg.data || {};
+
+      const duration = extractDuration(msg);
+
+      if (category === 'Network') {
+        const url = data.request?.url || '';
+        const urlObj = url ? new URL(url) : null;
+        const path = urlObj ? urlObj.pathname : url;
+        return `${name}: ${path}`;
+      }
+
+      if (category === 'ScreenLoad') {
+        return `${name}`;
+      }
+
+      if (category === 'UserAction') {
+        const entityName = data.context?.entityName || '';
+        return entityName ? `${name} (${entityName})` : name;
+      }
+
+      if (category === 'Function') {
+        const info = data.info || '';
+        return info ? `${name}: ${info}` : name;
+      }
+
+      if (data.info) {
+        return `${name}: ${data.info}`;
+      }
+
+      if (data.context?.entityName) {
+        return `${name} (${data.context.entityName})`;
+      }
+
+      return name;
+    }
+
+    function buildSearchText(msg, summary) {
+      const pieces = [];
+      pieces.push(msg.category || '');
+      pieces.push(msg.name || '');
+      pieces.push(summary || '');
+
+      // Recursive function to extract all string values from nested objects
+      function extractStrings(obj, depth = 0) {
+        if (depth > 10) return; // Prevent infinite recursion
+        if (!obj || typeof obj !== 'object') return;
+
+        for (const [key, value] of Object.entries(obj)) {
+          if (typeof value === 'string' && value) {
+            if (!pieces.includes(value)) {
+              pieces.push(value);
+            }
+          } else if (typeof value === 'number') {
+            pieces.push(String(value));
+          } else if (typeof value === 'object' && value !== null) {
+            extractStrings(value, depth + 1);
+          }
+        }
+      }
+
+      const data = msg.data;
+      if (data && typeof data === 'object') {
+        // Extract all strings from the entire data object recursively
+        // This will include diagnosticContext and all nested fields
+        extractStrings(data);
+      }
+
+      return pieces.join(' ').toLowerCase();
+    }
+
+    function stringifyJson(value, truncateLongStrings) {
+      const maxLen = 8000;
+      return JSON.stringify(value, (key, v) => {
+        if (!truncateLongStrings) return v;
+        if (typeof v === 'string' && v.length > maxLen) {
+          return v.slice(0, maxLen) + `... [truncated ${v.length - maxLen} chars]`;
+        }
+        return v;
+      }, 2);
+    }
+
+    function updateFilterOptions(events) {
+      const categorySet = new Set();
+      const levelSet = new Set();
+      const dataSourceSet = new Set();
+
+      for (const e of events) {
+        if (e.category) categorySet.add(e.category);
+        if (e.level !== null && e.level !== undefined) levelSet.add(e.level);
+        if (e.dataSource) dataSourceSet.add(e.dataSource);
+      }
+
+      function setOptions(select, items, current, formatter) {
+        select.innerHTML = '';
+        const optAll = document.createElement('option');
+        optAll.value = 'all';
+        optAll.textContent = 'All';
+        select.appendChild(optAll);
+
+        for (const item of items) {
+          const opt = document.createElement('option');
+          opt.value = item;
+          opt.textContent = formatter ? formatter(item) : item;
+          select.appendChild(opt);
+        }
+        select.value = current;
+      }
+
+      setOptions(els.categoryFilter, Array.from(categorySet).sort(), state.filters.category);
+      setOptions(els.levelFilter, Array.from(levelSet).sort((a, b) => a - b), state.filters.level, getLevelName);
+      setOptions(els.dataSourceFilter, Array.from(dataSourceSet).sort(), state.filters.dataSource);
+
+      if (events.length) {
+        state.filters.category = els.categoryFilter.value || 'all';
+        state.filters.level = els.levelFilter.value || 'all';
+        state.filters.dataSource = els.dataSourceFilter.value || 'all';
+      }
+    }
+
+    function initializeSortOptions() {
+      els.sortBy.innerHTML = '';
+
+      const sortOptions = [
+        { value: 'timestamp', label: 'Time (Oldest First)' },
+        { value: 'timestamp-desc', label: 'Time (Newest First)' },
+        { value: 'duration-desc', label: 'Duration (High to Low)' },
+        { value: 'duration-asc', label: 'Duration (Low to High)' },
+        { value: 'size-desc', label: 'Size (High to Low)' },
+        { value: 'size-asc', label: 'Size (Low to High)' },
+      ];
+
+      for (const option of sortOptions) {
+        const opt = document.createElement('option');
+        opt.value = option.value;
+        opt.textContent = option.label;
+        els.sortBy.appendChild(opt);
+      }
+
+      els.sortBy.value = state.sortBy;
+    }
+
+    function readHashParams() {
+      const raw = window.location.hash && window.location.hash.startsWith('#')
+        ? window.location.hash.slice(1)
+        : '';
+      return new URLSearchParams(raw);
+    }
+
+    function writeHashParams(params) {
+      const base = window.location.href.split('#')[0];
+      const hash = params.toString();
+      const next = base + (hash ? `#${hash}` : '');
+      window.history.replaceState(null, '', next);
+    }
+
+    function syncUrlHashFromControls({ clearSel = false } = {}) {
+      if (suppressUrlStateSync) return;
+      const params = readHashParams();
+      params.set('tz', state.tzMode);
+      params.set('q', (els.search.value || '').trim());
+      params.set('cat', state.filters.category || 'all');
+      params.set('level', state.filters.level || 'all');
+      params.set('ds', state.filters.dataSource || 'all');
+      params.set('sort', state.sortBy || 'timestamp');
+      params.set('truncate', els.truncateStrings.checked ? '1' : '0');
+
+      const selectedIndex = state.selected?.index;
+      if (typeof selectedIndex === 'number' && Number.isFinite(selectedIndex)) {
+        params.set('sel', String(selectedIndex));
+      } else if (clearSel) {
+        params.delete('sel');
+      }
+      writeHashParams(params);
+    }
+
+    function applySelectionFromHash() {
+      if (!state.events.length) return;
+      const params = readHashParams();
+      const raw = params.get('sel');
+      if (!raw) return;
+      const index = Number(raw);
+      if (!Number.isFinite(index)) return;
+      const found = state.events.find(e => e.index === index);
+      if (!found) return;
+      if (state.selectedId === found.id) return;
+      suppressUrlStateSync = true;
+      try {
+        selectEvent(found.id, { scroll: true });
+      } finally {
+        suppressUrlStateSync = false;
+      }
+    }
+
+    function applyControlsFromHash() {
+      const params = readHashParams();
+      suppressUrlStateSync = true;
+      try {
+        const q = params.get('q');
+        if (q !== null) {
+          els.search.value = q;
+          state.filters.query = q.trim().toLowerCase();
+        }
+
+        const cat = params.get('cat');
+        if (cat !== null) state.filters.category = cat;
+
+        const level = params.get('level');
+        if (level !== null) state.filters.level = level;
+
+        const ds = params.get('ds');
+        if (ds !== null) state.filters.dataSource = ds;
+
+        const sort = params.get('sort');
+        if (sort !== null) {
+          state.sortBy = sort;
+          els.sortBy.value = sort;
+        }
+
+        const truncate = params.get('truncate');
+        if (truncate !== null) {
+          els.truncateStrings.checked = truncate === '1' || truncate === 'true';
+        }
+
+        const tz = params.get('tz');
+        if (tz === 'utc' || tz === 'local') {
+          state.tzMode = tz;
+          els.tzLocal.classList.toggle('active', tz === 'local');
+          els.tzUtc.classList.toggle('active', tz === 'utc');
+        }
+      } finally {
+        suppressUrlStateSync = false;
+      }
+    }
+
+    function applyFilters() {
+      const query = state.filters.query;
+      const category = state.filters.category;
+      const level = state.filters.level;
+      const dataSource = state.filters.dataSource;
+
+      const out = [];
+      for (const e of state.events) {
+        if (category !== 'all' && e.category !== category) continue;
+        if (level !== 'all' && String(e.level) !== level) continue;
+        if (dataSource !== 'all' && e.dataSource !== dataSource) continue;
+        if (query && !e.search.includes(query)) continue;
+        out.push(e);
+      }
+
+      // Apply sorting
+      const sortBy = state.sortBy;
+      if (sortBy === 'timestamp-desc') {
+        out.sort((a, b) => {
+          const aTime = a.date instanceof Date && !Number.isNaN(a.date.getTime()) ? a.date.getTime() : -1;
+          const bTime = b.date instanceof Date && !Number.isNaN(b.date.getTime()) ? b.date.getTime() : -1;
+          return bTime - aTime;
+        });
+      } else if (sortBy === 'duration-desc') {
+        out.sort((a, b) => {
+          const aDur = a.duration !== null ? a.duration : -1;
+          const bDur = b.duration !== null ? b.duration : -1;
+          return bDur - aDur;
+        });
+      } else if (sortBy === 'duration-asc') {
+        out.sort((a, b) => {
+          const aDur = a.duration !== null ? a.duration : Infinity;
+          const bDur = b.duration !== null ? b.duration : Infinity;
+          return aDur - bDur;
+        });
+      } else if (sortBy === 'size-desc') {
+        out.sort((a, b) => {
+          const aSize = a.size !== null ? a.size : -1;
+          const bSize = b.size !== null ? b.size : -1;
+          return bSize - aSize;
+        });
+      } else if (sortBy === 'size-asc') {
+        out.sort((a, b) => {
+          const aSize = a.size !== null ? a.size : Infinity;
+          const bSize = b.size !== null ? b.size : Infinity;
+          return aSize - bSize;
+        });
+      }
+      // timestamp (oldest first) is default, no sorting needed as events are already in timestamp order
+
+      state.filtered = out;
+      els.statsShowing.textContent = String(out.length);
+      els.statsTotal.textContent = String(state.events.length);
+
+      const start = out.find(e => e.date instanceof Date && !Number.isNaN(e.date.getTime()))?.date;
+      const end = [...out].reverse().find(e => e.date instanceof Date && !Number.isNaN(e.date.getTime()))?.date;
+      if (start && end) {
+        els.statsRange.textContent = `${formatTimestamp(start, state.tzMode)} → ${formatTimestamp(end, state.tzMode)}`;
+      } else {
+        els.statsRange.textContent = '-';
+      }
+
+      renderTimeline();
+    }
+
+    function clearSelection({ syncHash = true } = {}) {
+      state.selectedId = null;
+      state.selected = null;
+      els.detailTitle.textContent = 'Select an event';
+      renderPrettyView(null);
+      els.detailJson.textContent = state.events.length ? 'Select an event from the timeline.' : 'Load a file to get started.';
+      els.detailJson.classList.add('empty');
+      els.copyJson.disabled = true;
+
+      for (const node of els.timeline.querySelectorAll('.event.selected')) {
+        node.classList.remove('selected');
+      }
+      updateDetailPlacement();
+      if (syncHash) syncUrlHashFromControls({ clearSel: true });
+    }
+
+    function renderTimeline() {
+      els.timeline.innerHTML = '';
+
+      if (!state.filtered.length) {
+        const empty = document.createElement('div');
+        empty.className = 'empty';
+        empty.textContent = state.events.length ? 'No events match your filters.' : 'Load a file to see a timeline.';
+        els.timeline.appendChild(empty);
+        clearSelection();
+        return;
+      }
+
+      const fragment = document.createDocumentFragment();
+      let lastDay = null;
+      let prevDate = null;
+
+      for (const e of state.filtered) {
+        const day = dayKey(e.date, state.tzMode);
+        if (day !== lastDay) {
+          lastDay = day;
+          const sep = document.createElement('div');
+          sep.className = 'day-sep';
+          sep.textContent = day;
+          fragment.appendChild(sep);
+        }
+
+        const row = document.createElement('div');
+        row.className = 'event';
+        row.setAttribute('role', 'listitem');
+        row.dataset.eventId = String(e.id);
+
+        const time = document.createElement('div');
+        time.className = 'time';
+
+        const ts = document.createElement('div');
+        ts.className = 'ts';
+        ts.textContent = formatTimestamp(e.date, state.tzMode);
+
+        const meta = document.createElement('div');
+        // const metaParts = [
+        //  `#${e.index}`,
+        //  (prevDate && e.date) ? formatDelta(e.date.getTime() - prevDate.getTime()) : null,
+        //].filter(Boolean);
+        //meta.textContent = metaParts.join(' · ');
+        meta.textContent = `#${e.index}`;
+
+        time.appendChild(ts);
+        time.appendChild(meta);
+
+        const body = document.createElement('div');
+
+        const badges = document.createElement('div');
+        badges.className = 'badges';
+
+        const badgeCat = document.createElement('span');
+        badgeCat.className = `badge cat-${e.category}`;
+        badgeCat.textContent = e.category;
+        badges.appendChild(badgeCat);
+
+        const badgeLevel = document.createElement('span');
+        badgeLevel.className = `badge level-${e.level}`;
+        badgeLevel.textContent = getLevelName(e.level);
+        badges.appendChild(badgeLevel);
+
+        if (e.dataSource) {
+          const badgeDataSource = document.createElement('span');
+          badgeDataSource.className = 'datasource-badge';
+          badgeDataSource.textContent = e.dataSource;
+          badges.appendChild(badgeDataSource);
+        }
+
+        if (e.entityName) {
+          const badgeEntity = document.createElement('span');
+          badgeEntity.className = 'entity-badge';
+          badgeEntity.textContent = e.entityName;
+          badges.appendChild(badgeEntity);
+        }
+
+        if (e.propertyName) {
+          const badgeProperty = document.createElement('span');
+          badgeProperty.className = 'property-badge';
+          badgeProperty.textContent = e.propertyName;
+          badges.appendChild(badgeProperty);
+        }
+
+        if (e.duration !== null) {
+          const badgeDur = document.createElement('span');
+          badgeDur.className = 'duration-badge';
+          if (e.duration > 1000) badgeDur.classList.add('slow');
+          if (e.duration > 3000) badgeDur.classList.add('very-slow');
+          badgeDur.textContent = formatDuration(e.duration);
+          badges.appendChild(badgeDur);
+        }
+
+        if (e.category === 'Network' && e.size !== null) {
+          const badgeSize = document.createElement('span');
+          badgeSize.className = 'size-badge';
+          const sizeInKb = e.size / 1024;
+          if (sizeInKb > 100) badgeSize.classList.add('large');
+          if (sizeInKb > 500) badgeSize.classList.add('very-large');
+          badgeSize.textContent = formatSize(e.size);
+          badges.appendChild(badgeSize);
+        }
+
+        body.appendChild(badges);
+
+        row.appendChild(time);
+        row.appendChild(body);
+
+        row.addEventListener('click', () => selectEvent(e.id, { focusTimeline: true }));
+        fragment.appendChild(row);
+
+        if (e.date instanceof Date && !Number.isNaN(e.date.getTime())) prevDate = e.date;
+      }
+
+      els.timeline.appendChild(fragment);
+
+      if (state.selectedId !== null) {
+        const stillThere = state.filtered.some(e => e.id === state.selectedId);
+        if (!stillThere) clearSelection();
+        else selectEvent(state.selectedId, { scroll: false });
+      } else {
+        clearSelection({ syncHash: false });
+      }
+    }
+
+    function selectEvent(id, { scroll = false, focusTimeline = false } = {}) {
+      const e = state.filtered.find(item => item.id === id) || state.events.find(item => item.id === id);
+      if (!e) return;
+      state.selectedId = id;
+      state.selected = e;
+
+      if (focusTimeline) {
+        els.timeline.focus({ preventScroll: true });
+      }
+
+      for (const node of els.timeline.querySelectorAll('.event.selected')) {
+        node.classList.remove('selected');
+      }
+      const node = els.timeline.querySelector(`.event[data-event-id="${CSS.escape(String(id))}"]`);
+      if (node) {
+        node.classList.add('selected');
+        updateDetailPlacement();
+        if (scroll) node.scrollIntoView({ block: 'center' });
+      }
+
+      els.detailJson.classList.remove('empty');
+      const titleParts = [
+        formatTimestamp(e.date, state.tzMode),
+        `#${e.index}`,
+        e.category,
+        e.name,
+      ].filter(Boolean);
+      els.detailTitle.textContent = titleParts.join(' · ');
+
+      const shouldTruncate = els.truncateStrings.checked;
+      renderPrettyView(e.obj);
+      els.detailJson.textContent = stringifyJson(e.obj, shouldTruncate) || '';
+      els.copyJson.disabled = false;
+      updateDetailPlacement();
+      syncUrlHashFromControls();
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function renderPrettyView(msg) {
+      els.detailPretty.innerHTML = '';
+
+      if (!msg || typeof msg !== 'object') {
+        els.detailPretty.hidden = true;
+        return;
+      }
+
+      const fragment = document.createDocumentFragment();
+      let hasContent = false;
+
+      // Basic info section
+      const infoSection = document.createElement('div');
+      infoSection.className = 'pretty-section';
+      const infoLabel = document.createElement('div');
+      infoLabel.className = 'pretty-label';
+      infoLabel.textContent = 'Event Info';
+      const infoTable = document.createElement('table');
+      infoTable.className = 'pretty-table';
+
+      const infoRows = [
+        ['Category', msg.category],
+        ['Name', msg.name],
+        ['Log Level', getLevelName(msg.logLevel)],
+        ['Timestamp', new Date(msg.time).toISOString()],
+      ];
+
+      const duration = extractDuration(msg);
+      if (duration !== null) {
+        infoRows.push(['Duration', formatDuration(duration)]);
+      }
+
+      for (const [key, value] of infoRows) {
+        const tr = document.createElement('tr');
+        const th = document.createElement('th');
+        th.textContent = key;
+        const td = document.createElement('td');
+        td.textContent = value || '-';
+        tr.appendChild(th);
+        tr.appendChild(td);
+        infoTable.appendChild(tr);
+      }
+
+      infoSection.appendChild(infoLabel);
+      infoSection.appendChild(infoTable);
+      fragment.appendChild(infoSection);
+      hasContent = true;
+
+      // Data section
+      const data = msg.data;
+      if (data && typeof data === 'object') {
+        // Context section
+        if (data.context && typeof data.context === 'object') {
+          const contextSection = document.createElement('div');
+          contextSection.className = 'pretty-section';
+          const contextLabel = document.createElement('div');
+          contextLabel.className = 'pretty-label';
+          contextLabel.textContent = 'Context';
+          const contextTable = document.createElement('table');
+          contextTable.className = 'pretty-table';
+
+          for (const [key, value] of Object.entries(data.context)) {
+            if (value === null || value === undefined) continue;
+            const tr = document.createElement('tr');
+            const th = document.createElement('th');
+            th.textContent = key;
+            const td = document.createElement('td');
+            td.textContent = typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value);
+            tr.appendChild(th);
+            tr.appendChild(td);
+            contextTable.appendChild(tr);
+          }
+
+          if (contextTable.children.length > 0) {
+            contextSection.appendChild(contextLabel);
+            contextSection.appendChild(contextTable);
+            fragment.appendChild(contextSection);
+            hasContent = true;
+          }
+        }
+
+        // Info text
+        if (data.info) {
+          const infoTextSection = document.createElement('div');
+          infoTextSection.className = 'pretty-section';
+          const infoTextLabel = document.createElement('div');
+          infoTextLabel.className = 'pretty-label';
+          infoTextLabel.textContent = 'Info';
+          const infoTextContent = document.createElement('div');
+          infoTextContent.className = 'pretty-content';
+          infoTextContent.textContent = data.info;
+          infoTextSection.appendChild(infoTextLabel);
+          infoTextSection.appendChild(infoTextContent);
+          fragment.appendChild(infoTextSection);
+          hasContent = true;
+        }
+
+        // Network request
+        if (data.request && typeof data.request === 'object') {
+          const reqSection = document.createElement('div');
+          reqSection.className = 'pretty-section';
+          const reqLabel = document.createElement('div');
+          reqLabel.className = 'pretty-label';
+          reqLabel.textContent = 'Request';
+          const reqTable = document.createElement('table');
+          reqTable.className = 'pretty-table';
+
+          if (data.request.method) {
+            const tr = document.createElement('tr');
+            const th = document.createElement('th');
+            th.textContent = 'Method';
+            const td = document.createElement('td');
+            td.textContent = data.request.method;
+            tr.appendChild(th);
+            tr.appendChild(td);
+            reqTable.appendChild(tr);
+          }
+
+          if (data.request.url) {
+            const tr = document.createElement('tr');
+            const th = document.createElement('th');
+            th.textContent = 'URL';
+            const td = document.createElement('td');
+            td.textContent = data.request.url;
+            td.style.wordBreak = 'break-all';
+            tr.appendChild(th);
+            tr.appendChild(td);
+            reqTable.appendChild(tr);
+          }
+
+          if (reqTable.children.length > 0) {
+            reqSection.appendChild(reqLabel);
+            reqSection.appendChild(reqTable);
+            fragment.appendChild(reqSection);
+            hasContent = true;
+          }
+        }
+
+        // Network response
+        if (data.response && typeof data.response === 'object') {
+          const resSection = document.createElement('div');
+          resSection.className = 'pretty-section';
+          const resLabel = document.createElement('div');
+          resLabel.className = 'pretty-label';
+          resLabel.textContent = 'Response';
+          const resTable = document.createElement('table');
+          resTable.className = 'pretty-table';
+
+          const resRows = [];
+          if (data.response.status) resRows.push(['Status', data.response.status]);
+          if (data.response.duration) resRows.push(['Duration', formatDuration(data.response.duration)]);
+          if (data.response.size) resRows.push(['Size', `${data.response.size} bytes`]);
+
+          for (const [key, value] of resRows) {
+            const tr = document.createElement('tr');
+            const th = document.createElement('th');
+            th.textContent = key;
+            const td = document.createElement('td');
+            td.textContent = value;
+            tr.appendChild(th);
+            tr.appendChild(td);
+            resTable.appendChild(tr);
+          }
+
+          if (resTable.children.length > 0) {
+            resSection.appendChild(resLabel);
+            resSection.appendChild(resTable);
+            fragment.appendChild(resSection);
+            hasContent = true;
+          }
+        }
+      }
+
+      if (hasContent) {
+        els.detailPretty.appendChild(fragment);
+        els.detailPretty.hidden = false;
+      } else {
+        els.detailPretty.hidden = true;
+      }
+    }
+
+    function isEditableElement(el) {
+      if (!(el instanceof HTMLElement)) return false;
+      if (el.isContentEditable) return true;
+      const tag = el.tagName;
+      return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+    }
+
+    function moveSelection(delta) {
+      if (!state.filtered.length) return;
+      const idx = state.filtered.findIndex(e => e.id === state.selectedId);
+      if (idx === -1) {
+        selectEvent(state.filtered[0].id, { scroll: true });
+        return;
+      }
+      const nextIdx = Math.max(0, Math.min(state.filtered.length - 1, idx + delta));
+      if (nextIdx === idx) return;
+      selectEvent(state.filtered[nextIdx].id, { scroll: true });
+    }
+
+    async function copyText(text) {
+      if (typeof text !== 'string') return;
+      try {
+        await navigator.clipboard.writeText(text);
+        setStatus('Copied to clipboard.', 'good');
+      } catch (error) {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        setStatus('Copied to clipboard.', 'good');
+      }
+    }
+
+    function setTimezoneMode(mode) {
+      state.tzMode = mode;
+      els.tzLocal.classList.toggle('active', mode === 'local');
+      els.tzUtc.classList.toggle('active', mode === 'utc');
+      applyFilters();
+      if (state.selectedId !== null) selectEvent(state.selectedId);
+      syncUrlHashFromControls();
+    }
+
+    document.addEventListener('keydown', (event) => {
+      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+      if (isEditableElement(document.activeElement)) return;
+      if (document.activeElement !== els.timeline && !els.timeline.contains(document.activeElement)) return;
+      if (state.selectedId === null) return;
+      event.preventDefault();
+      moveSelection(event.key === 'ArrowUp' ? -1 : 1);
+    });
+
+    if (typeof wideLayoutMq.addEventListener === 'function') {
+      wideLayoutMq.addEventListener('change', updateDetailPlacement);
+    } else if (typeof wideLayoutMq.addListener === 'function') {
+      wideLayoutMq.addListener(updateDetailPlacement);
+    }
+
+
+    async function loadText(text, sourceLabel) {
+      const started = performance.now();
+      state.sourceLabel = sourceLabel || null;
+      setStatus(`Parsing ${sourceLabel || 'content'}...`, 'warn');
+      clearSelection({ syncHash: false });
+
+      const parsed = safeJsonParse(text);
+      if (!parsed.ok) {
+        setStatus(`Failed to parse JSON: ${String(parsed.error)}`, 'error');
+        return;
+      }
+
+      const data = parsed.value;
+      if (!data || typeof data !== 'object') {
+        setStatus('Invalid format: expected an object with Messages array.', 'error');
+        return;
+      }
+
+      state.version = data.Version || null;
+      state.sessionId = data.SessionId || null;
+
+      if (state.sessionId) {
+        els.sessionInfo.hidden = false;
+        els.sessionId.textContent = state.sessionId;
+        els.sessionVersion.textContent = state.version || '-';
+      } else {
+        els.sessionInfo.hidden = true;
+      }
+
+      const messages = data.Messages;
+      if (!Array.isArray(messages)) {
+        setStatus('Invalid format: Messages is not an array.', 'error');
+        return;
+      }
+
+      const events = [];
+      let idCounter = 0;
+
+      for (let i = 0; i < messages.length; i++) {
+        const msg = messages[i];
+        if (!msg || typeof msg !== 'object') continue;
+
+        const ts = typeof msg.time === 'number' ? new Date(msg.time) : null;
+        const category = msg.category || 'Unknown';
+        const name = msg.name || 'Event';
+        const level = msg.logLevel !== undefined ? msg.logLevel : null;
+        const duration = extractDuration(msg);
+        const size = extractResponseSize(msg);
+        const entityName = extractEntityName(msg);
+        const propertyName = extractPropertyName(msg);
+        const dataSource = extractDataSource(msg);
+
+        const summary = summarizeEvent(msg);
+        events.push({
+          id: ++idCounter,
+          index: i,
+          obj: msg,
+          date: ts,
+          category,
+          name,
+          level,
+          duration,
+          size,
+          entityName,
+          propertyName,
+          dataSource,
+          summary,
+          search: buildSearchText(msg, summary),
+        });
+      }
+
+      state.events = events;
+      updateFilterOptions(events);
+      applyFilters();
+      applySelectionFromHash();
+      syncUrlHashFromControls();
+
+      const durationMs = Math.round(performance.now() - started);
+      setStatus(`Loaded ${events.length} events from ${sourceLabel || 'content'} in ${durationMs}ms.`, 'good');
+    }
+
+    async function handleFile(file) {
+      if (!file) return;
+      try {
+        const text = await file.text();
+        await loadText(text, file.name);
+      } catch (error) {
+        setStatus(`Failed to read file: ${String(error)}`, 'error');
+      }
+    }
+
+    els.dropzone.addEventListener('click', () => els.fileInput.click());
+    els.dropzone.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        els.fileInput.click();
+      }
+    });
+    els.fileInput.addEventListener('change', () => handleFile(els.fileInput.files?.[0]));
+
+    els.dropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      els.dropzone.classList.add('dragover');
+    });
+    els.dropzone.addEventListener('dragleave', () => els.dropzone.classList.remove('dragover'));
+    els.dropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      els.dropzone.classList.remove('dragover');
+      const file = e.dataTransfer?.files?.[0];
+      if (file) handleFile(file);
+    });
+
+    // JSON toggle functionality
+    function toggleJsonView() {
+      const isExpanded = els.jsonToggle.classList.contains('expanded');
+      if (isExpanded) {
+        els.jsonToggle.classList.remove('expanded');
+        els.jsonContent.classList.remove('expanded');
+        els.jsonToggle.setAttribute('aria-expanded', 'false');
+      } else {
+        els.jsonToggle.classList.add('expanded');
+        els.jsonContent.classList.add('expanded');
+        els.jsonToggle.setAttribute('aria-expanded', 'true');
+      }
+    }
+
+    els.jsonToggle.addEventListener('click', toggleJsonView);
+    els.jsonToggle.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        toggleJsonView();
+      }
+    });
+
+    els.tzLocal.addEventListener('click', () => setTimezoneMode('local'));
+    els.tzUtc.addEventListener('click', () => setTimezoneMode('utc'));
+
+    els.search.addEventListener('input', () => {
+      state.filters.query = els.search.value.trim().toLowerCase();
+      applyFilters();
+      syncUrlHashFromControls();
+    });
+
+    els.categoryFilter.addEventListener('change', () => {
+      state.filters.category = els.categoryFilter.value;
+      applyFilters();
+      syncUrlHashFromControls();
+    });
+
+    els.levelFilter.addEventListener('change', () => {
+      state.filters.level = els.levelFilter.value;
+      applyFilters();
+      syncUrlHashFromControls();
+    });
+
+    els.dataSourceFilter.addEventListener('change', () => {
+      state.filters.dataSource = els.dataSourceFilter.value;
+      applyFilters();
+      syncUrlHashFromControls();
+    });
+
+    els.sortBy.addEventListener('change', () => {
+      state.sortBy = els.sortBy.value;
+      applyFilters();
+      syncUrlHashFromControls();
+    });
+
+    els.truncateStrings.addEventListener('change', () => {
+      if (state.selectedId !== null) selectEvent(state.selectedId);
+      syncUrlHashFromControls();
+    });
+
+    els.clearFilters.addEventListener('click', () => {
+      els.search.value = '';
+      state.filters.query = '';
+      state.filters.category = 'all';
+      state.filters.level = 'all';
+      state.filters.dataSource = 'all';
+      state.sortBy = 'timestamp';
+      els.sortBy.value = 'timestamp';
+      updateFilterOptions(state.events);
+      applyFilters();
+      syncUrlHashFromControls();
+    });
+
+    els.copyJson.addEventListener('click', () => {
+      if (!state.selected) return;
+      copyText(stringifyJson(state.selected.obj, false));
+    });
+
+    initializeSortOptions();
+    applyControlsFromHash();
+    updateFilterOptions([]);
+    syncUrlHashFromControls();
+    window.addEventListener('hashchange', () => {
+      applyControlsFromHash();
+      updateFilterOptions(state.events);
+      applyFilters();
+      applySelectionFromHash();
+    });
+  </script>
+</body>
+</html>
