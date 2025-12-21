@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RegexLab</title>
+    <style>
+        :root {
+            --bg-gradient-1: #0f0c29;
+            --bg-gradient-2: #1a1443;
+            --bg-gradient-3: #24243e;
+            --bg-gradient-4: #302b63;
+            --glass-bg: rgba(255, 255, 255, 0.03);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --text-color: #e0e0e0;
+            --text-secondary: rgba(255, 255, 255, 0.6);
+            --font-mono: 'Consolas', 'Monaco', 'Courier New', monospace;
+            --group1: #5eb3a6;
+            --group2: #d4a574;
+            --group3: #b392d1;
+            --shadow-sm: 0 4px 6px rgba(0, 0, 0, 0.3);
+            --shadow-md: 0 8px 16px rgba(0, 0, 0, 0.4);
+            --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.5);
+        }
+
+        body {
+            margin: 0; padding: 24px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, var(--bg-gradient-1) 0%, var(--bg-gradient-2) 25%, var(--bg-gradient-3) 75%, var(--bg-gradient-4) 100%);
+            background-attachment: fixed;
+            color: var(--text-color);
+            height: 100vh; display: flex; flex-direction: column; gap: 20px;
+            box-sizing: border-box;
+        }
+
+        .page-header {
+            text-align: center;
+            background: var(--glass-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            padding: 24px;
+            border-radius: 16px;
+            border: 1px solid var(--glass-border);
+            box-shadow: var(--shadow-md);
+            transition: all 0.3s ease;
+        }
+
+        .page-header:hover {
+            box-shadow: var(--shadow-lg);
+        }
+
+        .page-title {
+            margin: 0;
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--group1), var(--group3));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: -0.5px;
+        }
+
+        .page-subtitle {
+            margin: 8px 0 0 0;
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+            font-weight: 400;
+        }
+
+        .regex-bar {
+            display: flex; align-items: center; gap: 8px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            padding: 16px; border-radius: 16px;
+            border: 1px solid var(--glass-border);
+            box-shadow: var(--shadow-md);
+            transition: all 0.3s ease;
+        }
+
+        .regex-bar:hover {
+            box-shadow: var(--shadow-lg);
+        }
+
+        select {
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: var(--text-secondary);
+            padding: 10px 14px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            font-size: 0.9rem;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+            outline: none;
+            cursor: pointer;
+            min-width: 160px;
+        }
+
+        select:hover {
+            background: rgba(255, 255, 255, 0.12);
+            border-color: rgba(255, 255, 255, 0.25);
+        }
+
+        select:focus {
+            background: rgba(255, 255, 255, 0.12);
+            border-color: rgba(255, 255, 255, 0.3);
+            box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1);
+        }
+
+        select option {
+            background: var(--bg-gradient-2);
+            color: var(--text-color);
+            padding: 8px;
+        }
+
+        .regex-bar span {
+            font-family: var(--font-mono);
+            font-size: 1.2rem;
+            color: var(--text-secondary);
+            font-weight: 300;
+        }
+
+        input {
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: #fff;
+            padding: 10px 14px;
+            font-family: var(--font-mono);
+            font-size: 1rem;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+            outline: none;
+        }
+
+        input::placeholder {
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        input:focus {
+            background: rgba(255, 255, 255, 0.12);
+            border-color: rgba(255, 255, 255, 0.3);
+            box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1),
+                        0 0 20px rgba(255, 255, 255, 0.2);
+        }
+
+        #regex-input {
+            flex-grow: 1;
+        }
+
+        .flag-toggles {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .flag-toggle {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: rgba(255, 255, 255, 0.5);
+            padding: 8px 12px;
+            font-family: var(--font-mono);
+            font-size: 0.9rem;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            outline: none;
+            min-width: 36px;
+        }
+
+        .flag-toggle:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.25);
+        }
+
+        .flag-toggle.active {
+            background: rgba(94, 179, 166, 0.2);
+            border-color: var(--group1);
+            color: var(--group1);
+            box-shadow: 0 0 10px rgba(94, 179, 166, 0.3);
+            text-shadow: 0 0 4px rgba(94, 179, 166, 0.4);
+        }
+
+        .flag-toggle.active:hover {
+            background: rgba(94, 179, 166, 0.25);
+            box-shadow: 0 0 14px rgba(94, 179, 166, 0.4);
+        }
+
+        .copy-btn {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: rgba(255, 255, 255, 0.6);
+            padding: 8px 14px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            font-size: 0.85rem;
+            font-weight: 500;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            outline: none;
+            white-space: nowrap;
+        }
+
+        .copy-btn:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.25);
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .copy-btn.success {
+            background: rgba(94, 179, 166, 0.2);
+            border-color: var(--group1);
+            color: var(--group1);
+            box-shadow: 0 0 10px rgba(94, 179, 166, 0.3);
+        }
+
+        .copy-btn-small {
+            background: transparent;
+            border: none;
+            color: rgba(255, 255, 255, 0.5);
+            padding: 4px 8px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            outline: none;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+        }
+
+        .copy-btn-small:hover {
+            color: var(--group1);
+        }
+
+        .copy-btn-small.success {
+            color: var(--group1);
+        }
+
+        .workspace {
+            display: flex;
+            flex-grow: 1;
+            gap: 20px;
+            min-height: 0;
+        }
+
+        .panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: var(--glass-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-radius: 16px;
+            border: 1px solid var(--glass-border);
+            box-shadow: var(--shadow-md);
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .panel:hover {
+            box-shadow: var(--shadow-lg);
+        }
+
+        .panel-header {
+            padding: 14px 18px;
+            background: rgba(255, 255, 255, 0.05);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        textarea, #output-view, #match-table-container, #explanation-view {
+            flex-grow: 1;
+            padding: 18px;
+            border: none;
+            background: transparent;
+            color: var(--text-color);
+            font-family: var(--font-mono);
+            font-size: 14px;
+            line-height: 1.7;
+            white-space: pre-wrap;
+            overflow-y: auto;
+        }
+
+        textarea {
+            resize: none;
+            outline: none;
+        }
+
+        textarea::placeholder {
+            color: rgba(255, 255, 255, 0.3);
+        }
+
+        /* Explanation Panel Styles */
+        .explanation-section {
+            margin-bottom: 24px;
+        }
+
+        .explanation-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .explanation-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .explanation-content {
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .explanation-content code {
+            background: rgba(255, 255, 255, 0.08);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-family: var(--font-mono);
+            color: var(--group1);
+        }
+
+        .explanation-content ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+
+        .explanation-content li {
+            margin-bottom: 6px;
+        }
+
+        .explanation-content strong {
+            color: var(--text-color);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Match Highlighting with Glow */
+        .m-full {
+            background: rgba(79, 172, 254, 0.15);
+            border-bottom: 2px solid #5a9bc7;
+            box-shadow: 0 0 8px rgba(79, 172, 254, 0.2);
+            border-radius: 4px;
+            padding: 2px 4px;
+            margin: 0 2px;
+        }
+
+        .m-g1 {
+            color: var(--group1);
+            font-weight: bold;
+            text-shadow: 0 0 6px rgba(94, 179, 166, 0.4);
+        }
+
+        .m-g2 {
+            color: var(--group2);
+            font-weight: bold;
+            text-shadow: 0 0 6px rgba(212, 165, 116, 0.4);
+        }
+
+        .m-g3 {
+            color: var(--group3);
+            font-weight: bold;
+            text-shadow: 0 0 6px rgba(179, 146, 209, 0.4);
+        }
+
+        /* Sidebar Table */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        th {
+            text-align: left;
+            background: rgba(255, 255, 255, 0.05);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 10px 12px;
+            color: var(--text-secondary);
+            font-weight: 600;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            vertical-align: top;
+            transition: background 0.2s ease;
+        }
+
+        tr:hover td {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .group-label {
+            font-size: 10px;
+            color: var(--text-secondary);
+            margin-right: 6px;
+            font-weight: 600;
+        }
+
+        #error-msg {
+            color: #e88a8a;
+            background: rgba(232, 138, 138, 0.1);
+            border: 1px solid rgba(232, 138, 138, 0.2);
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 0.85rem;
+            min-height: 1.2rem;
+            margin-bottom: 8px;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            box-shadow: 0 0 8px rgba(232, 138, 138, 0.15);
+        }
+
+        #error-msg:empty {
+            display: none;
+        }
+
+        #stats-bar {
+            background: rgba(94, 179, 166, 0.08);
+            border: 1px solid rgba(94, 179, 166, 0.2);
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-size: 0.85rem;
+            margin-bottom: 8px;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            box-shadow: 0 0 8px rgba(94, 179, 166, 0.1);
+            display: none;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+        }
+
+        #stats-bar.visible {
+            display: flex;
+        }
+
+        .stat-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            padding: 6px 10px;
+            font-size: 0.8rem;
+            transition: all 0.2s ease;
+        }
+
+        .stat-badge:hover {
+            background: rgba(94, 179, 166, 0.12);
+            border-color: rgba(94, 179, 166, 0.3);
+            box-shadow: 0 0 8px rgba(94, 179, 166, 0.2);
+        }
+
+        .stat-icon {
+            font-size: 1rem;
+            opacity: 0.9;
+        }
+
+        .stat-value {
+            font-family: var(--font-mono);
+            font-weight: 600;
+            color: var(--group1);
+            text-shadow: 0 0 4px rgba(94, 179, 166, 0.3);
+        }
+
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+
+    <header class="page-header">
+        <h1 class="page-title">RegexLab</h1>
+        <p class="page-subtitle">Interactive Regular Expression Tester</p>
+    </header>
+
+    <div>
+        <div id="error-msg"></div>
+        <div id="stats-bar"></div>
+        <div class="regex-bar">
+            <select id="pattern-library">
+                <option value="">Load Pattern...</option>
+            </select>
+            <span>/</span>
+            <input type="text" id="regex-input" value="(\w+): (\d+)">
+            <span>/</span>
+            <div class="flag-toggles">
+                <button class="flag-toggle active" data-flag="g" title="Global">g</button>
+                <button class="flag-toggle" data-flag="i" title="Case-insensitive">i</button>
+                <button class="flag-toggle" data-flag="m" title="Multiline">m</button>
+                <button class="flag-toggle" data-flag="s" title="dotAll">s</button>
+                <button class="flag-toggle" data-flag="u" title="Unicode">u</button>
+                <button class="flag-toggle" data-flag="y" title="Sticky">y</button>
+                <button class="flag-toggle" data-flag="d" title="hasIndices">d</button>
+            </div>
+            <button class="copy-btn" id="copy-pattern-btn" title="Copy pattern with flags">Copy Pattern</button>
+        </div>
+    </div>
+
+    <div class="workspace">
+        <div class="panel">
+            <div class="panel-header"><span>Paste Your Test String</span></div>
+            <textarea id="test-string" spellcheck="false"></textarea>
+        </div>
+
+        <div class="panel">
+            <div class="panel-header"><span>Highlighted Matches</span></div>
+            <div id="output-view"></div>
+        </div>
+
+        <div class="panel" style="flex: 0 0 300px;">
+            <div class="panel-header">
+                <span>Match Information</span>
+                <button class="copy-btn-small" id="copy-all-btn" title="Copy all matches">Copy All</button>
+            </div>
+            <div id="match-table-container">
+                <table id="match-table">
+                    <thead>
+                        <tr><th>Match</th><th>Groups</th></tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="panel" style="flex: 0 0 300px;">
+            <div class="panel-header"><span>Pattern Explanation</span></div>
+            <div id="explanation-view"></div>
+        </div>
+    </div>
+
+    <script>
+        const regexInput = document.getElementById('regex-input');
+        const flagToggles = document.querySelectorAll('.flag-toggle');
+        const testString = document.getElementById('test-string');
+        const explanationView = document.getElementById('explanation-view');
+        const outputView = document.getElementById('output-view');
+        const matchTableBody = document.querySelector('#match-table tbody');
+        const errorMsg = document.getElementById('error-msg');
+        const patternLibrary = document.getElementById('pattern-library');
+        const copyPatternBtn = document.getElementById('copy-pattern-btn');
+        const copyAllBtn = document.getElementById('copy-all-btn');
+        const statsBar = document.getElementById('stats-bar');
+
+        // Pattern Library - Common regex patterns
+        const patterns = [
+            {
+                name: 'Email Address',
+                pattern: '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}',
+                flags: 'g',
+                sample: 'Contact us at support@example.com or sales@company.org for assistance.'
+            },
+            {
+                name: 'URL',
+                pattern: 'https?://[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}(?:/[^\\s]*)?',
+                flags: 'g',
+                sample: 'Visit https://www.example.com or http://docs.site.org/guide for more info.'
+            },
+            {
+                name: 'Phone (US Format)',
+                pattern: '\\(?\\d{3}\\)?[-.\\s]?\\d{3}[-.\\s]?\\d{4}',
+                flags: 'g',
+                sample: 'Call us: (555) 123-4567 or 555.987.6543 or 5551234567'
+            },
+            {
+                name: 'Date (YYYY-MM-DD)',
+                pattern: '\\d{4}-\\d{2}-\\d{2}',
+                flags: 'g',
+                sample: 'Events: 2024-12-25, 2025-01-01, and 2025-07-04'
+            },
+            {
+                name: 'Date (MM/DD/YYYY)',
+                pattern: '\\d{2}/\\d{2}/\\d{4}',
+                flags: 'g',
+                sample: 'Deadlines: 12/25/2024, 01/01/2025, and 07/04/2025'
+            },
+            {
+                name: 'Time (24-hour)',
+                pattern: '\\d{2}:\\d{2}(?::\\d{2})?',
+                flags: 'g',
+                sample: 'Schedule: 09:30, 14:45:30, and 23:59'
+            },
+            {
+                name: 'IP Address (IPv4)',
+                pattern: '\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b',
+                flags: 'g',
+                sample: 'Servers: 192.168.1.1, 10.0.0.1, and 172.16.0.1'
+            },
+            {
+                name: 'Hex Color Code',
+                pattern: '#[0-9a-fA-F]{6}\\b|#[0-9a-fA-F]{3}\\b',
+                flags: 'g',
+                sample: 'Colors: #FF5733, #3498db, #2ecc71, and #abc'
+            },
+            {
+                name: 'Username/Slug',
+                pattern: '[a-z0-9_-]{3,16}',
+                flags: 'gi',
+                sample: 'Users: john_doe, alice-smith, bob123, user_name_42'
+            },
+            {
+                name: 'ZIP Code (US)',
+                pattern: '\\d{5}(?:-\\d{4})?',
+                flags: 'g',
+                sample: 'Locations: 12345, 90210-1234, 10001'
+            },
+            {
+                name: 'Credit Card',
+                pattern: '\\d{4}[-.\\s]?\\d{4}[-.\\s]?\\d{4}[-.\\s]?\\d{4}',
+                flags: 'g',
+                sample: 'Cards: 1234-5678-9012-3456 or 1234 5678 9012 3456'
+            },
+            {
+                name: 'Social Security Number',
+                pattern: '\\d{3}-\\d{2}-\\d{4}',
+                flags: 'g',
+                sample: 'SSN: 123-45-6789, 987-65-4321'
+            },
+            {
+                name: 'HTML Tag',
+                pattern: '<([a-z]+)([^>]*)>.*?</\\1>|<[a-z]+[^>]*/>',
+                flags: 'gi',
+                sample: '<div class="test">Content</div> <br/> <img src="pic.jpg"/>'
+            },
+            {
+                name: 'Hashtag',
+                pattern: '#[a-zA-Z0-9_]+',
+                flags: 'g',
+                sample: 'Trending: #JavaScript #WebDev #Coding2024 #regex_tips'
+            },
+            {
+                name: 'Mention (@username)',
+                pattern: '@[a-zA-Z0-9_]+',
+                flags: 'g',
+                sample: 'Thanks @john_doe and @alice for the help! cc: @team_lead'
+            },
+            {
+                name: 'Currency Amount',
+                pattern: '\\$\\d{1,3}(?:,\\d{3})*(?:\\.\\d{2})?',
+                flags: 'g',
+                sample: 'Prices: $1,234.56, $99.99, $1,000,000.00'
+            },
+            {
+                name: 'Word Boundary',
+                pattern: '\\bword\\b',
+                flags: 'gi',
+                sample: 'Find word but not sword, words, or password in this word.'
+            }
+        ];
+
+        // Populate pattern library dropdown
+        patterns.forEach((p, index) => {
+            const option = document.createElement('option');
+            option.value = index;
+            option.textContent = p.name;
+            patternLibrary.appendChild(option);
+        });
+
+        // Function to get current active flags
+        function getActiveFlags() {
+            const activeFlags = [];
+            flagToggles.forEach(toggle => {
+                if (toggle.classList.contains('active')) {
+                    activeFlags.push(toggle.dataset.flag);
+                }
+            });
+            return activeFlags.join('');
+        }
+
+        // Helper function for flag descriptions
+        function getFlagDescriptions(flags) {
+            const flagInfo = {
+                'g': 'Global - Find all matches',
+                'i': 'Case-insensitive - Ignore case',
+                'm': 'Multiline - ^ and $ match line boundaries',
+                's': 'dotAll - . matches newlines',
+                'u': 'Unicode - Treat as unicode',
+                'y': 'Sticky - Match from lastIndex',
+                'd': 'hasIndices - Generate match indices'
+            };
+
+            let html = '<ul style="margin: 0; padding-left: 20px;">';
+            for (let flag of flags) {
+                if (flagInfo[flag]) {
+                    html += `<li><strong>${flag}</strong> - ${flagInfo[flag]}</li>`;
+                }
+            }
+            html += '</ul>';
+            return html;
+        }
+
+        // Helper function for pattern analysis
+        function analyzePattern(pattern) {
+            let analysis = [];
+
+            // Count capture groups
+            const groupCount = (pattern.match(/\([^?]/g) || []).length;
+            if (groupCount > 0) {
+                analysis.push(`Contains ${groupCount} capture group${groupCount > 1 ? 's' : ''}`);
+            }
+
+            // Detect common patterns
+            if (pattern.includes('\\d')) analysis.push('Matches digits');
+            if (pattern.includes('\\w')) analysis.push('Matches word characters');
+            if (pattern.includes('\\s')) analysis.push('Matches whitespace');
+            if (pattern.includes('.')) analysis.push('Matches any character');
+            if (pattern.includes('^')) analysis.push('Anchored at start');
+            if (pattern.includes('$')) analysis.push('Anchored at end');
+            if (pattern.includes('+')) analysis.push('Uses quantifier (+)');
+            if (pattern.includes('*')) analysis.push('Uses quantifier (*)');
+            if (pattern.includes('?')) analysis.push('Uses optional (?)');
+
+            if (analysis.length === 0) {
+                return '<div style="color: var(--text-secondary)">Basic pattern</div>';
+            }
+
+            return '<ul style="margin: 0; padding-left: 20px;">' +
+                   analysis.map(a => `<li>${a}</li>`).join('') +
+                   '</ul>';
+        }
+
+        // Generate explanation for the regex pattern
+        function generateExplanation(pattern, flags) {
+            if (!pattern) {
+                return '<div style="color: var(--text-secondary)">Enter a regex pattern to see explanation</div>';
+            }
+
+            let html = '';
+
+            // 1. Pattern section
+            html += '<div class="explanation-section">';
+            html += '<div class="explanation-label">Pattern</div>';
+            html += `<div class="explanation-content"><code>${escapeHtml(pattern)}</code></div>`;
+            html += '</div>';
+
+            // 2. Flags section
+            if (flags) {
+                html += '<div class="explanation-section">';
+                html += '<div class="explanation-label">Active Flags</div>';
+                html += '<div class="explanation-content">';
+                html += getFlagDescriptions(flags);
+                html += '</div>';
+                html += '</div>';
+            }
+
+            // 3. Pattern analysis
+            html += '<div class="explanation-section">';
+            html += '<div class="explanation-label">Pattern Analysis</div>';
+            html += '<div class="explanation-content">';
+            html += analyzePattern(pattern);
+            html += '</div>';
+            html += '</div>';
+
+            return html;
+        }
+
+        function updateStats(matchCount, executionTime, textLength, matchedCharsCount) {
+            if (matchCount === 0) {
+                statsBar.classList.remove('visible');
+                return;
+            }
+
+            const coverage = textLength > 0
+                ? ((matchedCharsCount / textLength) * 100).toFixed(1)
+                : 0;
+
+            const formattedTime = executionTime < 1
+                ? executionTime.toFixed(3)
+                : executionTime.toFixed(2);
+
+            statsBar.innerHTML = `
+                <div class="stat-badge">
+                    <span class="stat-icon">🎯</span>
+                    <span class="stat-value">${matchCount.toLocaleString()}</span>
+                    <span class="stat-label">match${matchCount !== 1 ? 'es' : ''}</span>
+                </div>
+                <div class="stat-badge">
+                    <span class="stat-icon">⚡</span>
+                    <span class="stat-value">${formattedTime}</span>
+                    <span class="stat-label">ms</span>
+                </div>
+                <div class="stat-badge">
+                    <span class="stat-icon">📝</span>
+                    <span class="stat-value">${textLength.toLocaleString()}</span>
+                    <span class="stat-label">char${textLength !== 1 ? 's' : ''}</span>
+                </div>
+                <div class="stat-badge">
+                    <span class="stat-icon">📊</span>
+                    <span class="stat-value">${coverage}%</span>
+                    <span class="stat-label">coverage</span>
+                </div>
+            `;
+
+            statsBar.classList.add('visible');
+        }
+
+        function update() {
+            const pattern = regexInput.value;
+            const flags = getActiveFlags();
+            const text = testString.value;
+
+            errorMsg.innerText = '';
+            matchTableBody.innerHTML = '';
+
+            // Update explanation panel
+            explanationView.innerHTML = generateExplanation(pattern, flags);
+
+            if (!pattern) {
+                outputView.innerHTML = escapeHtml(text);
+                statsBar.classList.remove('visible');
+                return;
+            }
+
+            try {
+                // Ensure 'g' flag for matchAll
+                const activeFlags = flags.includes('g') ? flags : flags + 'g';
+                const regex = new RegExp(pattern, activeFlags);
+
+                // Time the matching operation
+                const startTime = performance.now();
+                const matches = [...text.matchAll(regex)];
+                const executionTime = performance.now() - startTime;
+
+                let highlightedHTML = "";
+                let lastIndex = 0;
+
+                matches.forEach((match, matchIdx) => {
+                    const fullMatch = match[0];
+                    const startIndex = match.index;
+
+                    // 1. Update Highlighted View
+                    highlightedHTML += escapeHtml(text.slice(lastIndex, startIndex));
+                    let innerHTML = escapeHtml(fullMatch);
+                    
+                    // Highlight inner groups (1-3)
+                    for (let i = 1; i < match.length && i <= 3; i++) {
+                        if (match[i]) {
+                            const groupText = escapeHtml(match[i]);
+                            innerHTML = innerHTML.replace(groupText, `<span class="m-g${i}">${groupText}</span>`);
+                        }
+                    }
+                    highlightedHTML += `<span class="m-full">${innerHTML}</span>`;
+                    lastIndex = startIndex + fullMatch.length;
+
+                    // 2. Update Sidebar Table
+                    const tr = document.createElement('tr');
+                    let groupsDetail = '';
+                    for (let i = 1; i < match.length; i++) {
+                        groupsDetail += `<div><span class="group-label">Group ${i}:</span><span class="m-g${i}">${escapeHtml(match[i] || 'null')}</span></div>`;
+                    }
+
+                    tr.innerHTML = `
+                        <td><strong>#${matchIdx + 1}</strong><br><small>${escapeHtml(fullMatch)}</small></td>
+                        <td>${groupsDetail || '<i style="color:#666">None</i>'}</td>
+                    `;
+                    matchTableBody.appendChild(tr);
+                });
+
+                highlightedHTML += escapeHtml(text.slice(lastIndex));
+                outputView.innerHTML = highlightedHTML;
+
+                // Calculate matched character count for coverage
+                let matchedCharsCount = 0;
+                matches.forEach(match => {
+                    matchedCharsCount += match[0].length;
+                });
+
+                // Update statistics bar
+                updateStats(matches.length, executionTime, text.length, matchedCharsCount);
+
+            } catch (e) {
+                errorMsg.innerText = e.message;
+                outputView.innerHTML = escapeHtml(text);
+                statsBar.classList.remove('visible');
+            }
+        }
+
+        function escapeHtml(t) { return t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+
+        // Helper function to set flags
+        function setFlags(flagString) {
+            flagToggles.forEach(toggle => {
+                const shouldBeActive = flagString.includes(toggle.dataset.flag);
+                if (shouldBeActive) {
+                    toggle.classList.add('active');
+                } else {
+                    toggle.classList.remove('active');
+                }
+            });
+        }
+
+        // Copy to clipboard function with visual feedback
+        async function copyToClipboard(text, button) {
+            try {
+                await navigator.clipboard.writeText(text);
+
+                // Visual feedback
+                const originalText = button.textContent;
+                button.classList.add('success');
+                button.textContent = 'Copied!';
+
+                setTimeout(() => {
+                    button.classList.remove('success');
+                    button.textContent = originalText;
+                }, 1500);
+            } catch (err) {
+                // Fallback for older browsers
+                const textArea = document.createElement('textarea');
+                textArea.value = text;
+                textArea.style.position = 'fixed';
+                textArea.style.opacity = '0';
+                document.body.appendChild(textArea);
+                textArea.select();
+
+                try {
+                    document.execCommand('copy');
+                    const originalText = button.textContent;
+                    button.classList.add('success');
+                    button.textContent = 'Copied!';
+
+                    setTimeout(() => {
+                        button.classList.remove('success');
+                        button.textContent = originalText;
+                    }, 1500);
+                } catch (fallbackErr) {
+                    console.error('Failed to copy:', fallbackErr);
+                } finally {
+                    document.body.removeChild(textArea);
+                }
+            }
+        }
+
+        // Add event listeners
+        regexInput.addEventListener('input', update);
+        testString.addEventListener('input', update);
+
+        // Add click handlers for flag toggles
+        flagToggles.forEach(toggle => {
+            toggle.addEventListener('click', () => {
+                toggle.classList.toggle('active');
+                update();
+            });
+        });
+
+        // Pattern library selection handler
+        patternLibrary.addEventListener('change', (e) => {
+            const selectedIndex = e.target.value;
+            if (selectedIndex === '') {
+                // Reset to placeholder
+                return;
+            }
+
+            const selected = patterns[selectedIndex];
+            regexInput.value = selected.pattern;
+            setFlags(selected.flags);
+            testString.value = selected.sample;
+
+            // Reset dropdown to placeholder
+            patternLibrary.value = '';
+
+            update();
+        });
+
+        // Copy pattern button handler
+        copyPatternBtn.addEventListener('click', () => {
+            const pattern = regexInput.value;
+            const flags = getActiveFlags();
+            const formattedPattern = `/${pattern}/${flags}`;
+            copyToClipboard(formattedPattern, copyPatternBtn);
+        });
+
+        // Copy all matches button handler
+        copyAllBtn.addEventListener('click', () => {
+            const pattern = regexInput.value;
+            const flags = getActiveFlags();
+            const text = testString.value;
+
+            if (!pattern) {
+                return;
+            }
+
+            try {
+                const activeFlags = flags.includes('g') ? flags : flags + 'g';
+                const regex = new RegExp(pattern, activeFlags);
+                const matches = [...text.matchAll(regex)];
+                const allMatches = matches.map(m => m[0]).join('\n');
+
+                if (allMatches) {
+                    copyToClipboard(allMatches, copyAllBtn);
+                }
+            } catch (e) {
+                // Invalid regex, do nothing
+            }
+        });
+
+        update();
+    </script>
+</body>
+</html>
