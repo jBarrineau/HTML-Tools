@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSON Flattener</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: transparent;
+            --bg-secondary: rgba(255, 255, 255, 0.15);
+            --bg-tertiary: rgba(255, 255, 255, 0.25);
+            --text-primary: #2d3748;
+            --text-secondary: #4a5568;
+            --accent-blue: #667eea;
+            --accent-purple: #764ba2;
+            --accent-green: #10b981;
+            --accent-red: #ef4444;
+            --border-color: rgba(255, 255, 255, 0.18);
+            --shadow: rgba(31, 38, 135, 0.15);
+            --glass-bg: rgba(255, 255, 255, 0.15);
+            --glass-border: rgba(255, 255, 255, 0.18);
+            --glass-shadow: rgba(31, 38, 135, 0.15);
+        }
+
+        body {
+            font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #4facfe 75%, #667eea 100%);
+            background-size: 400% 400%;
+            animation: gradientShift 25s ease infinite;
+            color: var(--text-primary);
+            min-height: 100vh;
+            padding: 20px;
+            position: relative;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at 20% 50%, rgba(102, 126, 234, 0.3) 0%, transparent 50%),
+                        radial-gradient(circle at 80% 80%, rgba(240, 147, 251, 0.3) 0%, transparent 50%),
+                        radial-gradient(circle at 40% 20%, rgba(79, 172, 254, 0.2) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            font-size: 36px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            background: linear-gradient(135deg, #667eea, #764ba2, #f093fb);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: -0.5px;
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 15px;
+            font-weight: 400;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(10px) saturate(180%);
+            -webkit-backdrop-filter: blur(10px) saturate(180%);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 8px 32px var(--glass-shadow);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .panel-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+            letter-spacing: -0.2px;
+        }
+
+        .char-count {
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-weight: 400;
+        }
+
+        textarea {
+            flex: 1;
+            min-height: 400px;
+            background: rgba(255, 255, 255, 0.5);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 16px;
+            color: var(--text-primary);
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            resize: vertical;
+            transition: all 200ms ease;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2), 0 4px 12px rgba(102, 126, 234, 0.15);
+            background: rgba(255, 255, 255, 0.65);
+        }
+
+        textarea::placeholder {
+            color: #718096;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 10px 18px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 250ms cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.85), rgba(118, 75, 162, 0.85));
+            color: white;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.95), rgba(118, 75, 162, 0.95));
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.85), rgba(5, 150, 105, 0.85));
+            color: white;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+
+        .btn-success:hover:not(:disabled) {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.95), rgba(5, 150, 105, 0.95));
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.2);
+            color: var(--text-primary);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(45, 55, 72, 0.15);
+        }
+
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .toast {
+            background: rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(12px) saturate(180%);
+            -webkit-backdrop-filter: blur(12px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 12px;
+            padding: 14px 18px;
+            box-shadow: 0 8px 24px rgba(31, 38, 135, 0.25);
+            min-width: 280px;
+            animation: slideIn 200ms ease;
+            border-left: 4px solid;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .toast.success {
+            border-left-color: var(--accent-green);
+        }
+
+        .toast.error {
+            border-left-color: var(--accent-red);
+        }
+
+        .toast.info {
+            border-left-color: var(--accent-blue);
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+        }
+
+        .error-display {
+            background: rgba(254, 226, 226, 0.8);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(239, 68, 68, 0.4);
+            border-radius: 10px;
+            padding: 16px;
+            color: #dc2626;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            flex: 1;
+            overflow: auto;
+        }
+
+        /* Browser compatibility fallbacks for backdrop-filter */
+        @supports not (backdrop-filter: blur(10px)) {
+            .panel {
+                background: rgba(255, 255, 255, 0.45);
+            }
+
+            textarea {
+                background: rgba(255, 255, 255, 0.7);
+            }
+
+            button {
+                background: rgba(255, 255, 255, 0.3);
+            }
+
+            .toast {
+                background: rgba(255, 255, 255, 0.5);
+            }
+
+            .error-display {
+                background: rgba(254, 226, 226, 0.95);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+
+            textarea {
+                min-height: 300px;
+            }
+
+            h1 {
+                font-size: 24px;
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+
+            button {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>JSON Flattener</h1>
+        <p class="subtitle">Convert nested JSON to flat dot notation</p>
+    </header>
+
+    <div class="container">
+        <div class="panel">
+            <div class="panel-header">
+                <span class="panel-title">Input JSON</span>
+                <span class="char-count" id="inputCount">0 characters</span>
+            </div>
+            <textarea
+                id="inputJson"
+                placeholder='Paste your nested JSON here... e.g.:
+{
+  "user": {
+    "name": "John Doe",
+    "age": 30,
+    "address": {
+      "city": "New York",
+      "zip": "10001"
+    }
+  }
+}'
+                spellcheck="false"
+            ></textarea>
+            <div class="button-group">
+                <button class="btn-secondary" id="loadSample">
+                    <span>📋</span> Load Sample
+                </button>
+                <button class="btn-secondary" id="clearInput">
+                    <span>🗑️</span> Clear
+                </button>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-header">
+                <span class="panel-title">Flattened Output</span>
+                <span class="char-count" id="outputCount">0 characters</span>
+            </div>
+            <textarea
+                id="outputJson"
+                placeholder="Flattened JSON will appear here..."
+                readonly
+                spellcheck="false"
+            ></textarea>
+            <div class="button-group">
+                <button class="btn-success" id="copyBtn" disabled>
+                    <span>📋</span> Copy to Clipboard
+                </button>
+                <button class="btn-primary" id="downloadBtn" disabled>
+                    <span>⬇️</span> Download CSV
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script>
+        // ===== SECTION 1: JSON Flattening Algorithm =====
+
+        function flattenJSON(obj, prefix = '', result = {}) {
+            for (const [key, value] of Object.entries(obj)) {
+                const newKey = prefix ? `${prefix}.${key}` : key;
+
+                if (value === null || value === undefined) {
+                    result[newKey] = value;
+                } else if (Array.isArray(value)) {
+                    if (value.length === 0) {
+                        result[newKey] = [];
+                    } else {
+                        value.forEach((item, index) => {
+                            flattenJSON({ [index]: item }, newKey, result);
+                        });
+                    }
+                } else if (typeof value === 'object') {
+                    if (Object.keys(value).length === 0) {
+                        result[newKey] = {};
+                    } else {
+                        flattenJSON(value, newKey, result);
+                    }
+                } else {
+                    result[newKey] = value;
+                }
+            }
+            return result;
+        }
+
+        // ===== SECTION 2: CSV Export Functionality =====
+
+        function escapeCSVValue(value) {
+            if (value === null) return 'null';
+            if (value === undefined) return 'undefined';
+            if (typeof value === 'object') return JSON.stringify(value);
+
+            const str = String(value);
+            if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+                return `"${str.replace(/"/g, '""')}"`;
+            }
+            return str;
+        }
+
+        function convertToCSV(flatObject) {
+            const rows = [['Key Path', 'Value']];
+
+            for (const [key, value] of Object.entries(flatObject)) {
+                rows.push([escapeCSVValue(key), escapeCSVValue(value)]);
+            }
+
+            return rows.map(row => row.join(',')).join('\n');
+        }
+
+        function downloadCSV(csvContent, filename) {
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+
+            link.setAttribute('href', url);
+            link.setAttribute('download', filename);
+            link.style.visibility = 'hidden';
+
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            URL.revokeObjectURL(url);
+        }
+
+        // ===== SECTION 3: Application Controller =====
+
+        const elements = {
+            inputJson: document.getElementById('inputJson'),
+            outputJson: document.getElementById('outputJson'),
+            copyBtn: document.getElementById('copyBtn'),
+            downloadBtn: document.getElementById('downloadBtn'),
+            loadSample: document.getElementById('loadSample'),
+            clearInput: document.getElementById('clearInput'),
+            inputCount: document.getElementById('inputCount'),
+            outputCount: document.getElementById('outputCount'),
+            toastContainer: document.getElementById('toastContainer')
+        };
+
+        let debounceTimer;
+        let currentFlattenedData = null;
+
+        function showToast(message, type = 'info') {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+
+            const icon = type === 'success' ? '✓' : type === 'error' ? '✕' : 'ℹ';
+            toast.innerHTML = `<span style="font-size: 18px;">${icon}</span> <span>${message}</span>`;
+
+            elements.toastContainer.appendChild(toast);
+
+            setTimeout(() => {
+                toast.style.animation = 'slideOut 200ms ease';
+                setTimeout(() => {
+                    if (toast.parentNode) {
+                        elements.toastContainer.removeChild(toast);
+                    }
+                }, 200);
+            }, 3000);
+        }
+
+        function updateCharCounts() {
+            const inputLength = elements.inputJson.value.length;
+            const outputLength = elements.outputJson.value.length;
+
+            elements.inputCount.textContent = `${inputLength.toLocaleString()} character${inputLength !== 1 ? 's' : ''}`;
+            elements.outputCount.textContent = `${outputLength.toLocaleString()} character${outputLength !== 1 ? 's' : ''}`;
+        }
+
+        function processJSON(value) {
+            if (!value.trim()) {
+                elements.outputJson.value = '';
+                elements.outputJson.parentElement.querySelector('.error-display')?.remove();
+                currentFlattenedData = null;
+                elements.copyBtn.disabled = true;
+                elements.downloadBtn.disabled = true;
+                updateCharCounts();
+                return;
+            }
+
+            try {
+                const parsed = JSON.parse(value);
+                const flattened = flattenJSON(parsed);
+                currentFlattenedData = flattened;
+
+                elements.outputJson.value = JSON.stringify(flattened, null, 2);
+                elements.outputJson.parentElement.querySelector('.error-display')?.remove();
+                elements.outputJson.style.display = 'block';
+
+                elements.copyBtn.disabled = false;
+                elements.downloadBtn.disabled = false;
+
+                updateCharCounts();
+            } catch (error) {
+                currentFlattenedData = null;
+                elements.copyBtn.disabled = true;
+                elements.downloadBtn.disabled = true;
+
+                // Display error
+                let errorDisplay = elements.outputJson.parentElement.querySelector('.error-display');
+                if (!errorDisplay) {
+                    errorDisplay = document.createElement('div');
+                    errorDisplay.className = 'error-display';
+                    elements.outputJson.style.display = 'none';
+                    elements.outputJson.parentElement.insertBefore(errorDisplay, elements.outputJson.nextSibling);
+                }
+
+                errorDisplay.textContent = `❌ Invalid JSON\n\n${error.message}`;
+                updateCharCounts();
+            }
+        }
+
+        function handleInput(event) {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                processJSON(event.target.value);
+            }, 300);
+        }
+
+        async function copyToClipboard() {
+            if (!currentFlattenedData) return;
+
+            const text = elements.outputJson.value;
+
+            try {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(text);
+                    showToast('Copied to clipboard!', 'success');
+                } else {
+                    // Fallback for older browsers
+                    elements.outputJson.select();
+                    document.execCommand('copy');
+                    showToast('Copied to clipboard!', 'success');
+                }
+            } catch (error) {
+                showToast('Failed to copy. Please try again.', 'error');
+            }
+        }
+
+        function handleDownloadCSV() {
+            if (!currentFlattenedData) return;
+
+            try {
+                const csvContent = convertToCSV(currentFlattenedData);
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+                const filename = `flattened-json-${timestamp}.csv`;
+
+                downloadCSV(csvContent, filename);
+                showToast('CSV downloaded successfully!', 'success');
+            } catch (error) {
+                showToast('Failed to download CSV. Please try again.', 'error');
+            }
+        }
+
+        function loadSampleJSON() {
+            const sample = {
+                "user": {
+                    "id": 12345,
+                    "name": "John Doe",
+                    "email": "john.doe@example.com",
+                    "isActive": true,
+                    "profile": {
+                        "age": 30,
+                        "city": "New York",
+                        "country": "USA"
+                    }
+                },
+                "orders": [
+                    {
+                        "orderId": "ORD-001",
+                        "total": 99.99,
+                        "items": ["Widget", "Gadget"]
+                    },
+                    {
+                        "orderId": "ORD-002",
+                        "total": 149.50,
+                        "items": ["Thing", "Stuff", "Item"]
+                    }
+                ],
+                "metadata": {
+                    "created": "2024-01-15",
+                    "tags": ["customer", "premium"],
+                    "settings": {
+                        "notifications": true,
+                        "theme": "dark"
+                    }
+                }
+            };
+
+            elements.inputJson.value = JSON.stringify(sample, null, 2);
+            processJSON(elements.inputJson.value);
+            showToast('Sample JSON loaded', 'info');
+        }
+
+        function clearInput() {
+            elements.inputJson.value = '';
+            elements.outputJson.value = '';
+            elements.outputJson.parentElement.querySelector('.error-display')?.remove();
+            elements.outputJson.style.display = 'block';
+            currentFlattenedData = null;
+            elements.copyBtn.disabled = true;
+            elements.downloadBtn.disabled = true;
+            updateCharCounts();
+        }
+
+        function init() {
+            // Event listeners
+            elements.inputJson.addEventListener('input', handleInput);
+            elements.inputJson.addEventListener('input', updateCharCounts);
+            elements.copyBtn.addEventListener('click', copyToClipboard);
+            elements.downloadBtn.addEventListener('click', handleDownloadCSV);
+            elements.loadSample.addEventListener('click', loadSampleJSON);
+            elements.clearInput.addEventListener('click', clearInput);
+
+            // Initialize counts
+            updateCharCounts();
+
+            // Show welcome message
+            setTimeout(() => {
+                showToast('Welcome! Paste JSON or load a sample to get started.', 'info');
+            }, 500);
+        }
+
+        // Initialize app when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+    </script>
+</body>
+</html>
