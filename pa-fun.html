@@ -1,0 +1,1680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Power Automate Expression Playground</title>
+    <style>
+        /* Power Automate Expression Playground Styles */
+
+        :root {
+            /* Colors - Power Automate inspired */
+            --color-primary: #0078d4;
+            --color-primary-hover: #005a9e;
+            --color-success: #28a745;
+            --color-error: #dc3545;
+            --color-warning: #ffc107;
+
+            /* Neutrals */
+            --color-bg: #f5f5f5;
+            --color-surface: #ffffff;
+            --color-text: #333333;
+            --color-text-muted: #666666;
+            --color-border: #dddddd;
+
+            /* Syntax highlighting */
+            --color-function: #0000ff;
+            --color-string: #008000;
+            --color-number: #ff8c00;
+            --color-boolean: #a31515;
+            --color-operator: #999999;
+
+            /* Fonts */
+            --font-main: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            --font-mono: 'Courier New', Consolas, Monaco, monospace;
+
+            /* Spacing */
+            --spacing-xs: 0.25rem;
+            --spacing-sm: 0.5rem;
+            --spacing-md: 1rem;
+            --spacing-lg: 1.5rem;
+            --spacing-xl: 2rem;
+
+            /* Border radius */
+            --radius-sm: 4px;
+            --radius-md: 8px;
+        }
+
+        /* Reset and base styles */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-main);
+            background-color: var(--color-bg);
+            color: var(--color-text);
+            line-height: 1.6;
+            padding: var(--spacing-md);
+        }
+
+        /* Container */
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background-color: var(--color-surface);
+            border-radius: var(--radius-md);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        /* Header */
+        header {
+            background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-hover) 100%);
+            color: white;
+            padding: var(--spacing-xl);
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 1.8rem;
+            margin-bottom: var(--spacing-sm);
+        }
+
+        .subtitle {
+            font-size: 0.95rem;
+            opacity: 0.9;
+        }
+
+        /* Main content */
+        main {
+            padding: var(--spacing-xl);
+        }
+
+        section {
+            margin-bottom: var(--spacing-xl);
+        }
+
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: var(--spacing-sm);
+            color: var(--color-text);
+        }
+
+        /* Input section */
+        .input-wrapper {
+            position: relative;
+            width: 100%;
+        }
+
+        .expression-input {
+            width: 100%;
+            min-height: 100px;
+            padding: var(--spacing-md);
+            font-family: var(--font-mono);
+            font-size: 14px;
+            border: 2px solid var(--color-border);
+            border-radius: var(--radius-sm);
+            resize: vertical;
+            background-color: var(--color-surface);
+            color: transparent;
+            caret-color: var(--color-text);
+            position: relative;
+            z-index: 2;
+            background: transparent;
+        }
+
+        .expression-input:focus {
+            outline: none;
+            border-color: var(--color-primary);
+        }
+
+        .syntax-highlight {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            min-height: 100px;
+            padding: var(--spacing-md);
+            font-family: var(--font-mono);
+            font-size: 14px;
+            border: 2px solid var(--color-border);
+            border-radius: var(--radius-sm);
+            background-color: var(--color-surface);
+            pointer-events: none;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            z-index: 1;
+            overflow-wrap: break-word;
+        }
+
+        /* Syntax highlighting tokens */
+        .token-function {
+            color: var(--color-function);
+            font-weight: 600;
+        }
+
+        .token-string {
+            color: var(--color-string);
+        }
+
+        .token-number {
+            color: var(--color-number);
+        }
+
+        .token-boolean {
+            color: var(--color-boolean);
+            font-weight: 600;
+        }
+
+        .token-operator {
+            color: var(--color-operator);
+        }
+
+        /* Output section */
+        .expression-output {
+            min-height: 60px;
+            padding: var(--spacing-md);
+            font-family: var(--font-mono);
+            font-size: 14px;
+            border: 2px solid var(--color-border);
+            border-radius: var(--radius-sm);
+            background-color: #f9f9f9;
+            word-wrap: break-word;
+            white-space: pre-wrap;
+        }
+
+        .expression-output.success {
+            border-color: var(--color-success);
+            background-color: #f0f9f4;
+        }
+
+        .expression-output.error {
+            border-color: var(--color-error);
+            background-color: #fef2f2;
+            color: var(--color-error);
+        }
+
+        .expression-output:empty::before {
+            content: 'Enter an expression above to see the result';
+            color: var(--color-text-muted);
+            font-style: italic;
+        }
+
+        /* Examples section */
+        .examples-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--spacing-sm);
+        }
+
+        .example-button {
+            padding: var(--spacing-sm) var(--spacing-md);
+            font-family: var(--font-mono);
+            font-size: 12px;
+            background-color: var(--color-surface);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .example-button:hover {
+            background-color: var(--color-primary);
+            color: white;
+            border-color: var(--color-primary);
+        }
+
+        .example-button:active {
+            transform: translateY(1px);
+        }
+
+        /* Reference section */
+        details {
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-sm);
+            padding: var(--spacing-md);
+        }
+
+        summary {
+            font-weight: 600;
+            cursor: pointer;
+            user-select: none;
+            list-style-position: outside;
+        }
+
+        summary:hover {
+            color: var(--color-primary);
+        }
+
+        .function-reference {
+            margin-top: var(--spacing-md);
+        }
+
+        .function-category {
+            margin-bottom: var(--spacing-lg);
+        }
+
+        .function-category h3 {
+            color: var(--color-primary);
+            font-size: 1.1rem;
+            margin-bottom: var(--spacing-sm);
+            border-bottom: 2px solid var(--color-primary);
+            padding-bottom: var(--spacing-xs);
+        }
+
+        .function-item {
+            margin-bottom: var(--spacing-md);
+            padding: var(--spacing-sm);
+            background-color: #f9f9f9;
+            border-radius: var(--radius-sm);
+        }
+
+        .function-signature {
+            font-family: var(--font-mono);
+            font-weight: 600;
+            color: var(--color-function);
+            margin-bottom: var(--spacing-xs);
+        }
+
+        .function-description {
+            font-size: 0.9rem;
+            color: var(--color-text-muted);
+            margin-bottom: var(--spacing-xs);
+        }
+
+        .function-example {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: var(--color-text);
+            background-color: var(--color-surface);
+            padding: var(--spacing-xs) var(--spacing-sm);
+            border-left: 3px solid var(--color-primary);
+            margin-top: var(--spacing-xs);
+        }
+
+        /* Footer */
+        footer {
+            background-color: #f9f9f9;
+            padding: var(--spacing-lg);
+            text-align: center;
+            border-top: 1px solid var(--color-border);
+            font-size: 0.85rem;
+            color: var(--color-text-muted);
+        }
+
+        footer p {
+            margin-bottom: var(--spacing-xs);
+        }
+
+        footer a {
+            color: var(--color-primary);
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+
+        .disclaimer {
+            font-style: italic;
+            font-size: 0.8rem;
+        }
+
+        /* Responsive design */
+        @media (max-width: 600px) {
+            body {
+                padding: var(--spacing-sm);
+            }
+
+            header h1 {
+                font-size: 1.4rem;
+            }
+
+            main {
+                padding: var(--spacing-md);
+            }
+
+            .expression-input,
+            .syntax-highlight {
+                font-size: 13px;
+            }
+
+            .examples-container {
+                flex-direction: column;
+            }
+
+            .example-button {
+                width: 100%;
+            }
+        }
+
+        /* Accessibility */
+        @media (prefers-reduced-motion: reduce) {
+            * {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+
+        /* Loading state */
+        .evaluating::after {
+            content: '...';
+            animation: ellipsis 1.5s infinite;
+        }
+
+        @keyframes ellipsis {
+            0% { content: ''; }
+            25% { content: '.'; }
+            50% { content: '..'; }
+            75% { content: '...'; }
+            100% { content: ''; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Power Automate Expression Playground</h1>
+            <p class="subtitle">Experiment with Microsoft Power Automate expression functions</p>
+        </header>
+
+        <main>
+            <section class="input-section">
+                <label for="expression-input">Expression Input:</label>
+                <div class="input-wrapper">
+                    <textarea
+                        id="expression-input"
+                        class="expression-input"
+                        placeholder="@concat('Hello', ' ', 'World')"
+                        spellcheck="false"
+                        autocomplete="off"
+                        autocorrect="off"
+                        autocapitalize="off"
+                    ></textarea>
+                    <div id="syntax-highlight" class="syntax-highlight" aria-hidden="true"></div>
+                </div>
+            </section>
+
+            <section class="output-section">
+                <label for="expression-output">Output:</label>
+                <div id="expression-output" class="expression-output" aria-live="polite" role="status"></div>
+            </section>
+
+            <section class="examples-section">
+                <label>Examples:</label>
+                <div id="examples-container" class="examples-container"></div>
+            </section>
+
+            <section class="reference-section">
+                <details>
+                    <summary>Function Reference</summary>
+                    <div id="function-reference" class="function-reference"></div>
+                </details>
+            </section>
+        </main>
+
+        <footer>
+            <p>
+                Based on <a href="https://learn.microsoft.com/en-us/azure/logic-apps/expression-functions-reference" target="_blank" rel="noopener noreferrer">Microsoft Power Automate Expression Functions</a>
+            </p>
+            <p class="disclaimer">Unofficial playground. Behavior may differ from actual Power Automate.</p>
+        </footer>
+    </div>
+
+    <script>
+    /**
+     * Power Automate Expression Playground
+     * Consolidated vanilla JavaScript implementation (no ES6 modules)
+     * Works with file:// protocol without requiring a local server
+     */
+
+    (function() {
+        'use strict';
+
+        // ========================================================================
+        // 1. ERROR CLASSES
+        // ========================================================================
+
+        class EvaluationError extends Error {
+            constructor(message, context = {}) {
+                super(message);
+                this.name = 'EvaluationError';
+                this.context = context;
+            }
+
+            toUserMessage() {
+                let message = `Error: ${this.message}`;
+
+                if (this.context.expression) {
+                    message += `\nExpression: ${this.context.expression}`;
+                }
+
+                if (this.context.functionName) {
+                    message += `\nFunction: ${this.context.functionName}`;
+                }
+
+                if (this.context.position !== undefined) {
+                    message += `\nPosition: ${this.context.position}`;
+                }
+
+                if (this.context.suggestion) {
+                    message += `\n\nSuggestion: ${this.context.suggestion}`;
+                }
+
+                return message;
+            }
+        }
+
+        class ParseError extends EvaluationError {
+            constructor(message, context = {}) {
+                super(message, context);
+                this.name = 'ParseError';
+            }
+        }
+
+        class FunctionError extends EvaluationError {
+            constructor(message, context = {}) {
+                super(message, context);
+                this.name = 'FunctionError';
+            }
+        }
+
+        class ArgumentError extends EvaluationError {
+            constructor(message, context = {}) {
+                super(message, context);
+                this.name = 'ArgumentError';
+            }
+        }
+
+        // ========================================================================
+        // 2. STRING FUNCTIONS
+        // ========================================================================
+
+        const stringFunctions = {
+            concat: function(...args) {
+                if (args.length === 0) {
+                    throw new ArgumentError('concat requires at least 1 argument');
+                }
+                return args.map(arg => String(arg)).join('');
+            },
+
+            toUpper: function(text) {
+                return String(text).toUpperCase();
+            },
+
+            toLower: function(text) {
+                return String(text).toLowerCase();
+            },
+
+            substring: function(text, startIndex, length) {
+                const str = String(text);
+                const start = Number(startIndex);
+
+                if (length === undefined) {
+                    return str.substring(start);
+                }
+
+                const len = Number(length);
+                return str.substring(start, start + len);
+            },
+
+            split: function(text, delimiter) {
+                return String(text).split(String(delimiter));
+            },
+
+            replace: function(text, searchValue, replaceValue) {
+                // Replace all occurrences (Power Automate behavior)
+                return String(text).split(String(searchValue)).join(String(replaceValue));
+            },
+
+            trim: function(text) {
+                return String(text).trim();
+            },
+
+            indexOf: function(text, searchValue) {
+                return String(text).indexOf(String(searchValue));
+            }
+        };
+
+        // ========================================================================
+        // 3. MATH FUNCTIONS
+        // ========================================================================
+
+        // Helper to coerce values to numbers
+        function mathToNumber(value) {
+            const num = Number(value);
+            if (isNaN(num)) {
+                throw new ArgumentError(`Cannot convert '${value}' to number`);
+            }
+            return num;
+        }
+
+        const mathFunctions = {
+            add: function(a, b) {
+                return mathToNumber(a) + mathToNumber(b);
+            },
+
+            sub: function(a, b) {
+                return mathToNumber(a) - mathToNumber(b);
+            },
+
+            mul: function(a, b) {
+                return mathToNumber(a) * mathToNumber(b);
+            },
+
+            div: function(a, b) {
+                const divisor = mathToNumber(b);
+
+                if (divisor === 0) {
+                    throw new ArgumentError('Division by zero');
+                }
+
+                return mathToNumber(a) / divisor;
+            },
+
+            mod: function(a, b) {
+                const divisor = mathToNumber(b);
+
+                if (divisor === 0) {
+                    throw new ArgumentError('Modulo by zero');
+                }
+
+                return mathToNumber(a) % divisor;
+            },
+
+            max: function(...args) {
+                if (args.length === 0) {
+                    throw new ArgumentError('max requires at least 1 argument');
+                }
+
+                const numbers = args.map(mathToNumber);
+                return Math.max(...numbers);
+            },
+
+            min: function(...args) {
+                if (args.length === 0) {
+                    throw new ArgumentError('min requires at least 1 argument');
+                }
+
+                const numbers = args.map(mathToNumber);
+                return Math.min(...numbers);
+            },
+
+            rand: function(minValue, maxValue) {
+                const min = mathToNumber(minValue);
+                const max = mathToNumber(maxValue);
+
+                if (min > max) {
+                    throw new ArgumentError('min value cannot be greater than max value');
+                }
+
+                return Math.floor(Math.random() * (max - min + 1)) + min;
+            }
+        };
+
+        // ========================================================================
+        // 4. LOGIC FUNCTIONS
+        // ========================================================================
+
+        // Helper to coerce values to booleans
+        function logicToBoolean(value) {
+            if (typeof value === 'boolean') {
+                return value;
+            }
+
+            if (typeof value === 'string') {
+                const lower = value.toLowerCase();
+                if (lower === 'true') return true;
+                if (lower === 'false') return false;
+            }
+
+            // JavaScript-style truthiness
+            return Boolean(value);
+        }
+
+        // Helper to coerce values to numbers for comparison
+        function logicToNumber(value) {
+            const num = Number(value);
+            if (isNaN(num)) {
+                throw new ArgumentError(`Cannot convert '${value}' to number for comparison`);
+            }
+            return num;
+        }
+
+        const logicFunctions = {
+            and: function(a, b) {
+                return logicToBoolean(a) && logicToBoolean(b);
+            },
+
+            or: function(a, b) {
+                return logicToBoolean(a) || logicToBoolean(b);
+            },
+
+            not: function(a) {
+                return !logicToBoolean(a);
+            },
+
+            ifFunc: function(condition, trueValue, falseValue) {
+                return logicToBoolean(condition) ? trueValue : falseValue;
+            },
+
+            equals: function(a, b) {
+                // Type-aware equality
+                if (typeof a === typeof b) {
+                    return a === b;
+                }
+
+                // Try numeric comparison if both can be numbers
+                if ((typeof a === 'number' || typeof a === 'string') &&
+                    (typeof b === 'number' || typeof b === 'string')) {
+                    const numA = Number(a);
+                    const numB = Number(b);
+                    if (!isNaN(numA) && !isNaN(numB)) {
+                        return numA === numB;
+                    }
+                }
+
+                // String comparison
+                return String(a) === String(b);
+            },
+
+            greater: function(a, b) {
+                return logicToNumber(a) > logicToNumber(b);
+            },
+
+            less: function(a, b) {
+                return logicToNumber(a) < logicToNumber(b);
+            },
+
+            greaterOrEquals: function(a, b) {
+                return logicToNumber(a) >= logicToNumber(b);
+            },
+
+            lessOrEquals: function(a, b) {
+                return logicToNumber(a) <= logicToNumber(b);
+            }
+        };
+
+        // ========================================================================
+        // 5. COLLECTION FUNCTIONS
+        // ========================================================================
+
+        const collectionFunctions = {
+            first: function(collection) {
+                if (typeof collection === 'string') {
+                    return collection.length > 0 ? collection[0] : '';
+                }
+                if (Array.isArray(collection)) {
+                    return collection.length > 0 ? collection[0] : null;
+                }
+                throw new ArgumentError('first() requires a string or array');
+            },
+
+            last: function(collection) {
+                if (typeof collection === 'string') {
+                    return collection.length > 0 ? collection[collection.length - 1] : '';
+                }
+                if (Array.isArray(collection)) {
+                    return collection.length > 0 ? collection[collection.length - 1] : null;
+                }
+                throw new ArgumentError('last() requires a string or array');
+            },
+
+            length: function(collection) {
+                if (typeof collection === 'string' || Array.isArray(collection)) {
+                    return collection.length;
+                }
+                if (typeof collection === 'object' && collection !== null) {
+                    return Object.keys(collection).length;
+                }
+                throw new ArgumentError('length() requires a string, array, or object');
+            },
+
+            contains: function(collection, item) {
+                if (typeof collection === 'string') {
+                    return collection.includes(String(item));
+                }
+                if (Array.isArray(collection)) {
+                    return collection.includes(item);
+                }
+                throw new ArgumentError('contains() requires a string or array');
+            },
+
+            join: function(array, delimiter) {
+                if (!Array.isArray(array)) {
+                    throw new ArgumentError('join() requires an array as first argument');
+                }
+                return array.map(item => String(item)).join(String(delimiter));
+            },
+
+            take: function(collection, count) {
+                const num = Number(count);
+                if (isNaN(num) || num < 0) {
+                    throw new ArgumentError('take() count must be a non-negative number');
+                }
+
+                if (typeof collection === 'string') {
+                    return collection.slice(0, num);
+                }
+                if (Array.isArray(collection)) {
+                    return collection.slice(0, num);
+                }
+                throw new ArgumentError('take() requires a string or array');
+            },
+
+            skip: function(collection, count) {
+                const num = Number(count);
+                if (isNaN(num) || num < 0) {
+                    throw new ArgumentError('skip() count must be a non-negative number');
+                }
+
+                if (typeof collection === 'string') {
+                    return collection.slice(num);
+                }
+                if (Array.isArray(collection)) {
+                    return collection.slice(num);
+                }
+                throw new ArgumentError('skip() requires a string or array');
+            },
+
+            empty: function(collection) {
+                if (typeof collection === 'string' || Array.isArray(collection)) {
+                    return collection.length === 0;
+                }
+                if (typeof collection === 'object' && collection !== null) {
+                    return Object.keys(collection).length === 0;
+                }
+                return collection == null; // null or undefined
+            }
+        };
+
+        // ========================================================================
+        // 6. FUNCTION REGISTRY
+        // ========================================================================
+
+        const registry = {};
+
+        function register(name, fn, category, minArgs, maxArgs, description, example) {
+            registry[name] = {
+                fn,
+                category,
+                minArgs,
+                maxArgs: maxArgs === undefined ? minArgs : maxArgs,
+                description,
+                example
+            };
+        }
+
+        // Register String functions
+        register('concat', stringFunctions.concat, 'string', 1, Infinity,
+            'Combine multiple strings into one', "@concat('Hello', ' ', 'World')");
+        register('toUpper', stringFunctions.toUpper, 'string', 1, 1,
+            'Convert string to uppercase', "@toUpper('hello')");
+        register('toLower', stringFunctions.toLower, 'string', 1, 1,
+            'Convert string to lowercase', "@toLower('HELLO')");
+        register('substring', stringFunctions.substring, 'string', 2, 3,
+            'Extract part of a string', "@substring('hello world', 0, 5)");
+        register('split', stringFunctions.split, 'string', 2, 2,
+            'Split string into array by delimiter', "@split('a,b,c', ',')");
+        register('replace', stringFunctions.replace, 'string', 3, 3,
+            'Replace text in string', "@replace('hello', 'l', 'L')");
+        register('trim', stringFunctions.trim, 'string', 1, 1,
+            'Remove whitespace from both ends', "@trim('  hello  ')");
+        register('indexOf', stringFunctions.indexOf, 'string', 2, 2,
+            'Find position of substring', "@indexOf('hello', 'l')");
+
+        // Register Math functions
+        register('add', mathFunctions.add, 'math', 2, 2,
+            'Add two numbers', "@add(5, 3)");
+        register('sub', mathFunctions.sub, 'math', 2, 2,
+            'Subtract second number from first', "@sub(10, 3)");
+        register('mul', mathFunctions.mul, 'math', 2, 2,
+            'Multiply two numbers', "@mul(4, 5)");
+        register('div', mathFunctions.div, 'math', 2, 2,
+            'Divide first number by second', "@div(10, 2)");
+        register('mod', mathFunctions.mod, 'math', 2, 2,
+            'Get remainder of division', "@mod(10, 3)");
+        register('max', mathFunctions.max, 'math', 1, Infinity,
+            'Get maximum value', "@max(1, 5, 3, 9, 2)");
+        register('min', mathFunctions.min, 'math', 1, Infinity,
+            'Get minimum value', "@min(1, 5, 3, 9, 2)");
+        register('rand', mathFunctions.rand, 'math', 2, 2,
+            'Generate random number in range', "@rand(1, 10)");
+
+        // Register Logic functions
+        register('and', logicFunctions.and, 'logic', 2, 2,
+            'Logical AND operation', "@and(true, false)");
+        register('or', logicFunctions.or, 'logic', 2, 2,
+            'Logical OR operation', "@or(true, false)");
+        register('not', logicFunctions.not, 'logic', 1, 1,
+            'Logical NOT operation', "@not(true)");
+        register('if', logicFunctions.ifFunc, 'logic', 3, 3,
+            'Conditional expression', "@if(greater(5, 3), 'yes', 'no')");
+        register('equals', logicFunctions.equals, 'logic', 2, 2,
+            'Check if two values are equal', "@equals(5, 5)");
+        register('greater', logicFunctions.greater, 'logic', 2, 2,
+            'Check if first > second', "@greater(10, 5)");
+        register('less', logicFunctions.less, 'logic', 2, 2,
+            'Check if first < second', "@less(5, 10)");
+        register('greaterOrEquals', logicFunctions.greaterOrEquals, 'logic', 2, 2,
+            'Check if first >= second', "@greaterOrEquals(5, 5)");
+        register('lessOrEquals', logicFunctions.lessOrEquals, 'logic', 2, 2,
+            'Check if first <= second', "@lessOrEquals(5, 10)");
+
+        // Register Collection functions
+        register('first', collectionFunctions.first, 'collection', 1, 1,
+            'Get first item from array or string', "@first(split('a,b,c', ','))");
+        register('last', collectionFunctions.last, 'collection', 1, 1,
+            'Get last item from array or string', "@last(split('a,b,c', ','))");
+        register('length', collectionFunctions.length, 'collection', 1, 1,
+            'Count items in array or string', "@length(split('a,b,c', ','))");
+        register('contains', collectionFunctions.contains, 'collection', 2, 2,
+            'Check if collection contains item', "@contains('hello world', 'world')");
+        register('join', collectionFunctions.join, 'collection', 2, 2,
+            'Combine array items into string', "@join(split('a,b,c', ','), '-')");
+        register('take', collectionFunctions.take, 'collection', 2, 2,
+            'Get first N items from collection', "@take('hello', 3)");
+        register('skip', collectionFunctions.skip, 'collection', 2, 2,
+            'Skip first N items from collection', "@skip('hello', 2)");
+        register('empty', collectionFunctions.empty, 'collection', 1, 1,
+            'Check if collection is empty', "@empty(split('', ','))");
+
+        function getFunction(name) {
+            return registry[name];
+        }
+
+        function getFunctionReference() {
+            const reference = {};
+
+            Object.entries(registry).forEach(([name, info]) => {
+                const { category, description, example, minArgs, maxArgs } = info;
+
+                if (!reference[category]) {
+                    reference[category] = [];
+                }
+
+                // Build function signature
+                let signature = `${name}(`;
+                if (minArgs === 0 && maxArgs === 0) {
+                    signature += ')';
+                } else if (maxArgs === Infinity) {
+                    signature += 'arg1, arg2, ...)';
+                } else {
+                    const params = [];
+                    for (let i = 1; i <= minArgs; i++) {
+                        params.push(`arg${i}`);
+                    }
+                    for (let i = minArgs + 1; i <= maxArgs; i++) {
+                        params.push(`arg${i}?`);
+                    }
+                    signature += params.join(', ') + ')';
+                }
+
+                reference[category].push({
+                    name,
+                    signature,
+                    description,
+                    example
+                });
+            });
+
+            return reference;
+        }
+
+        // ========================================================================
+        // 6. PARSER CLASS
+        // ========================================================================
+
+        class Parser {
+            constructor() {
+                this.input = '';
+                this.pos = 0;
+                this.length = 0;
+            }
+
+            parse(input) {
+                this.input = input;
+                this.pos = 0;
+                this.length = input.length;
+
+                const mode = this.detectMode();
+
+                if (mode === 'standalone') {
+                    return this.parseStandalone();
+                } else if (mode === 'inline') {
+                    return this.parseInline();
+                } else {
+                    // Plain literal text
+                    return {
+                        type: 'Literal',
+                        value: input,
+                        dataType: 'string'
+                    };
+                }
+            }
+
+            detectMode() {
+                const trimmed = this.input.trim();
+
+                if (trimmed.startsWith('@') && !trimmed.includes('@{')) {
+                    return 'standalone';
+                }
+
+                if (trimmed.includes('@{')) {
+                    return 'inline';
+                }
+
+                return 'literal';
+            }
+
+            parseStandalone() {
+                // Expect: @functionName(args...)
+                this.skipWhitespace();
+
+                if (!this.expect('@')) {
+                    throw new ParseError('Expected @ at start of expression', {
+                        expression: this.input,
+                        position: this.pos
+                    });
+                }
+
+                return this.parseFunctionCall();
+            }
+
+            parseInline() {
+                // Parse text with embedded @{...} expressions
+                const segments = [];
+                let currentText = '';
+
+                while (this.pos < this.length) {
+                    if (this.peek() === '@' && this.peekNext() === '{') {
+                        // Save any accumulated text
+                        if (currentText) {
+                            segments.push({
+                                type: 'Literal',
+                                value: currentText,
+                                dataType: 'string'
+                            });
+                            currentText = '';
+                        }
+
+                        // Parse the @{...} expression
+                        this.consume('@');
+                        this.consume('{');
+
+                        const expr = this.parseFunctionCall();
+                        segments.push(expr);
+
+                        if (!this.expect('}')) {
+                            throw new ParseError('Expected } to close inline expression', {
+                                expression: this.input,
+                                position: this.pos
+                            });
+                        }
+                    } else {
+                        currentText += this.advance();
+                    }
+                }
+
+                // Save any remaining text
+                if (currentText) {
+                    segments.push({
+                        type: 'Literal',
+                        value: currentText,
+                        dataType: 'string'
+                    });
+                }
+
+                return {
+                    type: 'MixedText',
+                    segments: segments
+                };
+            }
+
+            parseFunctionCall() {
+                this.skipWhitespace();
+
+                const name = this.parseFunctionName();
+
+                this.skipWhitespace();
+
+                if (!this.expect('(')) {
+                    throw new ParseError(`Expected ( after function name '${name}'`, {
+                        expression: this.input,
+                        position: this.pos,
+                        functionName: name
+                    });
+                }
+
+                const args = this.parseArguments();
+
+                this.skipWhitespace();
+
+                if (!this.expect(')')) {
+                    throw new ParseError(`Expected ) to close function '${name}'`, {
+                        expression: this.input,
+                        position: this.pos,
+                        functionName: name
+                    });
+                }
+
+                return {
+                    type: 'FunctionCall',
+                    name: name,
+                    args: args
+                };
+            }
+
+            parseFunctionName() {
+                let name = '';
+
+                while (this.pos < this.length && /[a-zA-Z_]/.test(this.peek())) {
+                    name += this.advance();
+                }
+
+                if (!name) {
+                    throw new ParseError('Expected function name', {
+                        expression: this.input,
+                        position: this.pos
+                    });
+                }
+
+                return name;
+            }
+
+            parseArguments() {
+                const args = [];
+
+                this.skipWhitespace();
+
+                // Empty argument list
+                if (this.peek() === ')') {
+                    return args;
+                }
+
+                while (true) {
+                    args.push(this.parseExpression());
+
+                    this.skipWhitespace();
+
+                    if (this.peek() === ',') {
+                        this.advance(); // consume comma
+                        this.skipWhitespace();
+                    } else {
+                        break;
+                    }
+                }
+
+                return args;
+            }
+
+            parseExpression() {
+                this.skipWhitespace();
+
+                const ch = this.peek();
+
+                // String literal
+                if (ch === "'") {
+                    return this.parseStringLiteral();
+                }
+
+                // Number
+                if (this.isDigit(ch) || (ch === '-' && this.isDigit(this.peekNext()))) {
+                    return this.parseNumber();
+                }
+
+                // Boolean or nested function call
+                if (/[a-zA-Z_]/.test(ch)) {
+                    return this.parseFunctionOrLiteral();
+                }
+
+                throw new ParseError(`Unexpected character: ${ch}`, {
+                    expression: this.input,
+                    position: this.pos
+                });
+            }
+
+            parseStringLiteral() {
+                this.consume("'");
+
+                let value = '';
+
+                while (this.pos < this.length && this.peek() !== "'") {
+                    if (this.peek() === '\\') {
+                        // Handle escape sequences
+                        this.advance(); // consume backslash
+                        const escaped = this.advance();
+
+                        switch (escaped) {
+                            case 'n': value += '\n'; break;
+                            case 't': value += '\t'; break;
+                            case 'r': value += '\r'; break;
+                            case '\\': value += '\\'; break;
+                            case "'": value += "'"; break;
+                            default: value += escaped;
+                        }
+                    } else {
+                        value += this.advance();
+                    }
+                }
+
+                if (!this.expect("'")) {
+                    throw new ParseError('Unterminated string literal', {
+                        expression: this.input,
+                        position: this.pos
+                    });
+                }
+
+                return {
+                    type: 'Literal',
+                    value: value,
+                    dataType: 'string'
+                };
+            }
+
+            parseNumber() {
+                let numStr = '';
+
+                // Handle negative sign
+                if (this.peek() === '-') {
+                    numStr += this.advance();
+                }
+
+                // Parse digits
+                while (this.pos < this.length && this.isDigit(this.peek())) {
+                    numStr += this.advance();
+                }
+
+                // Parse decimal part
+                if (this.peek() === '.') {
+                    numStr += this.advance();
+
+                    while (this.pos < this.length && this.isDigit(this.peek())) {
+                        numStr += this.advance();
+                    }
+                }
+
+                const value = parseFloat(numStr);
+
+                if (isNaN(value)) {
+                    throw new ParseError(`Invalid number: ${numStr}`, {
+                        expression: this.input,
+                        position: this.pos
+                    });
+                }
+
+                return {
+                    type: 'Literal',
+                    value: value,
+                    dataType: 'number'
+                };
+            }
+
+            parseFunctionOrLiteral() {
+                const start = this.pos;
+                const name = this.parseFunctionName();
+
+                this.skipWhitespace();
+
+                // Check if it's a function call
+                if (this.peek() === '(') {
+                    // Reset and parse as function call
+                    this.pos = start;
+                    return this.parseFunctionCall();
+                }
+
+                // It's a literal (boolean or identifier)
+                if (name === 'true') {
+                    return { type: 'Literal', value: true, dataType: 'boolean' };
+                }
+
+                if (name === 'false') {
+                    return { type: 'Literal', value: false, dataType: 'boolean' };
+                }
+
+                throw new ParseError(`Unknown identifier: ${name}`, {
+                    expression: this.input,
+                    position: start,
+                    suggestion: 'Did you mean a function call? Try adding parentheses.'
+                });
+            }
+
+            // Helper methods
+
+            peek() {
+                return this.pos < this.length ? this.input[this.pos] : '';
+            }
+
+            peekNext() {
+                return this.pos + 1 < this.length ? this.input[this.pos + 1] : '';
+            }
+
+            advance() {
+                return this.input[this.pos++];
+            }
+
+            consume(expected) {
+                if (this.peek() === expected) {
+                    this.advance();
+                    return true;
+                }
+                return false;
+            }
+
+            expect(expected) {
+                if (this.peek() === expected) {
+                    this.advance();
+                    return true;
+                }
+                return false;
+            }
+
+            skipWhitespace() {
+                while (this.pos < this.length && /\s/.test(this.peek())) {
+                    this.advance();
+                }
+            }
+
+            isDigit(ch) {
+                return ch >= '0' && ch <= '9';
+            }
+        }
+
+        // ========================================================================
+        // 7. EVALUATOR CLASS
+        // ========================================================================
+
+        class Evaluator {
+            constructor() {}
+
+            evaluate(node) {
+                switch (node.type) {
+                    case 'Literal':
+                        return node.value;
+
+                    case 'FunctionCall':
+                        return this.evaluateFunctionCall(node);
+
+                    case 'MixedText':
+                        return this.evaluateMixedText(node);
+
+                    default:
+                        throw new FunctionError(`Unknown node type: ${node.type}`);
+                }
+            }
+
+            evaluateFunctionCall(node) {
+                const { name, args } = node;
+
+                // Get the function from registry
+                const funcInfo = getFunction(name);
+
+                if (!funcInfo) {
+                    throw new FunctionError(`Unknown function: ${name}`, {
+                        functionName: name,
+                        suggestion: this.suggestFunction(name)
+                    });
+                }
+
+                // Validate argument count
+                const argCount = args.length;
+                const { minArgs, maxArgs } = funcInfo;
+
+                if (argCount < minArgs) {
+                    throw new ArgumentError(
+                        `Function '${name}' requires at least ${minArgs} argument(s), but got ${argCount}`,
+                        { functionName: name }
+                    );
+                }
+
+                if (maxArgs !== Infinity && argCount > maxArgs) {
+                    throw new ArgumentError(
+                        `Function '${name}' accepts at most ${maxArgs} argument(s), but got ${argCount}`,
+                        { functionName: name }
+                    );
+                }
+
+                // Evaluate all arguments
+                const evaluatedArgs = args.map(arg => this.evaluate(arg));
+
+                // Call the function
+                try {
+                    return funcInfo.fn(...evaluatedArgs);
+                } catch (error) {
+                    if (error instanceof FunctionError || error instanceof ArgumentError) {
+                        throw error;
+                    }
+                    throw new FunctionError(`Error in function '${name}': ${error.message}`, {
+                        functionName: name
+                    });
+                }
+            }
+
+            evaluateMixedText(node) {
+                // Evaluate all segments and concatenate
+                const results = node.segments.map(segment => {
+                    const result = this.evaluate(segment);
+                    return String(result);
+                });
+
+                return results.join('');
+            }
+
+            suggestFunction(name) {
+                // Simple suggestion logic
+                const allFunctions = [
+                    'concat', 'toUpper', 'toLower', 'substring', 'split', 'replace', 'trim', 'indexOf',
+                    'add', 'sub', 'mul', 'div', 'mod', 'max', 'min', 'rand',
+                    'and', 'or', 'not', 'if', 'equals', 'greater', 'less', 'greaterOrEquals', 'lessOrEquals',
+                    'first', 'last', 'length', 'contains', 'join', 'take', 'skip', 'empty'
+                ];
+
+                // Find close matches
+                const similar = allFunctions.filter(fn => {
+                    if (fn.toLowerCase().includes(name.toLowerCase()) ||
+                        name.toLowerCase().includes(fn.toLowerCase())) {
+                        return true;
+                    }
+                    return false;
+                });
+
+                if (similar.length > 0) {
+                    return `Did you mean '${similar[0]}'?`;
+                }
+
+                return null;
+            }
+        }
+
+        // ========================================================================
+        // 8. EXAMPLES
+        // ========================================================================
+
+        const EXAMPLES = [
+            {
+                label: "concat('Hello', ' World')",
+                expression: "@concat('Hello', ' World')",
+                description: "Join multiple strings together"
+            },
+            {
+                label: "toUpper('hello')",
+                expression: "@toUpper('hello world')",
+                description: "Convert string to uppercase"
+            },
+            {
+                label: "substring('hello', 0, 3)",
+                expression: "@substring('hello world', 0, 5)",
+                description: "Extract part of a string"
+            },
+            {
+                label: "add(5, 3)",
+                expression: "@add(5, 3)",
+                description: "Add two numbers"
+            },
+            {
+                label: "mul(4, add(2, 3))",
+                expression: "@mul(4, add(2, 3))",
+                description: "Nested math operations"
+            },
+            {
+                label: "if(greater(5, 3), 'Yes', 'No')",
+                expression: "@if(greater(5, 3), 'Yes', 'No')",
+                description: "Conditional logic"
+            },
+            {
+                label: "toUpper(concat('hello', ' world'))",
+                expression: "@toUpper(concat('hello', ' world'))",
+                description: "Nested string functions"
+            },
+            {
+                label: "Inline: Result is @{add(2, 3)}",
+                expression: "Result is @{add(2, 3)}",
+                description: "Inline expression with text"
+            },
+            {
+                label: "first(split('a,b,c', ','))",
+                expression: "@first(split('a,b,c', ','))",
+                description: "Get first item from array"
+            },
+            {
+                label: "length('hello')",
+                expression: "@length('hello')",
+                description: "Count items in collection"
+            },
+            {
+                label: "join(split('a,b,c', ','), '-')",
+                expression: "@join(split('a,b,c', ','), '-')",
+                description: "Join array items with delimiter"
+            }
+        ];
+
+        // ========================================================================
+        // 9. APP CLASS
+        // ========================================================================
+
+        class App {
+            constructor() {
+                this.inputElement = document.getElementById('expression-input');
+                this.outputElement = document.getElementById('expression-output');
+                this.highlightElement = document.getElementById('syntax-highlight');
+                this.examplesContainer = document.getElementById('examples-container');
+                this.referenceContainer = document.getElementById('function-reference');
+
+                this.parser = new Parser();
+                this.evaluator = new Evaluator();
+                this.debounceTimer = null;
+
+                this.init();
+            }
+
+            init() {
+                // Set up event listeners
+                this.inputElement.addEventListener('input', () => this.handleInput());
+                this.inputElement.addEventListener('scroll', () => this.syncScroll());
+
+                // Load examples
+                this.loadExamples();
+
+                // Load function reference
+                this.loadFunctionReference();
+
+                // Set default example
+                if (EXAMPLES.length > 0) {
+                    this.inputElement.value = EXAMPLES[0].expression;
+                    this.handleInput();
+                }
+            }
+
+            handleInput() {
+                const expression = this.inputElement.value;
+
+                // Update syntax highlighting
+                this.updateSyntaxHighlight(expression);
+
+                // Debounce evaluation
+                clearTimeout(this.debounceTimer);
+                this.debounceTimer = setTimeout(() => {
+                    this.evaluate(expression);
+                }, 300);
+            }
+
+            evaluate(expression) {
+                if (!expression.trim()) {
+                    this.outputElement.textContent = '';
+                    this.outputElement.className = 'expression-output';
+                    return;
+                }
+
+                try {
+                    // Parse the expression
+                    const ast = this.parser.parse(expression);
+
+                    // Evaluate the AST
+                    const result = this.evaluator.evaluate(ast);
+
+                    // Display the result
+                    this.displayResult(result);
+                } catch (error) {
+                    this.displayError(error);
+                }
+            }
+
+            displayResult(result) {
+                // Format the result for display
+                let displayValue;
+
+                if (typeof result === 'string') {
+                    displayValue = result;
+                } else if (typeof result === 'number') {
+                    displayValue = String(result);
+                } else if (typeof result === 'boolean') {
+                    displayValue = String(result);
+                } else if (Array.isArray(result)) {
+                    displayValue = JSON.stringify(result, null, 2);
+                } else if (typeof result === 'object' && result !== null) {
+                    displayValue = JSON.stringify(result, null, 2);
+                } else {
+                    displayValue = String(result);
+                }
+
+                this.outputElement.textContent = displayValue;
+                this.outputElement.className = 'expression-output success';
+            }
+
+            displayError(error) {
+                let errorMessage;
+
+                if (error instanceof EvaluationError) {
+                    errorMessage = error.toUserMessage();
+                } else {
+                    errorMessage = `Error: ${error.message}`;
+                }
+
+                this.outputElement.textContent = errorMessage;
+                this.outputElement.className = 'expression-output error';
+            }
+
+            updateSyntaxHighlight(expression) {
+                const highlighted = this.highlightSyntax(expression);
+                this.highlightElement.innerHTML = highlighted;
+            }
+
+            highlightSyntax(text) {
+                if (!text) return '';
+
+                // Escape HTML
+                let highlighted = text
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;');
+
+                // Highlight strings (single quotes)
+                highlighted = highlighted.replace(
+                    /'([^'\\]|\\.)*'/g,
+                    '<span class="token-string">$&</span>'
+                );
+
+                // Highlight numbers
+                highlighted = highlighted.replace(
+                    /\b(\d+\.?\d*)\b/g,
+                    '<span class="token-number">$1</span>'
+                );
+
+                // Highlight booleans
+                highlighted = highlighted.replace(
+                    /\b(true|false)\b/g,
+                    '<span class="token-boolean">$1</span>'
+                );
+
+                // Highlight function names (word followed by opening paren)
+                highlighted = highlighted.replace(
+                    /\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/g,
+                    '<span class="token-function">$1</span>('
+                );
+
+                // Highlight operators and parentheses
+                highlighted = highlighted.replace(
+                    /([(),@{}])/g,
+                    '<span class="token-operator">$1</span>'
+                );
+
+                return highlighted;
+            }
+
+            syncScroll() {
+                this.highlightElement.scrollTop = this.inputElement.scrollTop;
+                this.highlightElement.scrollLeft = this.inputElement.scrollLeft;
+            }
+
+            loadExamples() {
+                EXAMPLES.forEach(example => {
+                    const button = document.createElement('button');
+                    button.className = 'example-button';
+                    button.textContent = example.label;
+                    button.title = example.description;
+                    button.addEventListener('click', () => {
+                        this.inputElement.value = example.expression;
+                        this.handleInput();
+                    });
+                    this.examplesContainer.appendChild(button);
+                });
+            }
+
+            loadFunctionReference() {
+                const reference = getFunctionReference();
+
+                Object.entries(reference).forEach(([category, functions]) => {
+                    const categoryDiv = document.createElement('div');
+                    categoryDiv.className = 'function-category';
+
+                    const categoryTitle = document.createElement('h3');
+                    categoryTitle.textContent = category.charAt(0).toUpperCase() + category.slice(1) + ' Functions';
+                    categoryDiv.appendChild(categoryTitle);
+
+                    functions.forEach(func => {
+                        const funcItem = document.createElement('div');
+                        funcItem.className = 'function-item';
+
+                        const signature = document.createElement('div');
+                        signature.className = 'function-signature';
+                        signature.textContent = func.signature;
+                        funcItem.appendChild(signature);
+
+                        const description = document.createElement('div');
+                        description.className = 'function-description';
+                        description.textContent = func.description;
+                        funcItem.appendChild(description);
+
+                        if (func.example) {
+                            const example = document.createElement('div');
+                            example.className = 'function-example';
+                            example.textContent = `Example: ${func.example}`;
+                            funcItem.appendChild(example);
+                        }
+
+                        categoryDiv.appendChild(funcItem);
+                    });
+
+                    this.referenceContainer.appendChild(categoryDiv);
+                });
+            }
+        }
+
+        // ========================================================================
+        // 10. INITIALIZATION
+        // ========================================================================
+
+        // Initialize the app when DOM is ready
+        document.addEventListener('DOMContentLoaded', function() {
+            new App();
+        });
+
+    })();
+    </script>
+</body>
+</html>
