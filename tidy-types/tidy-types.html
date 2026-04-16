@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tidy Types — Power Fx to UDT Converter</title>
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    *:focus-visible {
+      outline: 2px solid #3b82f6;
+      outline-offset: 2px;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 18px;
+      line-height: 1.6;
+      letter-spacing: 0.01em;
+      color: #f8fafc;
+      background: #0f172a;
+      min-height: 100vh;
+      padding: 0 16px 48px;
+    }
+
+    .skip-link {
+      position: absolute;
+      top: -100%;
+      left: 8px;
+      background: #3b82f6;
+      color: #0f172a;
+      padding: 8px 16px;
+      border-radius: 0 0 8px 8px;
+      font-weight: 600;
+      z-index: 9999;
+      text-decoration: none;
+    }
+
+    .skip-link:focus {
+      top: 0;
+    }
+
+    header {
+      text-align: left;
+      padding: 14px 24px;
+      display: flex;
+      align-items: baseline;
+      gap: 14px;
+      background: linear-gradient(135deg, #1e3a5f 0%, #1e293b 60%);
+      border-bottom: 1px solid #2d4a7a;
+      margin: 0 -16px 24px;
+    }
+
+    header h1 {
+      font-size: 22px;
+      font-weight: 700;
+      line-height: 1.3;
+      letter-spacing: -0.01em;
+      background: linear-gradient(90deg, #93c5fd, #60a5fa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    header p {
+      color: #7dd3fc;
+      font-size: 13px;
+      margin-top: 0;
+      opacity: 0.75;
+    }
+
+    main {
+      max-width: 960px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+    }
+
+    .card {
+      background: #1e293b;
+      border-radius: 16px;
+      padding: 24px;
+      border: 1px solid #334155;
+    }
+
+    .card h2 {
+      font-size: 24px;
+      font-weight: 600;
+      line-height: 1.3;
+      letter-spacing: -0.01em;
+      margin-bottom: 16px;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-group:last-child {
+      margin-bottom: 0;
+    }
+
+    label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 4px;
+      font-size: 16px;
+    }
+
+    .hint {
+      display: block;
+      color: #94a3b8;
+      font-size: 14px;
+      margin-bottom: 4px;
+    }
+
+    textarea,
+    input[type="text"] {
+      width: 100%;
+      background: #1e293b;
+      border: 2px solid #334155;
+      border-radius: 8px;
+      color: #f8fafc;
+      font-family: inherit;
+      font-size: 16px;
+      min-height: 44px;
+      padding: 10px 12px;
+      transition: border-color 150ms ease;
+    }
+
+    textarea:focus-visible,
+    input[type="text"]:focus-visible {
+      border-color: #3b82f6;
+    }
+
+    textarea {
+      min-height: 180px;
+      resize: vertical;
+      font-family: "Cascadia Code", "Fira Code", "Consolas", monospace;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .name-fields {
+      display: flex;
+      gap: 16px;
+    }
+
+    .name-fields .form-group {
+      flex: 1;
+    }
+
+    .output-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .btn-copy {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: #3b82f6;
+      color: #0f172a;
+      font-weight: 600;
+      font-size: 16px;
+      min-height: 44px;
+      padding: 10px 20px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      transition: filter 150ms ease;
+    }
+
+    .btn-copy:hover {
+      filter: brightness(1.1);
+    }
+
+    .btn-copy:active {
+      filter: brightness(0.9);
+    }
+
+    .btn-copy svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    .output-code {
+      background: #0f172a;
+      border: 2px solid #334155;
+      border-radius: 8px;
+      padding: 16px;
+      overflow-x: auto;
+      min-height: 80px;
+    }
+
+    .output-code code {
+      font-family: "Cascadia Code", "Fira Code", "Consolas", monospace;
+      font-size: 14px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: #f8fafc;
+    }
+
+    .hl-type-name { color: #60a5fa; }        /* declaration name — blue */
+    .hl-keyword   { color: #a78bfa; }        /* := Type — purple */
+    .hl-primitive { color: #34d399; }        /* Text Number Boolean — green */
+    .hl-ref       { color: #93c5fd; }        /* user-defined type refs — light blue */
+    .hl-punct     { color: #94a3b8; }        /* { } [ ] ( ) ; , — muted */
+    .hl-field     { color: #f8fafc; }        /* field names — white */
+
+    .output-error {
+      border-left: 4px solid #ef4444;
+    }
+
+    .output-error code {
+      color: #fca5a5;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
+
+    @media (max-width: 600px) {
+      header {
+        flex-wrap: wrap;
+      }
+
+      header h1 {
+        font-size: 20px;
+      }
+
+      .name-fields {
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      body {
+        padding: 0 8px 32px;
+      }
+
+      .card {
+        padding: 16px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+
+  <header>
+    <h1>Tidy Types</h1>
+    <p>Convert Power Fx data definitions to User Defined Types</p>
+  </header>
+
+  <main id="main-content">
+    <section class="card">
+
+      <div class="form-group">
+        <label for="powerfx-input">Power Fx Data</label>
+        <span class="hint" id="input-hint">Paste a Power Fx record or table definition</span>
+        <textarea
+          id="powerfx-input"
+          aria-describedby="input-hint"
+          placeholder='PaperSizes = [ { Name: "A4", Width: 210, Height: 297 } ];'
+          spellcheck="false"
+          autocorrect="off"
+          autocapitalize="none"
+          autocomplete="off"
+        ></textarea>
+      </div>
+
+      <div class="name-fields">
+        <div class="form-group">
+          <label for="record-name">Record Type Name</label>
+          <input type="text" id="record-name" value="MyRecord" spellcheck="false" autocorrect="off" autocapitalize="none" autocomplete="off" />
+        </div>
+        <div class="form-group">
+          <label for="table-name">Table Type Name</label>
+          <input type="text" id="table-name" value="MyTable" spellcheck="false" autocorrect="off" autocapitalize="none" autocomplete="off" />
+        </div>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="output-heading">
+      <div class="output-header">
+        <h2 id="output-heading">Output</h2>
+        <button class="btn-copy" id="copy-btn" type="button">
+          <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+          <span id="copy-btn-label">Copy</span>
+        </button>
+      </div>
+      <div class="output-code" id="output-container">
+        <code id="output" aria-live="polite"></code>
+      </div>
+    </section>
+  </main>
+
+  <div id="status-region" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+
+  <script>
+    (function () {
+      const inputEl = document.getElementById('powerfx-input');
+      const recordNameEl = document.getElementById('record-name');
+      const tableNameEl = document.getElementById('table-name');
+      const outputEl = document.getElementById('output');
+      const outputContainer = document.getElementById('output-container');
+      const copyBtn = document.getElementById('copy-btn');
+      const copyBtnLabel = document.getElementById('copy-btn-label');
+      const statusRegion = document.getElementById('status-region');
+
+      let debounceTimer = null;
+
+      function debounce(fn, ms) {
+        return function () {
+          clearTimeout(debounceTimer);
+          debounceTimer = setTimeout(fn, ms);
+        };
+      }
+
+      const triggerGenerate = debounce(generate, 300);
+
+      inputEl.addEventListener('input', triggerGenerate);
+      recordNameEl.addEventListener('input', triggerGenerate);
+      tableNameEl.addEventListener('input', triggerGenerate);
+
+      // --- Parsing ---
+
+      function parsePowerFx(raw) {
+        let s = raw.trim();
+
+        // Strip variable assignment prefix: VarName = ...
+        s = s.replace(/^\s*[A-Za-z_]\w*\s*=\s*/, '');
+
+        // Strip trailing semicolon
+        s = s.replace(/;\s*$/, '');
+
+        // Replace Blank() with null
+        s = s.replace(/\bBlank\(\)/gi, 'null');
+
+        // Quote unquoted keys
+        s = quoteKeys(s);
+
+        // Remove trailing commas before } or ]
+        s = s.replace(/,\s*([}\]])/g, '$1');
+
+        return JSON.parse(s);
+      }
+
+      function quoteKeys(s) {
+        let result = '';
+        let inString = false;
+        let stringChar = '';
+        let i = 0;
+
+        while (i < s.length) {
+          const ch = s[i];
+
+          if (inString) {
+            result += ch;
+            if (ch === '\\') {
+              i++;
+              if (i < s.length) result += s[i];
+            } else if (ch === stringChar) {
+              inString = false;
+            }
+            i++;
+            continue;
+          }
+
+          if (ch === '"' || ch === "'") {
+            inString = true;
+            stringChar = ch;
+            result += ch;
+            i++;
+            continue;
+          }
+
+          // Check for unquoted key: identifier followed by optional whitespace then colon
+          if (isIdentStart(ch)) {
+            let key = '';
+            let j = i;
+            while (j < s.length && isIdentChar(s[j])) {
+              key += s[j];
+              j++;
+            }
+            // Skip whitespace after key
+            let k = j;
+            while (k < s.length && (s[k] === ' ' || s[k] === '\t')) k++;
+
+            if (k < s.length && s[k] === ':') {
+              result += '"' + key + '"';
+              i = j;
+              continue;
+            } else {
+              // Not a key, just output as-is (could be true/false/null value)
+              result += key;
+              i = j;
+              continue;
+            }
+          }
+
+          result += ch;
+          i++;
+        }
+
+        return result;
+      }
+
+      function isIdentStart(ch) {
+        return /[A-Za-z_$]/.test(ch);
+      }
+
+      function isIdentChar(ch) {
+        return /[A-Za-z0-9_$]/.test(ch);
+      }
+
+      // --- Type Inference ---
+
+      function inferTypes(data, recordName, tableName) {
+        const declarations = [];
+
+        if (Array.isArray(data)) {
+          // Merge all elements
+          const merged = mergeObjects(data);
+          buildRecordType(merged, recordName, declarations);
+          declarations.push(tableName + ' := Type( [ ' + recordName + ' ] );');
+        } else if (typeof data === 'object' && data !== null) {
+          buildRecordType(data, recordName, declarations);
+        }
+
+        return declarations.join('\n\n');
+      }
+
+      function mergeObjects(arr) {
+        const merged = {};
+        for (const item of arr) {
+          if (typeof item === 'object' && item !== null && !Array.isArray(item)) {
+            for (const key of Object.keys(item)) {
+              if (!(key in merged)) {
+                merged[key] = item[key];
+              } else if (typeof item[key] === 'object' && item[key] !== null && merged[key] === null) {
+                // Prefer non-null value for type inference
+                merged[key] = item[key];
+              }
+            }
+          }
+        }
+        return merged;
+      }
+
+      function capitalize(s) {
+        return s.charAt(0).toUpperCase() + s.slice(1);
+      }
+
+      function mapType(value, fieldName, declarations) {
+        if (value === null || value === undefined) return 'Text';
+        if (typeof value === 'string') return 'Text';
+        if (typeof value === 'number') return 'Number';
+        if (typeof value === 'boolean') return 'Boolean';
+        if (Array.isArray(value)) {
+          const subRecordName = capitalize(fieldName) + 'Type';
+          const subTableName = capitalize(fieldName) + 'TableType';
+          const merged = mergeObjects(value);
+          buildRecordType(merged, subRecordName, declarations);
+          declarations.push(subTableName + ' := Type( [ ' + subRecordName + ' ] );');
+          return subTableName;
+        }
+        if (typeof value === 'object') {
+          const subName = capitalize(fieldName) + 'Type';
+          buildRecordType(value, subName, declarations);
+          return subName;
+        }
+        return 'Text';
+      }
+
+      function buildRecordType(obj, name, declarations) {
+        const fields = [];
+        const keys = Object.keys(obj);
+        for (const key of keys) {
+          const typeName = mapType(obj[key], key, declarations);
+          fields.push(key + ': ' + typeName);
+        }
+        const inline = name + ' := Type( { ' + fields.join(', ') + ' } );';
+        if (inline.length > 80) {
+          declarations.push(name + ' := Type( {\n    ' + fields.join(',\n    ') + '\n} );');
+        } else {
+          declarations.push(inline);
+        }
+      }
+
+      // --- Syntax Highlighting ---
+
+      const PRIMITIVES = new Set(['Text', 'Number', 'Boolean']);
+
+      function highlight(code) {
+        // Tokenise line by line to keep newlines intact
+        return code.split('\n').map(function(line) {
+          return highlightLine(line);
+        }).join('\n');
+      }
+
+      function span(cls, text) {
+        return '<span class="' + cls + '">' + escHtml(text) + '</span>';
+      }
+
+      function escHtml(s) {
+        return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      }
+
+      function highlightLine(line) {
+        // Match tokens in order:
+        // 1. Leading identifier before :=  (type declaration name)
+        // 2. :=
+        // 3. Type keyword
+        // 4. Punctuation: { } [ ] ( ) ; ,
+        // 5. Identifiers followed by :  (field names)
+        // 6. Primitive types
+        // 7. User-defined type references (ident ending in Type)
+        // 8. Everything else
+        const TOKEN = /([A-Za-z_]\w*)(\s*:=)|(:=)|(Type\b)|([{}[\]()\;,])|([A-Za-z_]\w*)(\s*:)|([A-Za-z_]\w*)|([\s]+)|(.)/g;
+        let out = '';
+        let isFirstDecl = true;
+        let m;
+
+        // Pre-check: does this line contain ':=' to identify the declaration name?
+        const declMatch = /^(\s*)([A-Za-z_]\w*)(\s*:=)/.exec(line);
+        if (declMatch) {
+          // Emit leading whitespace, then declaration name, then the rest
+          out += escHtml(declMatch[1]);
+          out += span('hl-type-name', declMatch[2]);
+          out += span('hl-keyword', declMatch[3]);
+          out += highlightAfterDecl(line.slice(declMatch[0].length));
+          return out;
+        }
+        // No declaration — just highlight the body tokens
+        return highlightAfterDecl(line);
+      }
+
+      function highlightAfterDecl(s) {
+        const TOKEN = /(\bType\b)|(\bText\b|\bNumber\b|\bBoolean\b)|([A-Za-z_]\w*)(\s*:(?!:=))|([A-Za-z_]\w*)|([{}[\]()\;,])|(\s+)|(.)/g;
+        let out = '';
+        let m;
+        while ((m = TOKEN.exec(s)) !== null) {
+          if (m[1]) {
+            out += span('hl-keyword', m[1]);
+          } else if (m[2]) {
+            out += span('hl-primitive', m[2]);
+          } else if (m[3] !== undefined) {
+            // identifier followed by colon = field name
+            out += span('hl-field', m[3]) + escHtml(m[4]);
+          } else if (m[5]) {
+            // bare identifier = type reference
+            out += span('hl-ref', m[5]);
+          } else if (m[6]) {
+            out += span('hl-punct', m[6]);
+          } else {
+            out += escHtml(m[0]);
+          }
+        }
+        return out;
+      }
+
+      // --- UI ---
+
+      function generate() {
+        const raw = inputEl.value.trim();
+        if (!raw) {
+          outputContainer.classList.remove('output-error');
+          outputEl.textContent = '';
+          return;
+        }
+
+        const recordName = recordNameEl.value.trim() || 'MyRecord';
+        const tableName = tableNameEl.value.trim() || 'MyTable';
+
+        try {
+          const data = parsePowerFx(raw);
+          const result = inferTypes(data, recordName, tableName);
+          outputContainer.classList.remove('output-error');
+          outputEl.innerHTML = highlight(result);
+          announce('Output updated');
+        } catch (e) {
+          outputContainer.classList.add('output-error');
+          outputEl.textContent = '\u26A0 Error: ' + e.message;
+          announce('Error: ' + e.message);
+        }
+      }
+
+      function announce(msg) {
+        statusRegion.textContent = '';
+        requestAnimationFrame(function () {
+          statusRegion.textContent = msg;
+        });
+      }
+
+      copyBtn.addEventListener('click', function () {
+        const text = outputEl.textContent;
+        if (!text) return;
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(onCopied, fallbackCopy);
+        } else {
+          fallbackCopy();
+        }
+      });
+
+      function fallbackCopy() {
+        const text = outputEl.textContent;
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try {
+          document.execCommand('copy');
+          onCopied();
+        } catch (e) {
+          announce('Failed to copy');
+        }
+        document.body.removeChild(ta);
+      }
+
+      function onCopied() {
+        copyBtnLabel.textContent = '\u2713 Copied!';
+        announce('Copied to clipboard');
+        setTimeout(function () {
+          copyBtnLabel.textContent = 'Copy';
+        }, 2000);
+      }
+    })();
+  </script>
+</body>
+</html>

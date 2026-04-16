@@ -1,0 +1,1912 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HTML Form Builder</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; height: 100vh; display: flex; flex-direction: column; background: #f1f5f9; color: #1e293b; }
+
+    /* Header */
+    header { display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 1.25rem; background: #1e293b; color: white; flex-shrink: 0; }
+    header h1 { font-size: 1.05rem; font-weight: 600; letter-spacing: -0.01em; }
+    .header-actions { display: flex; gap: 0.5rem; }
+    #preview-btn { padding: 0.45rem 1rem; background: transparent; color: #94a3b8; border: 1.5px solid #475569; border-radius: 6px; font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s; }
+    #preview-btn:hover { background: #334155; color: white; border-color: #334155; }
+    #export-btn { padding: 0.45rem 1rem; background: #2563eb; color: white; border: none; border-radius: 6px; font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: background 0.15s; }
+    #export-btn:hover { background: #1d4ed8; }
+    #copy-btn { padding: 0.45rem 1rem; background: #059669; color: white; border: none; border-radius: 6px; font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: background 0.15s; }
+    #copy-btn:hover { background: #047857; }
+    #undo-btn, #redo-btn { padding: 0.45rem 1rem; background: transparent; color: #94a3b8; border: 1.5px solid #475569; border-radius: 6px; font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s; }
+    #undo-btn:hover:not(:disabled), #redo-btn:hover:not(:disabled) { background: #334155; color: white; border-color: #334155; }
+    #undo-btn:disabled, #redo-btn:disabled { opacity: 0.38; cursor: not-allowed; }
+
+    /* Workspace */
+    .workspace { display: grid; grid-template-columns: 180px 1fr 270px; flex: 1; overflow: hidden; }
+
+    /* Panel shared */
+    .panel { display: flex; flex-direction: column; overflow: hidden; }
+    .panel-header { padding: 0.55rem 1rem; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: #64748b; border-bottom: 1px solid #e2e8f0; background: white; flex-shrink: 0; }
+
+    /* Palette */
+    .palette { background: white; border-right: 1px solid #e2e8f0; display: flex; flex-direction: column; }
+    .palette-list { padding: 0.65rem; display: flex; flex-direction: column; gap: 0.4rem; overflow-y: auto; flex: 1; }
+    .palette-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.65rem; border: 1.5px solid #e2e8f0; border-radius: 6px; cursor: grab; font-size: 0.825rem; font-weight: 500; color: #374151; background: #f8fafc; user-select: none; transition: border-color 0.15s, background 0.15s, color 0.15s; }
+    .palette-item:hover { border-color: #2563eb; background: #eff6ff; color: #1d4ed8; }
+    .palette-item:active { cursor: grabbing; }
+    .palette-item .icon { font-size: 0.8rem; opacity: 0.65; width: 14px; text-align: center; flex-shrink: 0; }
+    .palette-footer { padding: 0.6rem 0.65rem; border-top: 1px solid #e2e8f0; font-size: 0.7rem; color: #374151; text-align: center; line-height: 1.6; font-weight: 500; }
+
+    /* Canvas */
+    .canvas { background: #f1f5f9; border-right: 1px solid #e2e8f0; overflow: hidden; display: flex; flex-direction: column; }
+    .canvas-scroll { flex: 1; overflow: auto; padding: 1.5rem; display: flex; justify-content: center; }
+    .drop-zone { min-height: 1131px; width: 720px; flex-shrink: 0; border-radius: 4px; position: relative; padding: 2px; transition: background 0.15s, outline 0.15s; background: white; box-shadow: 0 1px 4px rgba(0,0,0,0.1), 0 4px 16px rgba(0,0,0,0.08); }
+    .drop-zone.drag-over { background: #dbeafe; outline: 2px dashed #2563eb; outline-offset: -2px; }
+    .drop-zone.snap-grid { background-image: repeating-linear-gradient(0deg, transparent, transparent 19px, #e2e8f0 19px, #e2e8f0 20px), repeating-linear-gradient(90deg, transparent, transparent 19px, #e2e8f0 19px, #e2e8f0 20px); }
+    .drop-zone.snap-grid::after { content: ''; position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: rgba(239, 68, 68, 0.35); pointer-events: none; }
+    .a4-label { position: absolute; top: -1.3rem; right: 0; font-size: 0.65rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #94a3b8; pointer-events: none; }
+
+    /* Empty state */
+    .empty-state { flex: 1; min-height: 200px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.5rem; color: #94a3b8; text-align: center; padding: 2rem; pointer-events: none; }
+    .empty-state .empty-icon { font-size: 2rem; }
+    .empty-state p { font-size: 0.8rem; line-height: 1.5; }
+
+    /* Field row */
+    .field-row { position: absolute; display: flex; align-items: stretch; background: white; border: 1.5px solid #e2e8f0; border-radius: 8px; cursor: default; transition: border-color 0.15s, box-shadow 0.15s; overflow: hidden; }
+    .field-row:hover { border-color: #93c5fd; }
+    .field-row.selected { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.12); }
+    .field-row.shape-row { background: transparent; border-style: dashed; }
+
+    /* Resize handles */
+    .resize-handle-e { position: absolute; right: 0; top: 0; bottom: 16px; width: 6px; cursor: ew-resize; z-index: 2; border-radius: 0 6px 0 0; }
+    .resize-handle-s { position: absolute; bottom: 0; left: 0; right: 16px; height: 6px; cursor: ns-resize; z-index: 2; border-radius: 0 0 0 6px; }
+    .resize-handle-se { position: absolute; right: 0; bottom: 0; width: 16px; height: 16px; cursor: nwse-resize; z-index: 3; border-radius: 0 0 6px 0; display: flex; align-items: center; justify-content: center; color: #d1d5db; font-size: 0.55rem; }
+    .field-row:hover .resize-handle-e { background: rgba(37,99,235,0.08); }
+    .field-row:hover .resize-handle-s { background: rgba(37,99,235,0.08); }
+    .field-row:hover .resize-handle-se { color: #93c5fd; }
+
+    .drag-handle { display: flex; align-items: center; justify-content: center; width: 26px; cursor: move; color: #d1d5db; font-size: 1rem; border-right: 1px solid #f1f5f9; flex-shrink: 0; border-radius: 6px 0 0 6px; transition: color 0.15s, background 0.15s; user-select: none; }
+    .drag-handle:hover { color: #94a3b8; background: #f8fafc; }
+
+    .field-preview { flex: 1; padding: 0.65rem 0.75rem; display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
+    .field-preview > label { font-size: 0.78rem; font-weight: 600; color: #374151; display: block; }
+    .preview-input { width: 100%; padding: 0.32rem 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; font-size: 0.78rem; background: #f9fafb; color: #9ca3af; pointer-events: none; font-family: inherit; }
+    textarea.preview-input { resize: none; height: 50px; }
+    .header-preview { font-weight: 600; color: #1e293b; line-height: 1.2; word-break: break-word; pointer-events: none; user-select: none; }
+    .checkbox-preview, .radio-preview { display: flex; align-items: center; gap: 0.4rem; font-size: 0.78rem; color: #6b7280; }
+    .radio-group-preview { display: flex; flex-direction: column; gap: 0.2rem; }
+
+    .delete-btn { display: flex; align-items: center; justify-content: center; width: 26px; border: none; border-left: 1px solid #f1f5f9; background: none; color: #d1d5db; cursor: pointer; font-size: 1.1rem; flex-shrink: 0; border-radius: 0 6px 6px 0; transition: color 0.15s, background 0.15s; padding: 0; }
+    .delete-btn:hover { color: #ef4444; background: #fef2f2; }
+    .duplicate-btn { width: 100%; padding: 0.45rem 0.75rem; margin-bottom: 0.75rem; border: 1px solid #6ee7b7; border-radius: 6px; background: #ecfdf5; color: #065f46; font-size: 0.8rem; font-weight: 500; cursor: pointer; text-align: center; transition: background 0.15s, border-color 0.15s, color 0.15s; }
+    .duplicate-btn:hover { background: #d1fae5; border-color: #34d399; color: #064e3b; }
+
+    /* Properties panel */
+    .properties { background: white; }
+    .props-scroll { flex: 1; overflow-y: auto; padding: 1rem; }
+    .props-empty { display: flex; align-items: center; justify-content: center; height: 100%; color: #94a3b8; font-size: 0.825rem; text-align: center; padding: 2rem; }
+
+    .prop-group { display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: 0.9rem; }
+    .prop-inline { flex-direction: row; align-items: center; justify-content: space-between; }
+    .prop-group > label { font-size: 0.7rem; font-weight: 700; color: #64748b; letter-spacing: 0.06em; text-transform: uppercase; }
+    .prop-group input[type=text] { width: 100%; padding: 0.42rem 0.6rem; border: 1.5px solid #e2e8f0; border-radius: 6px; font-size: 0.875rem; color: #1e293b; outline: none; font-family: inherit; transition: border-color 0.15s; }
+    .prop-group input[type=text]:focus { border-color: #2563eb; }
+    .prop-group input[type=text]:disabled { background: #f8fafc; color: #94a3b8; cursor: not-allowed; border-style: dashed; }
+
+    .prop-divider { height: 1px; background: #f1f5f9; margin: 0.25rem 0 1rem; }
+    .prop-section-title { font-size: 0.7rem; font-weight: 700; color: #374151; margin-bottom: 0.6rem; letter-spacing: 0.06em; text-transform: uppercase; }
+
+    .options-list { display: flex; flex-direction: column; gap: 0.35rem; margin-bottom: 0.5rem; }
+    .option-row { display: flex; align-items: center; gap: 0.35rem; }
+    .option-row input { flex: 1; padding: 0.35rem 0.5rem; border: 1.5px solid #e2e8f0; border-radius: 5px; font-size: 0.825rem; outline: none; font-family: inherit; transition: border-color 0.15s; }
+    .option-row input:focus { border-color: #2563eb; }
+    .opt-del-btn { display: flex; align-items: center; justify-content: center; width: 22px; height: 22px; border: none; background: none; color: #d1d5db; cursor: pointer; border-radius: 4px; font-size: 1rem; flex-shrink: 0; transition: color 0.15s, background 0.15s; }
+    .opt-del-btn:hover { color: #ef4444; background: #fef2f2; }
+    .add-option-btn { width: 100%; padding: 0.38rem; border: 1.5px dashed #d1d5db; border-radius: 5px; background: none; color: #64748b; font-size: 0.8rem; cursor: pointer; transition: border-color 0.15s, color 0.15s; font-family: inherit; }
+    .add-option-btn:hover { border-color: #2563eb; color: #2563eb; }
+    .prop-group input[type=number],
+    .prop-group select { width: 100%; padding: 0.42rem 0.6rem; border: 1.5px solid #e2e8f0; border-radius: 6px; font-size: 0.875rem; color: #1e293b; outline: none; font-family: inherit; transition: border-color 0.15s; background: white; }
+    .prop-group input[type=number]:focus,
+    .prop-group select:focus { border-color: #2563eb; }
+    .prop-row { display: flex; gap: 0.5rem; }
+    .prop-row .prop-group { flex: 1; margin-bottom: 0; }
+
+    /* Table preview */
+    .table-preview { border-collapse: collapse; font-size: 0.72rem; margin-top: 0.25rem; table-layout: fixed; }
+    .table-preview th { position: relative; background: #f1f5f9; color: #374151; font-weight: 600; padding: 0.25rem 0.4rem; border: 1px solid #d1d5db; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .table-preview td { padding: 0; border: 1px solid #e2e8f0; background: #fafafa; overflow: hidden; }
+    .table-cell-input { width: 100%; height: 100%; border: none; background: transparent; padding: 0 0.4rem; box-sizing: border-box; font: inherit; font-size: 0.7rem; color: #374151; outline: none; }
+    .table-cell-input:focus { background: #eff6ff; outline: 1px solid #3b82f6; }
+    .col-resize-handle { position: absolute; top: 0; right: -3px; width: 6px; height: 100%; cursor: col-resize; z-index: 5; border-radius: 2px; }
+    .col-resize-handle:hover, .col-resize-handle.active { background: rgba(37,99,235,0.35); }
+    .row-resize-handle { height: 5px; cursor: ns-resize; background: transparent; border-radius: 2px; }
+    .row-resize-handle:hover, .row-resize-handle.active { background: rgba(37,99,235,0.25); }
+  </style>
+</head>
+<body>
+  <input type="file" id="load-input" accept=".json" style="display:none">
+  <header>
+    <h1>HTML Form Builder</h1>
+    <div class="header-actions">
+      <button id="save-btn">Save Layout</button>
+      <button id="load-btn">Load Layout</button>
+      <button id="snap-btn" title="Toggle snap to grid">Snap to Grid: Off</button>
+      <button id="undo-btn" disabled title="Undo (Ctrl+Z)">&#8629; Undo</button>
+      <button id="redo-btn" disabled title="Redo (Ctrl+Y)">&#8630; Redo</button>
+      <button id="preview-btn">Print Preview</button>
+      <button id="export-btn">Export HTML</button>
+      <button id="copy-btn">Copy HTML</button>
+      <button id="copy-flow-btn">Copy as Flow JSON</button>
+    </div>
+  </header>
+  <div class="workspace">
+    <aside class="panel palette">
+      <div class="panel-header">Fields</div>
+      <div class="palette-list" id="palette-list"></div>
+      <div class="palette-footer">v1.0<br>Created by James Barrineau</div>
+    </aside>
+    <main class="panel canvas">
+      <div class="panel-header">Canvas</div>
+      <div class="canvas-scroll">
+        <div style="position:relative;width:720px;">
+          <span class="a4-label">A4 — 720px content width</span>
+          <div class="drop-zone" id="drop-zone"></div>
+        </div>
+      </div>
+    </main>
+    <aside class="panel properties">
+      <div class="panel-header">Properties</div>
+      <div class="props-scroll" id="props-panel">
+        <div class="props-empty">Select a field to edit its properties</div>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    // ── Constants ─────────────────────────────────────────────────────────────
+    const A4_CONTENT_WIDTH = 720;  // px — matches drop-zone width (≈ A4 with standard margins at 96 DPI)
+    const A4_CONTENT_HEIGHT = 1131; // px — matches drop-zone height (A4 267mm content height at same scale)
+
+    // ── State ─────────────────────────────────────────────────────────────────
+    let fields = [];
+    let selectedId = null;
+    let palettedragging = false; // true while dragging from palette
+    let undoStack = [];
+    let redoStack = [];
+    const MAX_UNDO = 50;
+    let snapToGrid = false;
+    const GRID_SIZE = 20;
+
+    const PALETTE_ITEMS = [
+      { type: 'header',   label: 'Header',   icon: 'H'   },
+      { type: 'text',     label: 'Text',     icon: 'T'   },
+      { type: 'textarea', label: 'Textarea', icon: '¶'   },
+      { type: 'checkbox', label: 'Checkbox', icon: '☑'  },
+      { type: 'radio',    label: 'Radio',    icon: '◎'  },
+      { type: 'table',    label: 'Table',    icon: '⊞'  },
+      { type: 'image',    label: 'Image',    icon: '🖼'  },
+      { type: 'rectangle', label: 'Rectangle', icon: '▭'  },
+      { type: 'line',      label: 'Line',      icon: '—'  },
+    ];
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+    function snap(v) { return snapToGrid ? Math.round(v / GRID_SIZE) * GRID_SIZE : v; }
+
+    function uid() {
+      return typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : Math.random().toString(36).slice(2) + Date.now();
+    }
+
+    function defaultLabel(type) {
+      return { header:'Header', text:'Text Field', email:'Email Address', number:'Number', password:'Password',
+               tel:'Phone Number', url:'Website URL', textarea:'Message',
+               select:'Select an option', checkbox:'I agree to the terms', radio:'Choose one',
+               table:'Data Table' }[type] || type;
+    }
+
+    function hasOptions(type) {
+      return type === 'select' || type === 'radio';
+    }
+
+    function isTextEntry(type) { return type === 'text' || type === 'textarea'; }
+    function isTable(type) { return type === 'table'; }
+    function isShape(type)     { return type === 'rectangle' || type === 'line'; }
+    function isRectangle(type) { return type === 'rectangle'; }
+    function isLine(type)      { return type === 'line'; }
+
+    function joinStyles(...styles) {
+      return styles.filter(Boolean).join(';');
+    }
+
+    function esc(str) {
+      return String(str)
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function escAttr(str) {
+      return String(str).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+
+    const HEX_COLOR_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+
+    function serializeState() {
+      return JSON.stringify({ fields, selectedId });
+    }
+
+    function pushUndoSnapshot(snapshot) {
+      if (undoStack.length > 0 && undoStack[undoStack.length - 1] === snapshot) return;
+      undoStack.push(snapshot);
+      if (undoStack.length > MAX_UNDO) undoStack.shift();
+    }
+
+    function hasUndoState(current = serializeState()) {
+      return undoStack.some(snapshot => snapshot !== current);
+    }
+
+    function trimCurrentUndoSnapshots(current = serializeState()) {
+      while (undoStack.length > 0 && undoStack[undoStack.length - 1] === current) {
+        undoStack.pop();
+      }
+    }
+
+    function expandHexColor(color) {
+      if (color.length === 4) {
+        return '#' + color.slice(1).split('').map(ch => ch + ch).join('');
+      }
+      return color;
+    }
+
+    function isAcceptedColorValue(value, { allowTransparent = false } = {}) {
+      const trimmed = String(value ?? '').trim();
+      if (allowTransparent && trimmed.toLowerCase() === 'transparent') return true;
+      return HEX_COLOR_RE.test(trimmed);
+    }
+
+    function normalizeColorValue(value, { allowTransparent = false, fallback = '#000000' } = {}) {
+      const trimmed = String(value ?? '').trim();
+      if (allowTransparent && trimmed.toLowerCase() === 'transparent') return 'transparent';
+      if (HEX_COLOR_RE.test(trimmed)) return expandHexColor(trimmed).toLowerCase();
+      return fallback;
+    }
+
+    function getLabelConfig(field) {
+      const rawLabel = field.label == null ? '' : String(field.label);
+      const show = field.showLabel !== false;
+      const leftAligned = show && isTextEntry(field.type) && field.labelPos === 'left';
+      return {
+        show,
+        position: leftAligned ? 'left' : 'above',
+        text: esc(rawLabel) || '&nbsp;',
+        ariaLabel: escAttr(rawLabel.trim() || defaultLabel(field.type)),
+      };
+    }
+
+    function getShapeColorValues(field) {
+      return {
+        fillColor: normalizeColorValue(field.fillColor, { allowTransparent: true, fallback: 'transparent' }),
+        borderColor: normalizeColorValue(field.borderColor, { fallback: '#94a3b8' }),
+        lineColor: normalizeColorValue(field.lineColor, { fallback: '#1e293b' }),
+      };
+    }
+
+    function normalizeField(field) {
+      if (!field || typeof field !== 'object') return field;
+      if (isTextEntry(field.type)) {
+        field.hideBorder = field.hideBorder === true;
+      }
+      if (isTable(field.type)) {
+        const columnCount = Array.isArray(field.columns) ? field.columns.length : 0;
+        const currentWidths = Array.isArray(field.colWidths) ? field.colWidths : [];
+        field.colWidths = Array.from({ length: columnCount }, (_, index) => {
+          const width = Number(currentWidths[index]);
+          return Number.isFinite(width) && width > 0 ? width : 120;
+        });
+        field.autoFitWidth = field.autoFitWidth === true;
+      }
+      return field;
+    }
+
+    function normalizeFields(nextFields) {
+      return Array.isArray(nextFields) ? nextFields.map(normalizeField) : [];
+    }
+
+    function tableAutoFitsWidth(field) {
+      return isTable(field.type) && field.autoFitWidth === true;
+    }
+
+    function fieldHidesBorder(field) {
+      return isTextEntry(field.type) && field.hideBorder === true;
+    }
+
+    function getTablePixelWidth(field) {
+      return field.colWidths.reduce((total, width) => total + width, 0);
+    }
+
+    function getTableColWidthStyles(field) {
+      if (!tableAutoFitsWidth(field)) {
+        return field.colWidths.map(width => `${width}px`);
+      }
+
+      const totalWidth = getTablePixelWidth(field);
+      if (totalWidth <= 0) {
+        const evenWidth = 100 / Math.max(1, field.colWidths.length);
+        return field.colWidths.map(() => `${evenWidth.toFixed(3)}%`);
+      }
+
+      return field.colWidths.map(width => `${((width / totalWidth) * 100).toFixed(3)}%`);
+    }
+
+    function getTableRenderWidth(field) {
+      return tableAutoFitsWidth(field) ? '100%' : `${getTablePixelWidth(field)}px`;
+    }
+
+    function freezeAutoFitTableWidths(field) {
+      if (!tableAutoFitsWidth(field)) return;
+      const row = document.querySelector(`.field-row[data-id="${field.id}"]`);
+      const table = row && row.querySelector('table.table-preview');
+      const renderedWidth = table ? table.getBoundingClientRect().width : 0;
+      const totalWidth = getTablePixelWidth(field);
+      if (!(renderedWidth > 0) || !(totalWidth > 0)) return;
+      field.colWidths = field.colWidths.map(width => (width / totalWidth) * renderedWidth);
+    }
+
+    // ── Undo / Redo ───────────────────────────────────────────────────────────
+    function saveSnapshot() {
+      pushUndoSnapshot(serializeState());
+      updateUndoButtons();
+    }
+    function commitSnapshot() {
+      const current = serializeState();
+      if (undoStack.length > 0 && undoStack[undoStack.length - 1] !== current) {
+        redoStack = [];
+      }
+      updateUndoButtons();
+    }
+    function undo() {
+      const current = serializeState();
+      trimCurrentUndoSnapshots(current);
+      if (undoStack.length === 0) {
+        updateUndoButtons();
+        return;
+      }
+      if (redoStack.length === 0 || redoStack[redoStack.length - 1] !== current) {
+        redoStack.push(current);
+      }
+      const state = JSON.parse(undoStack.pop());
+      fields = normalizeFields(state.fields); selectedId = state.selectedId;
+      renderCanvas(); renderProperties(); updateUndoButtons();
+    }
+    function redo() {
+      if (redoStack.length === 0) return;
+      pushUndoSnapshot(serializeState());
+      const snap = redoStack.pop();
+      const state = JSON.parse(snap);
+      fields = normalizeFields(state.fields); selectedId = state.selectedId;
+      renderCanvas(); renderProperties(); updateUndoButtons();
+    }
+    function updateUndoButtons() {
+      document.getElementById('undo-btn').disabled = !hasUndoState();
+      document.getElementById('redo-btn').disabled = redoStack.length === 0;
+    }
+
+    // ── Save / Load layout ───────────────────────────────────────────────────
+    function saveLayout() {
+      const json = JSON.stringify({ fields }, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'form-layout.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+    function loadLayout(file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const state = JSON.parse(e.target.result);
+          if (!Array.isArray(state.fields)) throw new Error('Invalid layout file');
+          saveSnapshot();
+          fields = normalizeFields(state.fields);
+          selectedId = null;
+          renderCanvas();
+          renderProperties();
+          commitSnapshot();
+        } catch {
+          alert('Invalid layout file.');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    // ── Field management ──────────────────────────────────────────────────────
+    function addField(type, x, y) {
+      saveSnapshot();
+      const stagger = fields.length * 20;
+
+      if (isShape(type)) {
+        const field = {
+          id: uid(), type,
+          x: x !== undefined ? Math.max(0, Math.round(x)) : 20 + stagger,
+          y: y !== undefined ? Math.max(0, Math.round(y)) : 20 + stagger,
+          width:  type === 'line' ? 200 : 160,
+          height: type === 'rectangle' ? 80 : 0,
+          ...(type === 'rectangle' && { fillColor:'transparent', borderColor:'#94a3b8', borderWidth:1, borderRadius:0, opacity:100 }),
+          ...(type === 'line'      && { lineColor:'#1e293b', thickness:2, orientation:'horizontal', lineStyle:'solid' }),
+        };
+        fields.push(field);
+        selectedId = field.id;
+        renderCanvas();
+        renderProperties();
+        commitSnapshot();
+        return;
+      }
+
+      const field = {
+        id: uid(), type,
+        label: defaultLabel(type),
+        options: hasOptions(type) ? ['Option 1', 'Option 2'] : [],
+        columns: isTable(type) ? ['Column 1', 'Column 2', 'Column 3'] : undefined,
+        colWidths: isTable(type) ? [120, 120, 120] : undefined,
+        rows: isTable(type) ? 2 : undefined,
+        rowHeight: isTable(type) ? 28 : undefined,
+        data: isTable(type) ? [] : undefined,
+        autoFitWidth: isTable(type) ? false : undefined,
+        hideBorder: isTextEntry(type) ? false : undefined,
+        value: isTextEntry(type) ? '' : undefined,
+        labelPos: isTextEntry(type) ? 'above' : undefined,
+        fontSize: type === 'image' ? undefined : (type === 'header' ? 24 : 13),
+        src: type === 'image' ? '' : undefined,
+        alt: type === 'image' ? '' : undefined,
+        x: x !== undefined ? Math.max(0, Math.round(x)) : 20 + stagger,
+        y: y !== undefined ? Math.max(0, Math.round(y)) : 20 + stagger,
+        width: isTable(type) ? 450 : 240,
+        height: 0, // 0 = auto
+      };
+      fields.push(field);
+      selectedId = field.id;
+      renderCanvas();
+      renderProperties();
+      commitSnapshot();
+    }
+
+    function duplicateField(id) {
+      const src = fields.find(f => f.id === id);
+      if (!src) return;
+      saveSnapshot();
+      const clone = JSON.parse(JSON.stringify(src));
+      clone.id = uid();
+      clone.x = Math.min(src.x + 20, A4_CONTENT_WIDTH - src.width);
+      clone.y = src.y + 20;
+      fields.push(clone);
+      selectedId = clone.id;
+      renderCanvas();
+      renderProperties();
+      commitSnapshot();
+    }
+
+    function deleteField(id) {
+      saveSnapshot();
+      fields = fields.filter(f => f.id !== id);
+      if (selectedId === id) selectedId = null;
+      renderCanvas();
+      renderProperties();
+      commitSnapshot();
+    }
+
+    // ── Canvas ────────────────────────────────────────────────────────────────
+    function renderCanvas() {
+      const zone = document.getElementById('drop-zone');
+      zone.innerHTML = '';
+
+      if (fields.length === 0) {
+        zone.innerHTML = `<div class="empty-state">
+          <div class="empty-icon">⬡</div>
+          <p>Drag fields from the palette<br>and drop them here<br><br>or click any field type to add it</p>
+        </div>`;
+        return;
+      }
+
+      fields.forEach((field) => {
+        zone.appendChild(buildRow(field));
+      });
+      updateCanvasSize();
+    }
+
+    function applyRowStyle(row, field) {
+      row.style.left = field.x + 'px';
+      row.style.top = field.y + 'px';
+      row.style.width = field.width + 'px';
+      row.style.height = field.height ? field.height + 'px' : '';
+    }
+
+    function buildRow(field) {
+      const row = document.createElement('div');
+      row.className = 'field-row' + (field.id === selectedId ? ' selected' : '');
+      row.dataset.id = field.id;
+      applyRowStyle(row, field);
+
+      // Move handle
+      const handle = document.createElement('div');
+      handle.className = 'drag-handle';
+      handle.title = 'Drag to move';
+      handle.textContent = '⠿';
+
+      handle.addEventListener('mousedown', e => {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        e.stopPropagation();
+        saveSnapshot();
+        // Select field on move
+        if (selectedId !== field.id) {
+          selectedId = field.id;
+          document.querySelectorAll('.field-row').forEach(r => r.classList.remove('selected'));
+          row.classList.add('selected');
+          renderProperties();
+        }
+        const startMouseX = e.clientX - field.x;
+        const startMouseY = e.clientY - field.y;
+        function onMove(ev) {
+          field.x = snap(Math.min(A4_CONTENT_WIDTH - field.width, Math.max(0, ev.clientX - startMouseX)));
+          field.y = snap(Math.max(0, ev.clientY - startMouseY));
+          row.style.left = field.x + 'px';
+          row.style.top = field.y + 'px';
+        }
+        function onUp() {
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onUp);
+          updateCanvasSize();
+          syncPropsPosition();
+          commitSnapshot();
+        }
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+      });
+
+      // Preview
+      const preview = document.createElement('div');
+      preview.className = 'field-preview';
+      preview.innerHTML = buildPreviewHTML(field);
+
+      // Delete button
+      const del = document.createElement('button');
+      del.className = 'delete-btn';
+      del.title = 'Remove field';
+      del.innerHTML = '&times;';
+      del.addEventListener('click', e => { e.stopPropagation(); deleteField(field.id); });
+
+      row.appendChild(handle);
+      row.appendChild(preview);
+      row.appendChild(del);
+
+      // Right-edge resize (width)
+      const resizeE = document.createElement('div');
+      resizeE.className = 'resize-handle-e';
+      resizeE.addEventListener('mousedown', e => {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        e.stopPropagation();
+        saveSnapshot();
+        const startX = e.clientX;
+        const startW = field.width;
+        function onMove(ev) {
+          field.width = snap(Math.min(A4_CONTENT_WIDTH - field.x, Math.max(80, startW + ev.clientX - startX)));
+          row.style.width = field.width + 'px';
+        }
+        function onUp() {
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onUp);
+          updateCanvasSize();
+          updatePreview(field);
+          syncPropsSize();
+          commitSnapshot();
+        }
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+      });
+
+      // Bottom-edge resize (height)
+      const resizeS = document.createElement('div');
+      resizeS.className = 'resize-handle-s';
+      resizeS.addEventListener('mousedown', e => {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        e.stopPropagation();
+        saveSnapshot();
+        const startY = e.clientY;
+        const startH = field.height || row.offsetHeight;
+        function onMove(ev) {
+          field.height = snap(Math.max(40, startH + ev.clientY - startY));
+          row.style.height = field.height + 'px';
+        }
+        function onUp() {
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onUp);
+          updateCanvasSize();
+          syncPropsSize();
+          commitSnapshot();
+        }
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+      });
+
+      // Corner resize (width + height)
+      const resizeSE = document.createElement('div');
+      resizeSE.className = 'resize-handle-se';
+      resizeSE.textContent = '◢';
+      resizeSE.addEventListener('mousedown', e => {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        e.stopPropagation();
+        saveSnapshot();
+        const startX = e.clientX;
+        const startY = e.clientY;
+        const startW = field.width;
+        const startH = field.height || row.offsetHeight;
+        function onMove(ev) {
+          field.width = snap(Math.min(A4_CONTENT_WIDTH - field.x, Math.max(80, startW + ev.clientX - startX)));
+          field.height = snap(Math.max(40, startH + ev.clientY - startY));
+          row.style.width = field.width + 'px';
+          row.style.height = field.height + 'px';
+        }
+        function onUp() {
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onUp);
+          updateCanvasSize();
+          updatePreview(field);
+          syncPropsSize();
+          commitSnapshot();
+        }
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+      });
+
+      row.appendChild(resizeE);
+      row.appendChild(resizeS);
+      row.appendChild(resizeSE);
+
+      if (isShape(field.type)) row.classList.add('shape-row');
+      if (field.type === 'line') {
+        if (field.orientation === 'horizontal') {
+          resizeS.style.display = 'none';
+          resizeSE.style.display = 'none';
+        } else {
+          resizeE.style.display = 'none';
+          resizeSE.style.display = 'none';
+        }
+      }
+
+      if (isTable(field.type)) attachTableResizeHandlers(field, row);
+
+      // Select on click
+      row.addEventListener('mousedown', e => {
+        if (selectedId !== field.id) {
+          selectedId = field.id;
+          document.querySelectorAll('.field-row').forEach(r => r.classList.remove('selected'));
+          row.classList.add('selected');
+          renderProperties();
+        }
+      });
+
+      return row;
+    }
+
+    // Expand drop-zone to always contain all fields
+    function updateCanvasSize() {
+      const zone = document.getElementById('drop-zone');
+      if (fields.length === 0) { zone.style.minHeight = ''; return; }
+      const maxBottom = fields.reduce((m, f) => Math.max(m, f.y + (f.height || 120)), A4_CONTENT_HEIGHT);
+      zone.style.minHeight = (maxBottom + 60) + 'px';
+    }
+
+    // Sync properties panel position inputs without full re-render
+    function syncPropsPosition() {
+      const xIn = document.getElementById('prop-x');
+      const yIn = document.getElementById('prop-y');
+      const field = fields.find(f => f.id === selectedId);
+      if (!field) return;
+      if (xIn) xIn.value = Math.round(field.x);
+      if (yIn) yIn.value = Math.round(field.y);
+    }
+
+    // Sync properties panel size inputs without full re-render
+    function syncPropsSize() {
+      const wIn = document.getElementById('prop-width');
+      const hIn = document.getElementById('prop-height');
+      const field = fields.find(f => f.id === selectedId);
+      if (!field) return;
+      if (wIn) wIn.value = Math.round(field.width);
+      if (hIn) hIn.value = field.height ? Math.round(field.height) : '';
+    }
+
+    function buildPreviewHTML(field) {
+      const labelConfig = getLabelConfig(field);
+      const shapeColors = getShapeColorValues(field);
+      const fs = field.fontSize ? `font-size:${field.fontSize}px` : '';
+      const lbl = labelConfig.show && labelConfig.position === 'above'
+        ? `<label${fs ? ` style="${fs}"` : ''}>${labelConfig.text}</label>`
+        : '';
+      const controlStyle = joinStyles(
+        fs,
+        field.height ? `height:${field.height}px` : '',
+        fieldHidesBorder(field) ? 'border:none' : '',
+        fieldHidesBorder(field) ? 'box-shadow:none' : ''
+      );
+
+      if (field.type === 'rectangle') {
+        const h = field.height ? `${Math.max(0, field.height - 28)}px` : '60px';
+        const style = `width:100%;height:${h};background:${shapeColors.fillColor};border:${field.borderWidth}px solid ${shapeColors.borderColor};border-radius:${field.borderRadius}px;opacity:${field.opacity/100};box-sizing:border-box`;
+        return `<div style="${style}"></div>`;
+      }
+      if (field.type === 'line') {
+        const dash = field.lineStyle;
+        if (field.orientation === 'horizontal') {
+          return `<div style="border-top:${field.thickness}px ${dash} ${shapeColors.lineColor};width:100%;margin-top:10px"></div>`;
+        } else {
+          const h = field.height ? `${Math.max(0, field.height - 28)}px` : '60px';
+          return `<div style="border-left:${field.thickness}px ${dash} ${shapeColors.lineColor};height:${h};width:0;margin-left:10px"></div>`;
+        }
+      }
+      if (field.type === 'image') {
+        if (field.src) {
+          return `<img src="${escAttr(field.src)}" alt="${escAttr(field.alt||'')}" style="max-width:100%;max-height:100%;display:block;object-fit:contain;">`;
+        }
+        return `<div style="width:100%;height:80px;display:flex;align-items:center;justify-content:center;border:2px dashed #aaa;color:#aaa;font-size:13px;border-radius:4px;">No image selected</div>`;
+      }
+      if (field.type === 'header') {
+        return `<div class="header-preview" style="font-size:${field.fontSize}px">${esc(field.label) || '&nbsp;'}</div>`;
+      }
+
+      if (field.type === 'textarea') {
+        if (labelConfig.position === 'left') {
+          const lblPart = labelConfig.show ? `<label style="flex-shrink:0;padding-top:0.4rem;font-weight:600;color:#374151${fs ? ';'+fs : ''}">${labelConfig.text}</label>` : '';
+          return `<div style="display:flex;align-items:flex-start;gap:0.5rem">${lblPart}<textarea class="preview-input" disabled style="${joinStyles('flex:1', controlStyle)}">${esc(field.value || '')}</textarea></div>`;
+        }
+        return `${lbl}<textarea class="preview-input" disabled${controlStyle ? ` style="${controlStyle}"` : ''}>${esc(field.value || '')}</textarea>`;
+      }
+      if (field.type === 'select') {
+        const opts = field.options.map(o => `<option>${esc(o)}</option>`).join('');
+        return `${lbl}<select class="preview-input" disabled${controlStyle ? ` style="${controlStyle}"` : ''}>${opts}</select>`;
+      }
+      if (field.type === 'checkbox') {
+        const cbLabel = labelConfig.show ? `<span>${labelConfig.text}</span>` : '';
+        return `<div class="checkbox-preview"${fs ? ` style="${fs}"` : ''}><input type="checkbox" disabled>${cbLabel}</div>`;
+      }
+      if (field.type === 'radio') {
+        const radios = field.options.map(o =>
+          `<div class="radio-preview"${fs ? ` style="${fs}"` : ''}><input type="radio" disabled><span>${esc(o)}</span></div>`
+        ).join('');
+        return `${lbl}<div class="radio-group-preview">${radios}</div>`;
+      }
+      if (field.type === 'table') {
+        const colWidthStyles = getTableColWidthStyles(field);
+        const tableWidth = getTableRenderWidth(field);
+        const cols = field.columns.map((_, i) => `<col style="width:${colWidthStyles[i] || 'auto'}">`).join('');
+        const ths = field.columns.map((c, i) => {
+          const handle = tableAutoFitsWidth(field) ? '' : `<div class="col-resize-handle" data-col-idx="${i}"></div>`;
+          return `<th>${esc(c) || '&nbsp;'}${handle}</th>`;
+        }).join('');
+        const trs = Array.from({length: field.rows}, (_, ri) => {
+          const tds = field.columns.map((_, ci) => {
+            const val = escAttr((field.data[ri] && field.data[ri][ci]) || '');
+            return `<td><input type="text" class="table-cell-input" data-row="${ri}" data-col="${ci}" value="${val}"></td>`;
+          }).join('');
+          return `<tr style="height:${field.rowHeight}px">${tds}</tr>`;
+        }).join('');
+        return `${lbl}<div style="overflow-x:auto"><table class="table-preview" style="width:${tableWidth}${fs ? ';'+fs : ''}"><colgroup>${cols}</colgroup><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table><div class="row-resize-handle"></div></div>`;
+      }
+      if (labelConfig.position === 'left') {
+        const lblPart = labelConfig.show ? `<label style="flex-shrink:0;font-weight:600;color:#374151${fs ? ';'+fs : ''}">${labelConfig.text}</label>` : '';
+        return `<div style="display:flex;align-items:center;gap:0.5rem">${lblPart}<input type="${field.type}" class="preview-input" disabled value="${escAttr(field.value || '')}" style="${joinStyles('flex:1', controlStyle)}"></div>`;
+      }
+      return `${lbl}<input type="${field.type}" class="preview-input" disabled value="${escAttr(field.value || '')}"${controlStyle ? ` style="${controlStyle}"` : ''}>`;
+    }
+
+    function bindColorControl(field, { pickerId, textId, prop, allowTransparent = false, fallback, pickerFallback = fallback }) {
+      const picker = document.getElementById(pickerId);
+      const text = document.getElementById(textId);
+      const validationMessage = allowTransparent
+        ? 'Use a hex color like #1e293b or "transparent".'
+        : 'Use a hex color like #1e293b.';
+
+      function syncPicker(value) {
+        if (value !== 'transparent') {
+          picker.value = normalizeColorValue(value, { fallback: pickerFallback });
+        }
+      }
+
+      picker.addEventListener('focus', saveSnapshot);
+      picker.addEventListener('input', e => {
+        const normalized = normalizeColorValue(e.target.value, { fallback });
+        field[prop] = normalized;
+        text.value = normalized;
+        text.setCustomValidity('');
+        updatePreview(field);
+        commitSnapshot();
+      });
+
+      text.addEventListener('focus', saveSnapshot);
+      text.addEventListener('input', e => {
+        const raw = e.target.value.trim();
+        if (!isAcceptedColorValue(raw, { allowTransparent })) {
+          e.target.setCustomValidity(validationMessage);
+          return;
+        }
+        const normalized = normalizeColorValue(raw, { allowTransparent, fallback });
+        field[prop] = normalized;
+        e.target.setCustomValidity('');
+        syncPicker(normalized);
+        updatePreview(field);
+        commitSnapshot();
+      });
+
+      text.addEventListener('change', e => {
+        const raw = e.target.value.trim();
+        if (!isAcceptedColorValue(raw, { allowTransparent })) {
+          const currentValue = normalizeColorValue(field[prop], { allowTransparent, fallback });
+          e.target.setCustomValidity(validationMessage);
+          e.target.reportValidity();
+          e.target.value = currentValue;
+          e.target.setCustomValidity('');
+          syncPicker(currentValue);
+          return;
+        }
+        const normalized = normalizeColorValue(raw, { allowTransparent, fallback });
+        field[prop] = normalized;
+        e.target.value = normalized;
+        e.target.setCustomValidity('');
+        syncPicker(normalized);
+        updatePreview(field);
+        commitSnapshot();
+      });
+    }
+
+    // ── Properties ────────────────────────────────────────────────────────────
+    function renderProperties() {
+      const panel = document.getElementById('props-panel');
+      const field = fields.find(f => f.id === selectedId);
+
+      if (!field) {
+        panel.innerHTML = `<div class="props-empty">Select a field to edit its properties</div>`;
+        return;
+      }
+
+      if (isShape(field.type)) { renderShapeProperties(field); return; }
+
+      const dupBtn = document.createElement('button');
+      dupBtn.className = 'duplicate-btn';
+      dupBtn.textContent = '⧉ Duplicate Field';
+      dupBtn.addEventListener('click', () => duplicateField(field.id));
+
+      const hasOpts = hasOptions(field.type);
+
+      let optionsHTML = '';
+      if (hasOpts) {
+        const rows = field.options.map((opt, i) => `
+          <div class="option-row">
+            <input type="text" value="${escAttr(opt)}" data-opt-idx="${i}">
+            <button class="opt-del-btn" data-opt-del="${i}" title="Remove">×</button>
+          </div>`).join('');
+        optionsHTML = `
+          <div class="prop-divider"></div>
+          <div class="prop-section-title">Options</div>
+          <div class="options-list">${rows}</div>
+          <button class="add-option-btn" id="add-opt-btn">+ Add option</button>`;
+      }
+
+      let tableHTML = '';
+      if (isTable(field.type)) {
+        const colRows = field.columns.map((col, i) => `
+          <div class="option-row">
+            <input type="text" value="${escAttr(col)}" data-col-idx="${i}" placeholder="Column ${i+1}">
+            <button class="opt-del-btn" data-col-del="${i}" title="Remove">×</button>
+          </div>`).join('');
+        tableHTML = `
+          <div class="prop-divider"></div>
+          <div class="prop-group prop-inline">
+            <label for="prop-table-auto-fit">Auto-size to Field Width</label>
+            <input type="checkbox" id="prop-table-auto-fit"${tableAutoFitsWidth(field) ? ' checked' : ''}>
+          </div>
+          <div class="prop-divider"></div>
+          <div class="prop-section-title">Columns</div>
+          <div class="options-list">${colRows}</div>
+          <button class="add-option-btn" id="add-col-btn">+ Add column</button>
+          <div class="prop-divider"></div>
+          <div class="prop-group">
+            <label>Data Rows</label>
+            <input type="number" id="prop-rows" value="${field.rows}" min="1" max="50">
+          </div>`;
+      }
+
+      const showLabelHTML = !['image', 'header'].includes(field.type) ? `
+        <div class="prop-group prop-inline">
+          <label for="prop-show-label">Show Label</label>
+          <input type="checkbox" id="prop-show-label"${field.showLabel !== false ? ' checked' : ''}>
+        </div>` : '';
+
+      const labelPosHTML = isTextEntry(field.type) ? `
+        <div class="prop-group">
+          <label>Label Position</label>
+          <select id="prop-label-pos">
+            <option value="above"${field.labelPos !== 'left' ? ' selected' : ''}>Above</option>
+            <option value="left"${field.labelPos === 'left' ? ' selected' : ''}>Left</option>
+          </select>
+        </div>` : '';
+
+      const hideBorderHTML = isTextEntry(field.type) ? `
+        <div class="prop-group prop-inline">
+          <label for="prop-hide-border">Hide Border</label>
+          <input type="checkbox" id="prop-hide-border"${fieldHidesBorder(field) ? ' checked' : ''}>
+        </div>` : '';
+
+      const valueHTML = isTextEntry(field.type) ? `
+        <div class="prop-group">
+          <label>Value</label>
+          <input type="text" id="prop-value" value="${escAttr(field.value || '')}">
+        </div>` : '';
+
+      const fontSizeHTML = field.type !== 'image' ? `
+        <div class="prop-group">
+          <label>Font Size (px)</label>
+          <input type="number" id="prop-font-size" value="${field.fontSize}" min="8" max="96">
+        </div>` : '';
+
+      const imageHTML = field.type === 'image' ? `
+        <div class="prop-group">
+          <label>Image URL</label>
+          <input type="text" id="prop-img-url" value="${escAttr(field.src)}" placeholder="https://...">
+        </div>
+        <div class="prop-group">
+          <label>Upload File</label>
+          <input type="file" id="prop-img-upload" accept="image/*">
+        </div>
+        <div class="prop-group">
+          <label>Alt Text</label>
+          <input type="text" id="prop-img-alt" value="${escAttr(field.alt||'')}">
+        </div>` : '';
+
+      panel.innerHTML = `
+        <div class="prop-group">
+          <label>Field Type</label>
+          <div style="padding: 0.5rem; background: #f1f5f9; border-radius: 4px; color: #374151; font-weight: 500; text-transform: capitalize;">${field.type}</div>
+        </div>
+        ${field.type === 'image' ? imageHTML : `<div class="prop-group">
+          <label>${isTable(field.type) ? 'Caption' : field.type === 'header' ? 'Text' : 'Label'}</label>
+          <input type="text" id="prop-label" value="${escAttr(field.label)}">
+        </div>`}
+        ${showLabelHTML}
+        ${fontSizeHTML}
+        ${labelPosHTML}
+        ${hideBorderHTML}
+        ${valueHTML}
+        <div class="prop-divider"></div>
+        <div class="prop-row">
+          <div class="prop-group">
+            <label>X (px)</label>
+            <input type="number" id="prop-x" value="${Math.round(field.x)}" min="0">
+          </div>
+          <div class="prop-group">
+            <label>Y (px)</label>
+            <input type="number" id="prop-y" value="${Math.round(field.y)}" min="0">
+          </div>
+        </div>
+        <div class="prop-row">
+          <div class="prop-group">
+            <label>Width (px)</label>
+            <input type="number" id="prop-width" value="${Math.round(field.width)}" min="80">
+          </div>
+          <div class="prop-group">
+            <label>Height (px)</label>
+            <input type="number" id="prop-height" value="${field.height ? Math.round(field.height) : ''}" min="40" placeholder="auto">
+          </div>
+        </div>
+        ${optionsHTML}${tableHTML}`;
+
+      panel.prepend(dupBtn);
+
+      if (field.type === 'image') {
+        document.getElementById('prop-img-url').addEventListener('focus', saveSnapshot);
+        document.getElementById('prop-img-url').addEventListener('input', e => {
+          field.src = e.target.value;
+          updatePreview(field);
+          commitSnapshot();
+        });
+        document.getElementById('prop-img-upload').addEventListener('change', e => {
+          saveSnapshot();
+          const file = e.target.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = ev => {
+            field.src = ev.target.result;
+            document.getElementById('prop-img-url').value = '';
+            updatePreview(field);
+            commitSnapshot();
+          };
+          reader.readAsDataURL(file);
+        });
+        document.getElementById('prop-img-alt').addEventListener('focus', saveSnapshot);
+        document.getElementById('prop-img-alt').addEventListener('input', e => {
+          field.alt = e.target.value;
+          updatePreview(field);
+          commitSnapshot();
+        });
+      } else {
+        document.getElementById('prop-label').addEventListener('focus', saveSnapshot);
+        document.getElementById('prop-label').addEventListener('input', e => {
+          field.label = e.target.value;
+          updatePreview(field);
+          commitSnapshot();
+        });
+      }
+
+      const showLabelEl = document.getElementById('prop-show-label');
+      if (showLabelEl) {
+        showLabelEl.addEventListener('change', e => {
+          saveSnapshot();
+          field.showLabel = e.target.checked;
+          updatePreview(field);
+          commitSnapshot();
+        });
+      }
+
+      const labelPosEl = document.getElementById('prop-label-pos');
+      if (labelPosEl) {
+        labelPosEl.addEventListener('focus', saveSnapshot);
+        labelPosEl.addEventListener('change', e => {
+          field.labelPos = e.target.value;
+          updatePreview(field);
+          commitSnapshot();
+        });
+      }
+
+      const hideBorderEl = document.getElementById('prop-hide-border');
+      if (hideBorderEl) {
+        hideBorderEl.addEventListener('change', e => {
+          saveSnapshot();
+          field.hideBorder = e.target.checked;
+          updatePreview(field);
+          commitSnapshot();
+        });
+      }
+
+      const valueEl = document.getElementById('prop-value');
+      if (valueEl) {
+        valueEl.addEventListener('focus', saveSnapshot);
+        valueEl.addEventListener('input', e => {
+          field.value = e.target.value;
+          updatePreview(field);
+          commitSnapshot();
+        });
+      }
+
+      const fontSizeEl = document.getElementById('prop-font-size');
+      if (fontSizeEl) {
+        fontSizeEl.addEventListener('focus', saveSnapshot);
+        fontSizeEl.addEventListener('input', e => {
+          const val = parseInt(e.target.value);
+          if (!isNaN(val) && val >= 8) {
+            field.fontSize = val;
+            updatePreview(field);
+            commitSnapshot();
+          }
+        });
+      }
+
+      document.getElementById('prop-x').addEventListener('focus', saveSnapshot);
+      document.getElementById('prop-x').addEventListener('input', e => {
+        field.x = Math.min(A4_CONTENT_WIDTH - field.width, Math.max(0, parseInt(e.target.value) || 0));
+        e.target.value = Math.round(field.x);
+        const row = document.querySelector(`.field-row[data-id="${field.id}"]`);
+        if (row) row.style.left = field.x + 'px';
+        commitSnapshot();
+      });
+
+      document.getElementById('prop-y').addEventListener('focus', saveSnapshot);
+      document.getElementById('prop-y').addEventListener('input', e => {
+        field.y = Math.max(0, parseInt(e.target.value) || 0);
+        const row = document.querySelector(`.field-row[data-id="${field.id}"]`);
+        if (row) row.style.top = field.y + 'px';
+        commitSnapshot();
+      });
+
+      document.getElementById('prop-width').addEventListener('focus', saveSnapshot);
+      document.getElementById('prop-width').addEventListener('input', e => {
+        field.width = Math.min(A4_CONTENT_WIDTH - field.x, Math.max(80, parseInt(e.target.value) || 80));
+        e.target.value = Math.round(field.width);
+        const row = document.querySelector(`.field-row[data-id="${field.id}"]`);
+        if (row) row.style.width = field.width + 'px';
+        updatePreview(field);
+        commitSnapshot();
+      });
+
+      document.getElementById('prop-height').addEventListener('focus', saveSnapshot);
+      document.getElementById('prop-height').addEventListener('input', e => {
+        const val = parseInt(e.target.value);
+        field.height = isNaN(val) ? 0 : Math.max(40, val);
+        const row = document.querySelector(`.field-row[data-id="${field.id}"]`);
+        if (row) row.style.height = field.height ? field.height + 'px' : '';
+        commitSnapshot();
+      });
+
+      if (hasOpts) {
+        panel.querySelectorAll('[data-opt-idx]').forEach(input => {
+          input.addEventListener('focus', saveSnapshot);
+          input.addEventListener('input', e => {
+            field.options[parseInt(e.target.dataset.optIdx)] = e.target.value;
+            updatePreview(field);
+            commitSnapshot();
+          });
+        });
+        panel.querySelectorAll('[data-opt-del]').forEach(btn => {
+          btn.addEventListener('click', e => {
+            const i = parseInt(e.target.dataset.optDel);
+            if (field.options.length > 1) {
+              saveSnapshot();
+              field.options.splice(i, 1);
+              renderProperties();
+              updatePreview(field);
+              commitSnapshot();
+            }
+          });
+        });
+        document.getElementById('add-opt-btn').addEventListener('click', () => {
+          saveSnapshot();
+          field.options.push('Option ' + (field.options.length + 1));
+          renderProperties();
+          updatePreview(field);
+          commitSnapshot();
+        });
+      }
+
+      if (isTable(field.type)) {
+        const autoFitEl = document.getElementById('prop-table-auto-fit');
+        if (autoFitEl) {
+          autoFitEl.addEventListener('change', e => {
+            saveSnapshot();
+            if (!e.target.checked) {
+              freezeAutoFitTableWidths(field);
+            }
+            field.autoFitWidth = e.target.checked;
+            updatePreview(field);
+            commitSnapshot();
+          });
+        }
+        panel.querySelectorAll('[data-col-idx]').forEach(input => {
+          input.addEventListener('focus', saveSnapshot);
+          input.addEventListener('input', e => {
+            field.columns[parseInt(e.target.dataset.colIdx)] = e.target.value;
+            updatePreview(field);
+            commitSnapshot();
+          });
+        });
+        panel.querySelectorAll('[data-col-del]').forEach(btn => {
+          btn.addEventListener('click', e => {
+            const i = parseInt(e.target.dataset.colDel);
+            if (field.columns.length > 1) {
+              saveSnapshot();
+              field.columns.splice(i, 1);
+              field.colWidths.splice(i, 1);
+              field.data.forEach(row => { if (row) row.splice(i, 1); });
+              renderProperties();
+              updatePreview(field);
+              commitSnapshot();
+            }
+          });
+        });
+        document.getElementById('add-col-btn').addEventListener('click', () => {
+          saveSnapshot();
+          field.columns.push('Column ' + (field.columns.length + 1));
+          const currentTotal = field.colWidths.reduce((a, b) => a + b, 0);
+          field.colWidths.push(Math.min(120, Math.max(40, A4_CONTENT_WIDTH - currentTotal)));
+          renderProperties();
+          updatePreview(field);
+          commitSnapshot();
+        });
+        document.getElementById('prop-rows').addEventListener('focus', saveSnapshot);
+        document.getElementById('prop-rows').addEventListener('input', e => {
+          const val = Math.max(1, parseInt(e.target.value) || 1);
+          field.rows = val;
+          if (field.data.length > field.rows) field.data.length = field.rows;
+          updatePreview(field);
+          commitSnapshot();
+        });
+      }
+    }
+
+    function renderShapeProperties(field) {
+      const panel = document.getElementById('props-panel');
+      const typeLabel = isRectangle(field.type) ? 'Rectangle' : 'Line';
+      const shapeColors = getShapeColorValues(field);
+
+      const colorPicker = (id, label, value, { allowTransparent = false, pickerFallback = '#000000' } = {}) => {
+        const normalized = normalizeColorValue(value, { allowTransparent, fallback: allowTransparent ? 'transparent' : pickerFallback });
+        const pickerValue = normalized === 'transparent'
+          ? pickerFallback
+          : normalizeColorValue(normalized, { fallback: pickerFallback });
+        return `
+        <div class="prop-group">
+          <label>${label}</label>
+          <div style="display:flex;gap:0.4rem;align-items:center">
+            <input type="color" id="${id}-picker" value="${pickerValue}" style="width:36px;height:32px;padding:2px;border:1.5px solid #e2e8f0;border-radius:6px;cursor:pointer;flex-shrink:0">
+            <input type="text" id="${id}-text" value="${escAttr(normalized)}" style="flex:1">
+          </div>
+        </div>`;
+      };
+
+      let shapePropsHTML = '';
+      if (isRectangle(field.type)) {
+        shapePropsHTML = `
+          ${colorPicker('prop-fill', 'Fill Color', shapeColors.fillColor, { allowTransparent: true, pickerFallback: '#ffffff' })}
+          ${colorPicker('prop-border-color', 'Border Color', shapeColors.borderColor, { pickerFallback: '#94a3b8' })}
+          <div class="prop-row">
+            <div class="prop-group">
+              <label>Border Width (px)</label>
+              <input type="number" id="prop-border-width" value="${field.borderWidth}" min="0" max="20">
+            </div>
+            <div class="prop-group">
+              <label>Border Radius (px)</label>
+              <input type="number" id="prop-border-radius" value="${field.borderRadius}" min="0" max="200">
+            </div>
+          </div>
+          <div class="prop-group">
+            <label>Opacity (%)</label>
+            <input type="number" id="prop-opacity" value="${field.opacity}" min="0" max="100">
+          </div>`;
+      }
+      if (isLine(field.type)) {
+        const isHoriz = field.orientation === 'horizontal';
+        shapePropsHTML = `
+          ${colorPicker('prop-line', 'Line Color', shapeColors.lineColor, { pickerFallback: '#1e293b' })}
+          <div class="prop-row">
+            <div class="prop-group">
+              <label>Thickness (px)</label>
+              <input type="number" id="prop-thickness" value="${field.thickness}" min="1" max="20">
+            </div>
+            <div class="prop-group">
+              <label>Style</label>
+              <select id="prop-line-style">
+                <option value="solid"${field.lineStyle==='solid'?' selected':''}>Solid</option>
+                <option value="dashed"${field.lineStyle==='dashed'?' selected':''}>Dashed</option>
+                <option value="dotted"${field.lineStyle==='dotted'?' selected':''}>Dotted</option>
+              </select>
+            </div>
+          </div>
+          <div class="prop-group">
+            <label>Orientation</label>
+            <select id="prop-orientation">
+              <option value="horizontal"${isHoriz?' selected':''}>Horizontal</option>
+              <option value="vertical"${!isHoriz?' selected':''}>Vertical</option>
+            </select>
+          </div>`;
+      }
+
+      const isHorizLine = isLine(field.type) && field.orientation === 'horizontal';
+      const isVertLine  = isLine(field.type) && field.orientation === 'vertical';
+
+      panel.innerHTML = `
+        <div class="prop-group">
+          <label>Field Type</label>
+          <div style="padding:0.5rem;background:#f1f5f9;border-radius:4px;color:#374151;font-weight:500;">${typeLabel}</div>
+        </div>
+        ${shapePropsHTML}
+        <div class="prop-divider"></div>
+        <div class="prop-row">
+          <div class="prop-group">
+            <label>X (px)</label>
+            <input type="number" id="prop-x" value="${Math.round(field.x)}" min="0">
+          </div>
+          <div class="prop-group">
+            <label>Y (px)</label>
+            <input type="number" id="prop-y" value="${Math.round(field.y)}" min="0">
+          </div>
+        </div>
+        <div class="prop-row">
+          <div class="prop-group">
+            <label>Width (px)</label>
+            <input type="number" id="prop-width" value="${Math.round(field.width)}" min="1"${isVertLine?' disabled':''}>
+          </div>
+          <div class="prop-group">
+            <label>Height (px)</label>
+            <input type="number" id="prop-height" value="${field.height ? Math.round(field.height) : ''}" min="1" placeholder="auto"${isHorizLine?' disabled':''}>
+          </div>
+        </div>`;
+
+      const shapeDupBtn = document.createElement('button');
+      shapeDupBtn.className = 'duplicate-btn';
+      shapeDupBtn.textContent = '⧉ Duplicate Field';
+      shapeDupBtn.addEventListener('click', () => duplicateField(field.id));
+      panel.prepend(shapeDupBtn);
+
+      // Position inputs
+      document.getElementById('prop-x').addEventListener('focus', saveSnapshot);
+      document.getElementById('prop-x').addEventListener('input', e => {
+        field.x = Math.min(A4_CONTENT_WIDTH - field.width, Math.max(0, parseInt(e.target.value) || 0));
+        e.target.value = Math.round(field.x);
+        const row = document.querySelector(`.field-row[data-id="${field.id}"]`);
+        if (row) row.style.left = field.x + 'px';
+        commitSnapshot();
+      });
+      document.getElementById('prop-y').addEventListener('focus', saveSnapshot);
+      document.getElementById('prop-y').addEventListener('input', e => {
+        field.y = Math.max(0, parseInt(e.target.value) || 0);
+        const row = document.querySelector(`.field-row[data-id="${field.id}"]`);
+        if (row) row.style.top = field.y + 'px';
+        commitSnapshot();
+      });
+      const wIn = document.getElementById('prop-width');
+      if (wIn && !wIn.disabled) {
+        wIn.addEventListener('focus', saveSnapshot);
+        wIn.addEventListener('input', e => {
+          field.width = Math.min(A4_CONTENT_WIDTH - field.x, Math.max(1, parseInt(e.target.value) || 1));
+          e.target.value = Math.round(field.width);
+          const row = document.querySelector(`.field-row[data-id="${field.id}"]`);
+          if (row) row.style.width = field.width + 'px';
+          updatePreview(field);
+          commitSnapshot();
+        });
+      }
+      const hIn = document.getElementById('prop-height');
+      if (hIn && !hIn.disabled) {
+        hIn.addEventListener('focus', saveSnapshot);
+        hIn.addEventListener('input', e => {
+          const val = parseInt(e.target.value);
+          field.height = isNaN(val) ? 0 : Math.max(1, val);
+          const row = document.querySelector(`.field-row[data-id="${field.id}"]`);
+          if (row) row.style.height = field.height ? field.height + 'px' : '';
+          updatePreview(field);
+          commitSnapshot();
+        });
+      }
+
+      // Shape-specific controls
+      if (isRectangle(field.type)) {
+        bindColorControl(field, {
+          pickerId: 'prop-fill-picker',
+          textId: 'prop-fill-text',
+          prop: 'fillColor',
+          allowTransparent: true,
+          fallback: 'transparent',
+          pickerFallback: '#ffffff',
+        });
+        bindColorControl(field, {
+          pickerId: 'prop-border-color-picker',
+          textId: 'prop-border-color-text',
+          prop: 'borderColor',
+          fallback: '#94a3b8',
+        });
+        document.getElementById('prop-border-width').addEventListener('focus', saveSnapshot);
+        document.getElementById('prop-border-width').addEventListener('input', e => {
+          const v = parseInt(e.target.value); if (!isNaN(v) && v >= 0) { field.borderWidth = v; updatePreview(field); commitSnapshot(); }
+        });
+        document.getElementById('prop-border-radius').addEventListener('focus', saveSnapshot);
+        document.getElementById('prop-border-radius').addEventListener('input', e => {
+          const v = parseInt(e.target.value); if (!isNaN(v) && v >= 0) { field.borderRadius = v; updatePreview(field); commitSnapshot(); }
+        });
+        document.getElementById('prop-opacity').addEventListener('focus', saveSnapshot);
+        document.getElementById('prop-opacity').addEventListener('input', e => {
+          const v = parseInt(e.target.value); if (!isNaN(v)) { field.opacity = Math.min(100, Math.max(0, v)); updatePreview(field); commitSnapshot(); }
+        });
+      }
+      if (isLine(field.type)) {
+        bindColorControl(field, {
+          pickerId: 'prop-line-picker',
+          textId: 'prop-line-text',
+          prop: 'lineColor',
+          fallback: '#1e293b',
+        });
+        document.getElementById('prop-thickness').addEventListener('focus', saveSnapshot);
+        document.getElementById('prop-thickness').addEventListener('input', e => {
+          const v = parseInt(e.target.value); if (!isNaN(v) && v >= 1 && v <= 20) { field.thickness = v; updatePreview(field); commitSnapshot(); }
+        });
+        document.getElementById('prop-line-style').addEventListener('focus', saveSnapshot);
+        document.getElementById('prop-line-style').addEventListener('change', e => {
+          field.lineStyle = e.target.value; updatePreview(field); commitSnapshot();
+        });
+        document.getElementById('prop-orientation').addEventListener('focus', saveSnapshot);
+        document.getElementById('prop-orientation').addEventListener('change', e => {
+          field.orientation = e.target.value;
+          renderCanvas();
+          renderShapeProperties(field);
+          commitSnapshot();
+        });
+      }
+    }
+
+    function attachTableResizeHandlers(field, rowEl) {
+      const preview = rowEl.querySelector('.field-preview');
+
+      if (!tableAutoFitsWidth(field)) {
+        preview.querySelectorAll('.col-resize-handle').forEach(handle => {
+          handle.addEventListener('mousedown', e => {
+            if (e.button !== 0) return;
+            e.preventDefault();
+            e.stopPropagation();
+            saveSnapshot();
+            handle.classList.add('active');
+            const colIdx = parseInt(handle.dataset.colIdx);
+            const startX = e.clientX;
+            const startW = field.colWidths[colIdx];
+            const table = preview.querySelector('table.table-preview');
+            function onMove(ev) {
+              const otherColsW = field.colWidths.reduce((a, b) => a + b, 0) - field.colWidths[colIdx];
+              field.colWidths[colIdx] = Math.min(A4_CONTENT_WIDTH - otherColsW, Math.max(40, startW + ev.clientX - startX));
+              const col = preview.querySelectorAll('col')[colIdx];
+              if (col) col.style.width = field.colWidths[colIdx] + 'px';
+              if (table) table.style.width = getTableRenderWidth(field);
+            }
+            function onUp() {
+              handle.classList.remove('active');
+              document.removeEventListener('mousemove', onMove);
+              document.removeEventListener('mouseup', onUp);
+              commitSnapshot();
+            }
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+          });
+        });
+      }
+
+      preview.querySelectorAll('.table-cell-input').forEach(input => {
+        input.addEventListener('mousedown', e => e.stopPropagation());
+        input.addEventListener('focus', saveSnapshot);
+        input.addEventListener('input', () => {
+          const ri = parseInt(input.dataset.row);
+          const ci = parseInt(input.dataset.col);
+          if (!field.data[ri]) field.data[ri] = [];
+          field.data[ri][ci] = input.value;
+          commitSnapshot();
+        });
+      });
+
+      const rowHandle = preview.querySelector('.row-resize-handle');
+      if (rowHandle) {
+        rowHandle.addEventListener('mousedown', e => {
+          if (e.button !== 0) return;
+          e.preventDefault();
+          e.stopPropagation();
+          saveSnapshot();
+          rowHandle.classList.add('active');
+          const startY = e.clientY;
+          const startH = field.rowHeight;
+          function onMove(ev) {
+            field.rowHeight = Math.max(16, startH + ev.clientY - startY);
+            preview.querySelectorAll('tbody tr').forEach(tr => {
+              tr.style.height = field.rowHeight + 'px';
+            });
+          }
+          function onUp() {
+            rowHandle.classList.remove('active');
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+            commitSnapshot();
+          }
+          document.addEventListener('mousemove', onMove);
+          document.addEventListener('mouseup', onUp);
+        });
+      }
+    }
+
+    function updatePreview(field) {
+      const row = document.querySelector(`.field-row[data-id="${field.id}"]`);
+      if (!row) return;
+      row.querySelector('.field-preview').innerHTML = buildPreviewHTML(field);
+      if (isTable(field.type)) attachTableResizeHandlers(field, row);
+    }
+
+    // ── Palette ───────────────────────────────────────────────────────────────
+    function renderPalette() {
+      const list = document.getElementById('palette-list');
+      PALETTE_ITEMS.forEach(item => {
+        const el = document.createElement('div');
+        el.className = 'palette-item';
+        el.draggable = true;
+        el.title = `Drag or click to add ${item.label} field`;
+        el.innerHTML = `<span class="icon">${item.icon}</span>${item.label}`;
+
+        el.addEventListener('dragstart', e => {
+          palettedragging = true;
+          e.dataTransfer.setData('fieldType', item.type);
+          e.dataTransfer.effectAllowed = 'copy';
+        });
+        el.addEventListener('dragend', () => { palettedragging = false; });
+        el.addEventListener('click', () => addField(item.type));
+
+        list.appendChild(el);
+      });
+    }
+
+    // ── Drop zone (palette → canvas) ──────────────────────────────────────────
+    function initDropZone() {
+      const zone = document.getElementById('drop-zone');
+
+      zone.addEventListener('dragover', e => {
+        if (!palettedragging) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+        zone.classList.add('drag-over');
+      });
+      zone.addEventListener('dragleave', e => {
+        if (!zone.contains(e.relatedTarget)) zone.classList.remove('drag-over');
+      });
+      zone.addEventListener('drop', e => {
+        if (!palettedragging) return;
+        e.preventDefault();
+        zone.classList.remove('drag-over');
+        const type = e.dataTransfer.getData('fieldType');
+        if (type) {
+          const rect = zone.getBoundingClientRect();
+          const x = Math.min(A4_CONTENT_WIDTH - 240, Math.max(0, e.clientX - rect.left - 120));
+          const y = Math.max(0, e.clientY - rect.top - 20);
+          addField(type, x, y);
+        }
+        palettedragging = false;
+      });
+    }
+
+    // ── Export ────────────────────────────────────────────────────────────────
+    function generateHTML({ autoPrint = false } = {}) {
+      // Compute bounding box
+      const defaultH = 80;
+      const maxRight = fields.reduce((m, f) => Math.max(m, f.x + f.width), 400);
+      const maxBottom = fields.reduce((m, f) => Math.max(m, f.y + (f.height || defaultH)), 300);
+      const canvasW = maxRight + 40;
+      const canvasH = maxBottom + 20;
+      const pageTitle = autoPrint ? 'Print Preview' : 'Form';
+      const autoPrintScript = autoPrint ? `
+  <script>
+    try { window.opener = null; } catch {}
+
+    const triggerPrint = () => {
+      window.setTimeout(() => {
+        window.focus();
+        window.print();
+      }, 0);
+    };
+
+    window.addEventListener('load', () => {
+      if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(triggerPrint, triggerPrint);
+      } else {
+        triggerPrint();
+      }
+    }, { once: true });
+  <\/script>` : '';
+
+      const fieldsHTML = fields.map(field => {
+        const id = 'field-' + field.id.replace(/-/g,'').slice(0,8);
+        const labelConfig = getLabelConfig(field);
+        const shapeColors = getShapeColorValues(field);
+        const posStyle = `position:absolute;left:${field.x}px;top:${field.y}px;width:${field.width}px;${field.height ? 'height:'+field.height+'px;' : ''}`;
+        const groupStyle = ` style="${posStyle}"`;
+        const fsPx = field.fontSize ? `${field.fontSize}px` : null;
+        const lblStyle = fsPx ? ` style="font-size:${fsPx}"` : '';
+        const controlHeight = field.height
+          ? Math.max(0, field.height - (labelConfig.show && labelConfig.position === 'above' ? 40 : 0))
+          : null;
+        const controlStyle = joinStyles(
+          fsPx ? `font-size:${fsPx}` : '',
+          controlHeight !== null ? `height:${controlHeight}px` : '',
+          fieldHidesBorder(field) ? 'border:none' : '',
+          fieldHidesBorder(field) ? 'box-shadow:none' : ''
+        );
+        const ctrlStyle = controlStyle
+          ? ` style="${controlStyle}"`
+          : '';
+        const controlAria = labelConfig.show ? '' : ` aria-label="${labelConfig.ariaLabel}"`;
+
+        if (field.type === 'rectangle') {
+          const style = `position:absolute;left:${field.x}px;top:${field.y}px;width:${field.width}px;height:${field.height||80}px;background:${shapeColors.fillColor};border:${field.borderWidth}px solid ${shapeColors.borderColor};border-radius:${field.borderRadius}px;opacity:${field.opacity/100};box-sizing:border-box`;
+          return `    <div style="${style}" aria-hidden="true"></div>`;
+        }
+        if (field.type === 'line') {
+          if (field.orientation === 'horizontal') {
+            const style = `position:absolute;left:${field.x}px;top:${field.y}px;width:${field.width}px;height:0;border-top:${field.thickness}px ${field.lineStyle} ${shapeColors.lineColor}`;
+            return `    <div style="${style}" aria-hidden="true"></div>`;
+          } else {
+            const style = `position:absolute;left:${field.x}px;top:${field.y}px;width:0;height:${field.height||80}px;border-left:${field.thickness}px ${field.lineStyle} ${shapeColors.lineColor}`;
+            return `    <div style="${style}" aria-hidden="true"></div>`;
+          }
+        }
+        if (field.type === 'image') {
+          return `    <div${groupStyle}>
+      <img src="${escAttr(field.src)}" alt="${escAttr(field.alt||'')}" style="display:block;max-width:100%;${field.height ? 'height:'+field.height+'px;object-fit:contain;' : ''}">
+    </div>`;
+        }
+        if (field.type === 'header') {
+          return `    <div${groupStyle}>
+      <p style="margin:0;font-size:${field.fontSize}px;font-weight:600;color:#1e293b">${labelConfig.text}</p>
+    </div>`;
+        }
+
+        if (field.type === 'checkbox') {
+          if (!labelConfig.show) {
+            return `    <div class="field-group"${groupStyle}>
+      <div class="checkbox-label"><input type="checkbox" id="${id}" name="${id}"${controlAria}></div>
+    </div>`;
+          }
+          return `    <div class="field-group"${groupStyle}>
+      <label class="checkbox-label"${lblStyle}>
+        <input type="checkbox" id="${id}" name="${id}"> ${labelConfig.text}
+      </label>
+    </div>`;
+        }
+        if (field.type === 'textarea') {
+          const labelMarkup = labelConfig.show ? `<label for="${id}"${lblStyle}>${labelConfig.text}</label>` : '';
+          const groupClass = labelConfig.position === 'left' ? 'field-group field-group--label-left' : 'field-group';
+          return `    <div class="${groupClass}"${groupStyle}>
+      ${labelMarkup}
+      <textarea id="${id}" name="${id}"${ctrlStyle}${controlAria}>${esc(field.value || '')}</textarea>
+    </div>`;
+        }
+        if (field.type === 'select') {
+          const opts = field.options.map(o =>
+            `        <option value="${escAttr(o)}">${esc(o)}</option>`).join('\n');
+          const labelMarkup = labelConfig.show ? `<label for="${id}"${lblStyle}>${labelConfig.text}</label>` : '';
+          return `    <div class="field-group"${groupStyle}>
+      ${labelMarkup}
+      <select id="${id}" name="${id}"${ctrlStyle}${controlAria}>
+${opts}
+      </select>
+    </div>`;
+        }
+        if (field.type === 'radio') {
+          const radios = field.options.map((o) =>
+            `        <label class="radio-label"${lblStyle}><input type="radio" name="${id}" value="${escAttr(o)}"> ${esc(o)}</label>`
+          ).join('\n');
+          const legendMarkup = labelConfig.show ? `        <legend${lblStyle}>${labelConfig.text}</legend>\n` : '';
+          const fieldsetAria = labelConfig.show ? '' : ` aria-label="${labelConfig.ariaLabel}"`;
+          return `    <div class="field-group"${groupStyle}>
+      <fieldset${fieldsetAria}>
+${legendMarkup}${radios}
+      </fieldset>
+    </div>`;
+        }
+        if (field.type === 'table') {
+          const colWidthStyles = getTableColWidthStyles(field);
+          const tableWidth = getTableRenderWidth(field);
+          const cols = field.columns.map((_, i) => `        <col style="width:${colWidthStyles[i] || 'auto'}">`).join('\n');
+          const ths = field.columns.map(c => `        <th>${esc(c)}</th>`).join('\n');
+          const trs = Array.from({length: field.rows}, (_, ri) =>
+            `      <tr style="height:${field.rowHeight}px">\n` + field.columns.map((_, ci) => {
+              const val = escAttr((field.data[ri] && field.data[ri][ci]) || '');
+              return `        <td><input type="text" name="${id}-r${ri}-c${ci}" value="${val}"${ctrlStyle}></td>`;
+            }).join('\n') + `\n      </tr>`
+          ).join('\n');
+          const tableAria = labelConfig.show ? '' : ` aria-label="${labelConfig.ariaLabel}"`;
+          const captionMarkup = labelConfig.show ? `        <caption${lblStyle}>${labelConfig.text}</caption>\n` : '';
+          return `    <div class="field-group table-group"${groupStyle}>
+      <table${tableAria} style="table-layout:fixed;width:${tableWidth};border-collapse:collapse${fsPx ? ';font-size:'+fsPx : ''}">
+${captionMarkup}        <colgroup>
+${cols}
+         </colgroup>
+        <thead>
+          <tr>
+${ths}
+          </tr>
+        </thead>
+        <tbody>
+${trs}
+        </tbody>
+      </table>
+    </div>`;
+        }
+        const labelMarkup = labelConfig.show ? `<label for="${id}"${lblStyle}>${labelConfig.text}</label>` : '';
+        if (labelConfig.position === 'left') {
+          return `    <div class="field-group field-group--label-left"${groupStyle}>
+      ${labelMarkup}
+      <input type="${field.type}" id="${id}" name="${id}"${field.value ? ` value="${escAttr(field.value)}"` : ''}${ctrlStyle}${controlAria}>
+    </div>`;
+        }
+        return `    <div class="field-group"${groupStyle}>
+      ${labelMarkup}
+      <input type="${field.type}" id="${id}" name="${id}"${field.value ? ` value="${escAttr(field.value)}"` : ''}${ctrlStyle}${controlAria}>
+    </div>`;
+      }).join('\n\n');
+
+      return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${pageTitle}</title>
+  <style>
+    @page { size: A4 portrait; margin: 15mm 20mm; }
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      margin: 0 auto;
+      padding: 20px;
+      color: #1e293b;
+      background: #f8fafc;
+    }
+    @media print {
+      body { background: white; padding: 0; }
+      input, textarea, select { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+    @media screen {
+      body { background: #e5e7eb; padding: 30px; }
+      form { background: white; padding: 30px; border-radius: 6px; box-shadow: 0 2px 12px rgba(0,0,0,0.1); display: inline-block; }
+    }
+    .form-canvas { position: relative; width: ${canvasW}px; height: ${canvasH}px; }
+    .field-group { display: flex; flex-direction: column; gap: 0.35rem; }
+    .field-group--label-left { flex-direction: row; align-items: center; gap: 0.6rem; }
+    .field-group--label-left label { flex-shrink: 0; }
+    .field-group--label-left input, .field-group--label-left textarea { flex: 1; }
+    label { font-size: 0.875rem; font-weight: 600; color: #374151; }
+    input[type="text"],
+    input[type="email"],
+    input[type="number"],
+    input[type="password"],
+    input[type="tel"],
+    input[type="url"],
+    textarea,
+    select {
+      width: 100%;
+      padding: 0.5rem 0.7rem;
+      border: 1.5px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 0.95rem;
+      font-family: inherit;
+      color: #1e293b;
+      background: white;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    input:focus, textarea:focus, select:focus {
+      outline: none;
+      border-color: #2563eb;
+      box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
+    }
+    textarea { resize: vertical; min-height: 80px; }
+    fieldset { border: 1.5px solid #e2e8f0; border-radius: 6px; padding: 0.75rem 1rem; }
+    legend { font-size: 0.875rem; font-weight: 600; color: #374151; padding: 0 0.25rem; }
+    .checkbox-label, .radio-label {
+      display: flex; align-items: center; gap: 0.5rem;
+      font-weight: 400; font-size: 0.9rem; cursor: pointer; margin-bottom: 0.25rem;
+    }
+    input[type="checkbox"], input[type="radio"] { width: auto; accent-color: #2563eb; }
+    .table-group { overflow-x: auto; }
+    table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+    caption { font-size: 0.875rem; font-weight: 600; color: #374151; text-align: left; margin-bottom: 0.5rem; }
+    th { background: #f1f5f9; font-weight: 600; color: #374151; padding: 0.45rem 0.6rem; border: 1.5px solid #d1d5db; text-align: left; }
+    td { padding: 0.2rem; border: 1.5px solid #e2e8f0; }
+    td input[type="text"] { border: none; border-radius: 0; padding: 0.3rem 0.5rem; font-size: 0.875rem; box-shadow: none; }
+    td input[type="text"]:focus { outline: 2px solid #2563eb; outline-offset: -2px; border-color: transparent; box-shadow: none; }
+  </style>
+</head>
+<body>
+  <form>
+    <div class="form-canvas">
+${fieldsHTML}
+    </div>
+  </form>
+${autoPrintScript}
+</body>
+</html>`;
+    }
+
+    function exportFile() {
+      if (fields.length === 0) {
+        alert('Add at least one field before exporting.');
+        return;
+      }
+      const html = generateHTML();
+      const blob = new Blob([html], { type: 'text/html' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'form.html';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(a.href);
+    }
+
+    function printPreview() {
+      if (fields.length === 0) {
+        alert('Add at least one field before previewing.');
+        return;
+      }
+      const html = generateHTML({ autoPrint: true });
+      const blob = new Blob([html], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const win = window.open('about:blank', '_blank');
+      if (!win) {
+        URL.revokeObjectURL(url);
+        alert('Print preview was blocked. Allow popups for this page and try again.');
+        return;
+      }
+      try { win.opener = null; } catch {}
+      win.location = url;
+      window.setTimeout(() => URL.revokeObjectURL(url), 10000);
+    }
+
+    // ── Init ──────────────────────────────────────────────────────────────────
+    new MutationObserver(mutations => {
+      for (const { addedNodes } of mutations) {
+        for (const node of addedNodes) {
+          if (node.nodeType !== 1) continue;
+          const inputs = node.matches('input[type="text"],input[type="number"],textarea')
+            ? [node] : [...node.querySelectorAll('input[type="text"],input[type="number"],textarea')];
+          inputs.forEach(el => { el.spellcheck = false; el.autocomplete = 'off'; });
+        }
+      }
+    }).observe(document.body, { childList: true, subtree: true });
+
+    renderPalette();
+    renderCanvas();
+    initDropZone();
+    saveSnapshot(); // capture initial empty state
+    document.getElementById('undo-btn').addEventListener('click', undo);
+    document.getElementById('redo-btn').addEventListener('click', redo);
+    document.addEventListener('keydown', e => {
+      if (e.ctrlKey && !e.shiftKey && e.key === 'z') { e.preventDefault(); undo(); }
+      if ((e.ctrlKey && e.key === 'y') || (e.ctrlKey && e.shiftKey && e.key === 'z')) { e.preventDefault(); redo(); }
+    });
+    document.getElementById('snap-btn').addEventListener('click', () => {
+      snapToGrid = !snapToGrid;
+      document.getElementById('snap-btn').textContent = `Snap to Grid: ${snapToGrid ? 'On' : 'Off'}`;
+      document.getElementById('drop-zone').classList.toggle('snap-grid', snapToGrid);
+    });
+    document.getElementById('save-btn').addEventListener('click', saveLayout);
+    const loadInput = document.getElementById('load-input');
+    document.getElementById('load-btn').addEventListener('click', () => loadInput.click());
+    loadInput.addEventListener('change', (e) => {
+      if (e.target.files[0]) { loadLayout(e.target.files[0]); loadInput.value = ''; }
+    });
+    document.getElementById('preview-btn').addEventListener('click', printPreview);
+    document.getElementById('export-btn').addEventListener('click', exportFile);
+    document.getElementById('copy-btn').addEventListener('click', () => {
+      if (fields.length === 0) { alert('Add at least one field before copying.'); return; }
+      const html = generateHTML();
+      const btn = document.getElementById('copy-btn');
+      function markCopied() {
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = 'Copy HTML'; }, 2000);
+      }
+      function fallbackCopy() {
+        const ta = document.createElement('textarea');
+        ta.value = html;
+        ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0;';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        const ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        if (ok) { markCopied(); } else { alert('Copy failed. Please copy the HTML manually via Export HTML.'); }
+      }
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        navigator.clipboard.writeText(html).then(markCopied).catch(fallbackCopy);
+      } else {
+        fallbackCopy();
+      }
+    });
+
+    document.getElementById('copy-flow-btn').addEventListener('click', () => {
+      if (fields.length === 0) { alert('Add at least one field before copying.'); return; }
+      const json = JSON.stringify({ generatedHTML: generateHTML() }).replace(/&#39;/g, "'");
+      const btn = document.getElementById('copy-flow-btn');
+      function markCopied() {
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = 'Copy as Flow JSON'; }, 2000);
+      }
+      function fallbackCopy() {
+        const ta = document.createElement('textarea');
+        ta.value = json;
+        ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0;';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        const ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        if (ok) { markCopied(); } else { alert('Copy failed.'); }
+      }
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        navigator.clipboard.writeText(json).then(markCopied).catch(fallbackCopy);
+      } else {
+        fallbackCopy();
+      }
+    });
+  </script>
+</body>
+</html>

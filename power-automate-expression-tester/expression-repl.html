@@ -1,0 +1,1163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Expression Scratchpad</title>
+  <script src="./expression-evaluator.js"></script>
+  <style>
+    /* ── Reset & base ──────────────────────────────────────────────────────── */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg:      #000000;
+      --bg-lift: #0d0d0d;
+      --bg-rule: #1a1a1a;
+      --fg:      #ffffff;
+      --fg-mid:  rgba(255,255,255,0.45);
+      --fg-dim:  rgba(255,255,255,0.2);
+      --accent:  #ff3333;
+      --border:  rgba(255,255,255,0.15);
+      --border-strong: #ffffff;
+    }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--fg);
+      font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+      font-size: 18px;
+      line-height: 1.6;
+      display: flex;
+      flex-direction: column;
+    }
+
+    ::selection { background: var(--fg); color: var(--bg); }
+
+    /* ── Accessibility ─────────────────────────────────────────────────────── */
+    *:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+      border-radius: 0;
+    }
+
+    .skip-link {
+      position: absolute;
+      top: -100%;
+      left: 8px;
+      background: var(--fg);
+      color: var(--bg);
+      padding: 8px 16px;
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      z-index: 9999;
+      text-decoration: none;
+    }
+    .skip-link:focus { top: 0; }
+
+    #live-region {
+      position: absolute;
+      left: -9999px;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+    }
+
+    /* ── Header ────────────────────────────────────────────────────────────── */
+    .app-header {
+      background: var(--bg);
+      border-bottom: 2px solid var(--border-strong);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-shrink: 0;
+    }
+
+    .header-icon { color: var(--accent); flex-shrink: 0; }
+
+    .app-header h1 {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      line-height: 1;
+    }
+
+    .app-header .subtitle {
+      font-size: 13px;
+      color: var(--fg-mid);
+      letter-spacing: 0.05em;
+    }
+
+    /* ── Layout ────────────────────────────────────────────────────────────── */
+    .app-body {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    /* ── REPL Panel ────────────────────────────────────────────────────────── */
+    .repl-panel {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-width: 0;
+      min-height: 0;
+    }
+
+    /* ── Resize handle ─────────────────────────────────────────────────────── */
+    .resize-handle {
+      flex-shrink: 0;
+      width: 5px;
+      background: var(--bg-rule);
+      border-left: 1px solid var(--border);
+      border-right: 1px solid var(--border);
+      cursor: col-resize;
+      position: relative;
+      transition: background 80ms ease;
+      user-select: none;
+    }
+    .resize-handle:hover,
+    .resize-handle.dragging {
+      background: var(--fg);
+    }
+    @media (prefers-reduced-motion: reduce) { .resize-handle { transition: none; } }
+
+    /* History log */
+    #history {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      scroll-behavior: smooth;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      #history { scroll-behavior: auto; }
+    }
+
+    #history:empty::before {
+      content: "No expressions yet. Type one below and press Enter.";
+      color: var(--fg-dim);
+      font-size: 15px;
+      letter-spacing: 0.04em;
+      text-align: center;
+      padding: 48px 16px;
+      display: block;
+      text-transform: uppercase;
+    }
+
+    .history-entry {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      animation: slide-in 400ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes slide-in {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .history-entry { animation: none; }
+    }
+
+    .entry-input {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+      font-size: 16px;
+    }
+
+    .entry-prompt {
+      color: var(--accent);
+      font-weight: 700;
+      flex-shrink: 0;
+      user-select: none;
+    }
+
+    .entry-expr {
+      color: var(--fg);
+      word-break: break-all;
+    }
+
+    .entry-result {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 12px 16px;
+      background: var(--bg-lift);
+      border-left: 2px solid var(--fg);
+      font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+      font-size: 15px;
+      color: var(--fg);
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .entry-result.entry-error {
+      border-left-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .result-icon {
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .result-text { flex: 1; }
+
+    /* Input bar */
+    .input-bar {
+      flex-shrink: 0;
+      border-top: 2px solid var(--border-strong);
+      background: var(--bg);
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: relative;
+    }
+
+    /* ── Autocomplete dropdown ─────────────────────────────────────────────── */
+    #autocomplete-list {
+      display: none;
+      position: absolute;
+      bottom: 100%;
+      left: 0;
+      right: 0;
+      background: var(--bg-lift);
+      border: 1px solid var(--border-strong);
+      border-bottom: none;
+      list-style: none;
+      max-height: 240px;
+      overflow-y: auto;
+      z-index: 100;
+    }
+    #autocomplete-list.open { display: block; }
+
+    .ac-item {
+      padding: 10px 20px;
+      font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+      font-size: 15px;
+      cursor: pointer;
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      transition: background 60ms ease, color 60ms ease;
+    }
+    .ac-item[aria-selected="true"],
+    .ac-item:hover {
+      background: var(--fg);
+      color: var(--bg);
+    }
+    @media (prefers-reduced-motion: reduce) { .ac-item { transition: none; } }
+
+    .ac-match { font-weight: 700; }
+    .ac-sig {
+      font-size: 13px;
+      color: var(--fg-mid);
+      margin-left: auto;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 50%;
+    }
+    .ac-item[aria-selected="true"] .ac-sig,
+    .ac-item:hover .ac-sig { color: rgba(0,0,0,0.45); }
+
+    .input-prompt {
+      color: var(--accent);
+      font-weight: 700;
+      font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+      font-size: 18px;
+      flex-shrink: 0;
+      user-select: none;
+    }
+
+    #expr-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: var(--fg);
+      font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+      font-size: 17px;
+      line-height: 1.6;
+      outline: none;
+    }
+
+    #expr-input::placeholder { color: var(--fg-dim); }
+
+    .btn-run {
+      background: var(--fg);
+      color: var(--bg);
+      border: 2px solid var(--fg);
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 8px 20px;
+      min-height: 44px;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: background 80ms ease, color 80ms ease;
+    }
+    .btn-run:hover  { background: var(--bg); color: var(--fg); }
+    .btn-run:active { background: var(--fg-mid); color: var(--bg); }
+    @media (prefers-reduced-motion: reduce) { .btn-run { transition: none; } }
+
+    /* Context section */
+    .context-section {
+      flex-shrink: 0;
+      border-top: 1px solid var(--border);
+    }
+
+    .context-toggle {
+      width: 100%;
+      background: var(--bg-rule);
+      border: none;
+      color: var(--fg-mid);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 11px 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      text-align: left;
+      transition: background 80ms ease, color 80ms ease;
+    }
+    .context-toggle:hover { background: var(--fg); color: var(--bg); }
+
+    .chevron {
+      margin-left: auto;
+      transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .context-toggle[aria-expanded="true"] .chevron { transform: rotate(180deg); }
+    @media (prefers-reduced-motion: reduce) { .chevron { transition: none; } }
+
+    .context-body {
+      padding: 14px 20px;
+      background: var(--bg);
+      border-top: 1px solid var(--border);
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .context-body.open { display: flex; }
+
+    .context-hint {
+      font-size: 13px;
+      color: var(--fg-mid);
+      letter-spacing: 0.02em;
+    }
+    .context-hint code {
+      font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+      color: var(--fg);
+      font-size: 13px;
+    }
+
+    #context-input {
+      width: 100%;
+      background: var(--bg-lift);
+      border: 1px solid var(--border);
+      color: var(--fg);
+      font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+      font-size: 15px;
+      padding: 10px 14px;
+      resize: vertical;
+      min-height: 88px;
+      max-height: 200px;
+      line-height: 1.5;
+      transition: border-color 80ms ease;
+    }
+    #context-input:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+      border-color: var(--accent);
+    }
+    #context-input.ctx-valid   { border-color: var(--fg); }
+    #context-input.ctx-invalid { border-color: var(--accent); }
+    @media (prefers-reduced-motion: reduce) { #context-input { transition: none; } }
+
+    #context-error {
+      font-size: 13px;
+      color: var(--accent);
+      display: none;
+      align-items: center;
+      gap: 6px;
+      letter-spacing: 0.02em;
+    }
+    #context-error.visible { display: flex; }
+
+    /* ── Reference Panel ───────────────────────────────────────────────────── */
+    .ref-panel {
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      min-height: 0;
+      width: 300px;
+      min-width: 150px;
+      max-width: 600px;
+      background: var(--bg-lift);
+    }
+
+    .ref-header {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .ref-header h2 {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--fg-mid);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    #fn-search {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--fg);
+      font-size: 15px;
+      padding: 10px 12px;
+      min-height: 44px;
+      transition: border-color 80ms ease;
+    }
+    #fn-search::placeholder { color: var(--fg-dim); }
+    #fn-search:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+      border-color: var(--accent);
+    }
+    @media (prefers-reduced-motion: reduce) { #fn-search { transition: none; } }
+
+    #fn-list {
+      flex: 1;
+      overflow-y: auto;
+      list-style: none;
+      padding: 4px 0 8px;
+    }
+
+    .fn-category-header {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      padding: 12px 16px 4px;
+    }
+
+    .fn-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding: 10px 16px;
+      background: none;
+      border: none;
+      width: 100%;
+      text-align: left;
+      cursor: pointer;
+      transition: background 80ms ease, color 80ms ease;
+    }
+    .fn-item:hover    { background: var(--fg); color: var(--bg); }
+    .fn-item:hover .fn-name { color: var(--bg); }
+    .fn-item:hover .fn-sig  { color: rgba(0,0,0,0.55); }
+    .fn-item:focus-visible {
+      outline: none;
+      box-shadow: inset 2px 0 0 var(--accent);
+      background: var(--bg-rule);
+    }
+    .fn-item--active {
+      box-shadow: inset 3px 0 0 var(--accent);
+      background: var(--bg-rule);
+    }
+    .fn-item--active .fn-name { color: var(--accent); }
+    @media (prefers-reduced-motion: reduce) { .fn-item { transition: none; } }
+
+    .fn-name {
+      font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--fg);
+    }
+
+    .fn-sig {
+      font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+      font-size: 13px;
+      color: var(--fg-mid);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .fn-no-results {
+      padding: 24px 16px;
+      color: var(--fg-dim);
+      font-size: 13px;
+      text-align: center;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    /* ── Scrollbars ────────────────────────────────────────────────────────── */
+    #history::-webkit-scrollbar,
+    #fn-list::-webkit-scrollbar,
+    #context-input::-webkit-scrollbar {
+      width: 4px;
+    }
+    #history::-webkit-scrollbar-track,
+    #fn-list::-webkit-scrollbar-track,
+    #context-input::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    #history::-webkit-scrollbar-thumb,
+    #fn-list::-webkit-scrollbar-thumb,
+    #context-input::-webkit-scrollbar-thumb {
+      background: var(--border);
+    }
+  </style>
+</head>
+<body>
+
+  <a href="#expr-input" class="skip-link">Skip to expression input</a>
+  <div id="live-region" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- ── Header ─────────────────────────────────────────────────────────── -->
+  <header class="app-header">
+    <svg class="header-icon" aria-hidden="true" focusable="false"
+         width="22" height="22" viewBox="0 0 24 24" fill="none"
+         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="16 18 22 12 16 6"></polyline>
+      <polyline points="8 6 2 12 8 18"></polyline>
+    </svg>
+    <div>
+      <h1>Expression Scratchpad</h1>
+      <div class="subtitle">Power Automate expression REPL &mdash; type an expression and press Enter</div>
+    </div>
+  </header>
+
+  <!-- ── Main ───────────────────────────────────────────────────────────── -->
+  <main class="app-body" id="main-content">
+
+    <!-- REPL Panel -->
+    <section class="repl-panel" aria-label="Expression REPL">
+
+      <div id="history" role="log" aria-label="Expression history" aria-live="off"></div>
+
+      <div class="input-bar" role="group" aria-label="Expression input">
+        <span class="input-prompt" aria-hidden="true">&gt;</span>
+        <input
+          id="expr-input"
+          type="text"
+          placeholder="e.g. formatDateTime(utcNow(), 'yyyy-MM-dd')"
+          aria-label="Expression — press Enter to evaluate, Up/Down to navigate history"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="off"
+          spellcheck="false"
+        />
+        <button class="btn-run" id="btn-run" type="button">
+          Run
+        </button>
+        <ul id="autocomplete-list" role="listbox" aria-label="Function suggestions"></ul>
+      </div>
+
+      <div class="context-section">
+        <button
+          class="context-toggle"
+          type="button"
+          aria-expanded="true"
+          aria-controls="context-body"
+          id="context-toggle"
+        >
+          <svg aria-hidden="true" focusable="false" width="13" height="13" viewBox="0 0 24 24"
+               fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+          </svg>
+          Context
+          <svg class="chevron" aria-hidden="true" focusable="false" width="13" height="13" viewBox="0 0 24 24"
+               fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </button>
+        <div class="context-body open" id="context-body" role="region" aria-label="Context JSON editor">
+          <p class="context-hint">
+            JSON object passed as the <code>item()</code> context. Evaluated on next expression run.
+          </p>
+          <textarea
+            id="context-input"
+            rows="4"
+            aria-label="Context JSON"
+            aria-describedby="context-error"
+            placeholder="{}"
+            spellcheck="false"
+          ></textarea>
+          <div id="context-error" role="alert">
+            <svg aria-hidden="true" focusable="false" width="12" height="12" viewBox="0 0 24 24"
+                 fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            <span id="context-error-msg"></span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Resize handle -->
+    <div class="resize-handle" id="resize-handle" role="separator" aria-label="Resize function reference panel" aria-orientation="vertical" tabindex="0"></div>
+
+    <!-- Reference Panel -->
+    <aside class="ref-panel" id="ref-panel" aria-label="Function reference">
+      <div class="ref-header">
+        <h2>Functions</h2>
+        <input
+          id="fn-search"
+          type="search"
+          placeholder="Search functions..."
+          aria-label="Search functions"
+          autocomplete="off"
+        />
+      </div>
+      <ul id="fn-list" role="list" aria-label="Available functions"></ul>
+    </aside>
+
+  </main>
+
+  <script>
+    // ── Function registry ──────────────────────────────────────────────────────
+    const FUNCTIONS = [
+      // String
+      { name: 'concat',       sig: '(value1, value2, ...)',              category: 'String' },
+      { name: 'replace',      sig: '(text, oldText, newText)',            category: 'String' },
+      { name: 'toLower',      sig: '(text)',                              category: 'String' },
+      { name: 'toUpper',      sig: '(text)',                              category: 'String' },
+      { name: 'split',        sig: '(text, delimiter)',                   category: 'String' },
+      { name: 'trim',         sig: '(text)',                              category: 'String' },
+      { name: 'startsWith',   sig: '(text, searchText)',                  category: 'String' },
+      { name: 'endsWith',     sig: '(text, searchText)',                  category: 'String' },
+      { name: 'indexOf',      sig: '(text, searchValue)',                 category: 'String' },
+      { name: 'lastIndexOf',  sig: '(text, searchValue)',                 category: 'String' },
+      { name: 'substring',    sig: '(text, startIndex, length?)',         category: 'String' },
+      { name: 'slice',        sig: '(text, startIndex, endIndex?)',       category: 'String' },
+      { name: 'chunk',        sig: '(text, length)',                      category: 'String' },
+      { name: 'nthIndexOf',   sig: '(text, searchValue, occurrence)',     category: 'String' },
+      { name: 'isFloat',      sig: '(value)',                             category: 'String' },
+      { name: 'isInt',        sig: '(value)',                             category: 'String' },
+      { name: 'formatNumber', sig: '(number, format, locale?)',           category: 'String' },
+      { name: 'guid',         sig: '()',                                  category: 'String' },
+      // Collection
+      { name: 'first',        sig: '(collection)',                        category: 'Collection' },
+      { name: 'last',         sig: '(collection)',                        category: 'Collection' },
+      { name: 'length',       sig: '(collection)',                        category: 'Collection' },
+      { name: 'join',         sig: '(collection, delimiter)',             category: 'Collection' },
+      { name: 'contains',     sig: '(collection, value)',                 category: 'Collection' },
+      { name: 'empty',        sig: '(collection)',                        category: 'Collection' },
+      { name: 'reverse',      sig: '(collection)',                        category: 'Collection' },
+      { name: 'skip',         sig: '(collection, count)',                 category: 'Collection' },
+      { name: 'take',         sig: '(collection, count)',                 category: 'Collection' },
+      { name: 'sort',         sig: '(collection, order?)',                category: 'Collection' },
+      { name: 'intersection', sig: '(collection1, collection2)',          category: 'Collection' },
+      { name: 'union',        sig: '(collection1, collection2)',          category: 'Collection' },
+      { name: 'createArray',  sig: '(value1, value2, ...)',              category: 'Collection' },
+      { name: 'range',        sig: '(startIndex, count)',                 category: 'Collection' },
+      { name: 'coalesce',     sig: '(value1, value2, ...)',              category: 'Collection' },
+      // Logical
+      { name: 'equals',          sig: '(object1, object2)',              category: 'Logical' },
+      { name: 'greater',         sig: '(value, compareTo)',              category: 'Logical' },
+      { name: 'greaterOrEquals', sig: '(value, compareTo)',              category: 'Logical' },
+      { name: 'less',            sig: '(value, compareTo)',              category: 'Logical' },
+      { name: 'lessOrEquals',    sig: '(value, compareTo)',              category: 'Logical' },
+      { name: 'and',             sig: '(expr1, expr2, ...)',             category: 'Logical' },
+      { name: 'or',              sig: '(expr1, expr2, ...)',             category: 'Logical' },
+      { name: 'not',             sig: '(expr)',                          category: 'Logical' },
+      { name: 'if',              sig: '(condition, trueValue, falseValue)', category: 'Logical' },
+      // Conversion
+      { name: 'int',               sig: '(value)',  category: 'Conversion' },
+      { name: 'float',             sig: '(value)',  category: 'Conversion' },
+      { name: 'string',            sig: '(value)',  category: 'Conversion' },
+      { name: 'bool',              sig: '(value)',  category: 'Conversion' },
+      { name: 'array',             sig: '(value)',  category: 'Conversion' },
+      { name: 'decimal',           sig: '(value)',  category: 'Conversion' },
+      { name: 'base64',            sig: '(value)',  category: 'Conversion' },
+      { name: 'base64ToString',    sig: '(value)',  category: 'Conversion' },
+      { name: 'dataUri',           sig: '(value)',  category: 'Conversion' },
+      { name: 'dataUriToString',   sig: '(value)',  category: 'Conversion' },
+      { name: 'decodeUriComponent',sig: '(value)',  category: 'Conversion' },
+      { name: 'encodeUriComponent',sig: '(value)',  category: 'Conversion' },
+      { name: 'json',              sig: '(value)',  category: 'Conversion' },
+      { name: 'xml',               sig: '(value)',  category: 'Conversion' },
+      { name: 'xpath',             sig: '(xml, xpathExpression)', category: 'Conversion' },
+      // Math
+      { name: 'add',  sig: '(summand1, summand2)',       category: 'Math' },
+      { name: 'sub',  sig: '(minuend, subtrahend)',       category: 'Math' },
+      { name: 'mul',  sig: '(multiplicand1, multiplicand2)', category: 'Math' },
+      { name: 'div',  sig: '(dividend, divisor)',         category: 'Math' },
+      { name: 'mod',  sig: '(dividend, divisor)',         category: 'Math' },
+      { name: 'max',  sig: '(value1, value2, ...)',      category: 'Math' },
+      { name: 'min',  sig: '(value1, value2, ...)',      category: 'Math' },
+      { name: 'rand', sig: '(minValue, maxValue)',        category: 'Math' },
+      // DateTime
+      { name: 'utcNow',           sig: '(format?)',                                             category: 'DateTime' },
+      { name: 'addDays',          sig: '(timestamp, days, format?)',                            category: 'DateTime' },
+      { name: 'addHours',         sig: '(timestamp, hours, format?)',                           category: 'DateTime' },
+      { name: 'addMinutes',       sig: '(timestamp, minutes, format?)',                         category: 'DateTime' },
+      { name: 'addSeconds',       sig: '(timestamp, seconds, format?)',                         category: 'DateTime' },
+      { name: 'addToTime',        sig: '(timestamp, interval, timeUnit, format?)',              category: 'DateTime' },
+      { name: 'subtractFromTime', sig: '(timestamp, interval, timeUnit, format?)',              category: 'DateTime' },
+      { name: 'formatDateTime',   sig: '(timestamp, format?, locale?)',                         category: 'DateTime' },
+      { name: 'parseDateTime',    sig: '(timestamp, locale?, format?)',                         category: 'DateTime' },
+      { name: 'dayOfMonth',       sig: '(timestamp)',                                           category: 'DateTime' },
+      { name: 'dayOfWeek',        sig: '(timestamp)',                                           category: 'DateTime' },
+      { name: 'dayOfYear',        sig: '(timestamp)',                                           category: 'DateTime' },
+      { name: 'startOfDay',       sig: '(timestamp, format?)',                                  category: 'DateTime' },
+      { name: 'startOfHour',      sig: '(timestamp, format?)',                                  category: 'DateTime' },
+      { name: 'startOfMonth',     sig: '(timestamp, format?)',                                  category: 'DateTime' },
+      { name: 'dateDifference',   sig: '(startTimestamp, endTimestamp)',                        category: 'DateTime' },
+      { name: 'convertFromUtc',   sig: '(timestamp, destinationTimeZone, format?)',             category: 'DateTime' },
+      { name: 'convertToUtc',     sig: '(timestamp, sourceTimeZone, format?)',                  category: 'DateTime' },
+      { name: 'convertTimeZone',  sig: '(timestamp, sourceTimeZone, destinationTimeZone, format?)', category: 'DateTime' },
+      { name: 'ticks',            sig: '(timestamp)',                                           category: 'DateTime' },
+      { name: 'getFutureTime',    sig: '(interval, timeUnit, format?)',                         category: 'DateTime' },
+      { name: 'getPastTime',      sig: '(interval, timeUnit, format?)',                         category: 'DateTime' },
+      // Context
+      { name: 'item', sig: '()', category: 'Context' },
+    ];
+
+    // ── DOM refs ───────────────────────────────────────────────────────────────
+    const historyEl      = document.getElementById('history');
+    const exprInput      = document.getElementById('expr-input');
+    const btnRun         = document.getElementById('btn-run');
+    const contextToggle  = document.getElementById('context-toggle');
+    const contextBody    = document.getElementById('context-body');
+    const contextInput   = document.getElementById('context-input');
+    const contextError   = document.getElementById('context-error');
+    const contextErrMsg  = document.getElementById('context-error-msg');
+    const fnSearch       = document.getElementById('fn-search');
+    const fnList         = document.getElementById('fn-list');
+    const liveRegion     = document.getElementById('live-region');
+    const acList         = document.getElementById('autocomplete-list');
+
+    // ── State ──────────────────────────────────────────────────────────────────
+    let parsedContext  = null;
+    const cmdHistory   = [];   // newest first
+    let historyPointer = -1;
+    let currentDraft   = '';
+    let acMatches      = [];   // current autocomplete candidates
+    let acIndex        = -1;   // selected index (-1 = none)
+
+    // ── Context panel ──────────────────────────────────────────────────────────
+    contextToggle.addEventListener('click', () => {
+      const expanded = contextToggle.getAttribute('aria-expanded') === 'true';
+      contextToggle.setAttribute('aria-expanded', String(!expanded));
+      contextBody.classList.toggle('open', !expanded);
+    });
+
+    function validateContext() {
+      const raw = contextInput.value.trim();
+
+      if (!raw || raw === '{}') {
+        parsedContext = null;
+        contextInput.classList.remove('ctx-valid', 'ctx-invalid');
+        contextInput.removeAttribute('aria-invalid');
+        contextError.classList.remove('visible');
+        return;
+      }
+
+      try {
+        parsedContext = JSON.parse(raw);
+        contextInput.classList.add('ctx-valid');
+        contextInput.classList.remove('ctx-invalid');
+        contextInput.setAttribute('aria-invalid', 'false');
+        contextError.classList.remove('visible');
+      } catch (e) {
+        parsedContext = null;
+        contextInput.classList.add('ctx-invalid');
+        contextInput.classList.remove('ctx-valid');
+        contextInput.setAttribute('aria-invalid', 'true');
+        contextErrMsg.textContent = e.message;
+        contextError.classList.add('visible');
+      }
+    }
+
+    contextInput.addEventListener('input', validateContext);
+
+    // ── Helpers ────────────────────────────────────────────────────────────────
+    function escapeHtml(s) {
+      return s
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function formatResult(value) {
+      if (value === null)      return 'null';
+      if (value === undefined) return 'undefined';
+      if (typeof value === 'string')  return JSON.stringify(value);
+      if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+      return JSON.stringify(value, null, 2);
+    }
+
+    function announce(text) {
+      liveRegion.textContent = '';
+      setTimeout(() => { liveRegion.textContent = text; }, 50);
+    }
+
+    // ── Append REPL entry ──────────────────────────────────────────────────────
+    function appendEntry(expr, resultStr, isError) {
+      const entry = document.createElement('div');
+      entry.className = 'history-entry';
+
+      // Input line
+      const inputLine = document.createElement('div');
+      inputLine.className = 'entry-input';
+      inputLine.innerHTML =
+        `<span class="entry-prompt" aria-hidden="true">&gt;</span>` +
+        `<span class="entry-expr">${escapeHtml(expr)}</span>`;
+
+      // Result line
+      const resultLine = document.createElement('div');
+      resultLine.className = 'entry-result' + (isError ? ' entry-error' : '');
+      resultLine.setAttribute('aria-label', (isError ? 'Error: ' : 'Result: ') + resultStr);
+
+      const iconLabel = isError ? 'Error' : 'Success';
+      const icon      = isError ? '⚠' : '✓';
+      resultLine.innerHTML =
+        `<span class="result-icon" role="img" aria-label="${iconLabel}">${icon}</span>` +
+        `<span class="result-text">${escapeHtml(resultStr)}</span>`;
+
+      entry.appendChild(inputLine);
+      entry.appendChild(resultLine);
+      historyEl.appendChild(entry);
+      historyEl.scrollTop = historyEl.scrollHeight;
+
+      announce((isError ? 'Error: ' : 'Result: ') + resultStr);
+    }
+
+    // ── Evaluate ───────────────────────────────────────────────────────────────
+    function runExpression() {
+      let raw = exprInput.value.trim();
+      if (!raw) return;
+
+      // Strip Power Automate @{...} wrapper
+      let expr = raw;
+      if (expr.startsWith('@{') && expr.endsWith('}')) {
+        expr = expr.slice(2, -1).trim();
+      }
+
+      // Update session command history
+      if (cmdHistory[0] !== raw) cmdHistory.unshift(raw);
+      historyPointer = -1;
+      currentDraft   = '';
+      exprInput.value = '';
+
+      let resultStr, isError;
+      try {
+        if (typeof window.evaluate !== 'function') {
+          throw new Error(
+            'expression-evaluator.js not loaded. Open this file from the rad-scratchpad directory so the <script src> resolves.'
+          );
+        }
+        const value = window.evaluate(expr, parsedContext);
+        resultStr = formatResult(value);
+        isError   = false;
+      } catch (e) {
+        resultStr = e.message || String(e);
+        isError   = true;
+      }
+
+      appendEntry(raw, resultStr, isError);
+    }
+
+    // ── Autocomplete ───────────────────────────────────────────────────────────
+    function getPrefix() {
+      const before = exprInput.value.slice(0, exprInput.selectionStart);
+      const m = before.match(/[a-zA-Z][a-zA-Z0-9]*$/);
+      return m ? m[0] : '';
+    }
+
+    function setAcSelection(idx) {
+      acIndex = idx;
+      const items = acList.querySelectorAll('.ac-item');
+      items.forEach((el, i) => {
+        const selected = i === idx;
+        el.setAttribute('aria-selected', String(selected));
+      });
+      if (idx >= 0 && items[idx]) {
+        exprInput.setAttribute('aria-activedescendant', items[idx].id);
+        items[idx].scrollIntoView({ block: 'nearest' });
+      } else {
+        exprInput.removeAttribute('aria-activedescendant');
+      }
+    }
+
+    function showAutocomplete(prefix) {
+      acMatches = FUNCTIONS.filter(f =>
+        f.name.toLowerCase().startsWith(prefix.toLowerCase()) && f.name.toLowerCase() !== prefix.toLowerCase()
+      ).slice(0, 8);
+
+      acList.innerHTML = '';
+      if (!acMatches.length || !prefix) { hideAutocomplete(); return; }
+
+      acMatches.forEach((fn, i) => {
+        const li = document.createElement('li');
+        li.className = 'ac-item';
+        li.setAttribute('role', 'option');
+        li.setAttribute('aria-selected', 'false');
+        li.id = 'ac-item-' + i;
+        li.innerHTML =
+          `<span class="ac-name"><span class="ac-match">${escapeHtml(fn.name.slice(0, prefix.length))}</span>${escapeHtml(fn.name.slice(prefix.length))}</span>` +
+          `<span class="ac-sig">${escapeHtml(fn.name + fn.sig)}</span>`;
+        li.addEventListener('mousedown', (e) => { e.preventDefault(); acceptCompletion(fn); });
+        acList.appendChild(li);
+      });
+
+      acIndex = -1;
+      acList.classList.add('open');
+      exprInput.setAttribute('aria-expanded', 'true');
+      exprInput.setAttribute('aria-autocomplete', 'list');
+      exprInput.setAttribute('aria-controls', 'autocomplete-list');
+    }
+
+    function hideAutocomplete() {
+      acList.classList.remove('open');
+      acList.innerHTML = '';
+      acMatches = [];
+      acIndex = -1;
+      exprInput.setAttribute('aria-expanded', 'false');
+      exprInput.removeAttribute('aria-activedescendant');
+    }
+
+    function acceptCompletion(fn) {
+      const prefix   = getPrefix();
+      const cursor   = exprInput.selectionStart;
+      const before   = exprInput.value.slice(0, cursor);
+      const after    = exprInput.value.slice(cursor);
+      const newBefore = before.slice(0, before.length - prefix.length) + fn.name + '(';
+      exprInput.value = newBefore + after;
+      const pos = newBefore.length;
+      exprInput.setSelectionRange(pos, pos);
+      hideAutocomplete();
+      exprInput.focus();
+      highlightFnItem(fn.name);
+    }
+
+    function highlightFnItem(name) {
+      // Clear any existing search so the full list is visible
+      if (fnSearch.value) { fnSearch.value = ''; renderFnList(''); }
+      // Remove previous highlight
+      fnList.querySelector('.fn-item--active')?.classList.remove('fn-item--active');
+      const btn = fnList.querySelector(`[data-fn-name="${CSS.escape(name)}"]`);
+      if (btn) {
+        btn.classList.add('fn-item--active');
+        btn.scrollIntoView({ block: 'nearest' });
+      }
+    }
+
+    exprInput.addEventListener('input', () => showAutocomplete(getPrefix()));
+    exprInput.addEventListener('blur', () => setTimeout(hideAutocomplete, 120));
+
+    exprInput.addEventListener('keydown', (e) => {
+      const acOpen = acList.classList.contains('open');
+
+      // Tab — accept completion
+      if (e.key === 'Tab' && acOpen) {
+        e.preventDefault();
+        const idx = acIndex >= 0 ? acIndex : 0;
+        if (acMatches[idx]) acceptCompletion(acMatches[idx]);
+        return;
+      }
+
+      // Escape — dismiss dropdown
+      if (e.key === 'Escape' && acOpen) {
+        e.preventDefault();
+        hideAutocomplete();
+        return;
+      }
+
+      // ArrowDown — move selection down in dropdown, else history forward
+      if (e.key === 'ArrowDown') {
+        if (acOpen) {
+          e.preventDefault();
+          setAcSelection(Math.min(acIndex + 1, acMatches.length - 1));
+          return;
+        }
+        e.preventDefault();
+        if (historyPointer > 0) {
+          historyPointer--;
+          exprInput.value = cmdHistory[historyPointer];
+        } else if (historyPointer === 0) {
+          historyPointer = -1;
+          exprInput.value = currentDraft;
+        }
+        requestAnimationFrame(() => {
+          exprInput.setSelectionRange(exprInput.value.length, exprInput.value.length);
+        });
+        return;
+      }
+
+      // ArrowUp — move selection up in dropdown, else history backward
+      if (e.key === 'ArrowUp') {
+        if (acOpen) {
+          e.preventDefault();
+          setAcSelection(Math.max(acIndex - 1, 0));
+          return;
+        }
+        e.preventDefault();
+        if (historyPointer === -1) currentDraft = exprInput.value;
+        if (historyPointer < cmdHistory.length - 1) {
+          historyPointer++;
+          exprInput.value = cmdHistory[historyPointer];
+          requestAnimationFrame(() => {
+            exprInput.setSelectionRange(exprInput.value.length, exprInput.value.length);
+          });
+        }
+        return;
+      }
+
+      // Enter — dismiss dropdown (if open) then run
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        if (acOpen) hideAutocomplete();
+        runExpression();
+        return;
+      }
+    });
+
+    btnRun.addEventListener('click', runExpression);
+
+    // ── Function reference ─────────────────────────────────────────────────────
+    function renderFnList(query) {
+      const q = query.trim().toLowerCase();
+      fnList.innerHTML = '';
+
+      const matches = q
+        ? FUNCTIONS.filter(f => f.name.toLowerCase().includes(q) || f.category.toLowerCase().includes(q))
+        : FUNCTIONS;
+
+      if (!matches.length) {
+        const li = document.createElement('li');
+        li.className = 'fn-no-results';
+        li.setAttribute('role', 'listitem');
+        li.textContent = 'No functions match your search.';
+        fnList.appendChild(li);
+        return;
+      }
+
+      let lastCategory = null;
+
+      for (const fn of matches) {
+        // Category header (only when not filtering)
+        if (!q && fn.category !== lastCategory) {
+          const li = document.createElement('li');
+          li.className = 'fn-category-header';
+          li.setAttribute('role', 'presentation');
+          li.textContent = fn.category;
+          fnList.appendChild(li);
+          lastCategory = fn.category;
+        }
+
+        const li = document.createElement('li');
+        li.setAttribute('role', 'listitem');
+
+        const btn = document.createElement('button');
+        btn.className = 'fn-item';
+        btn.type = 'button';
+        btn.dataset.fnName = fn.name;
+        btn.setAttribute('aria-label', `Insert ${fn.name} — ${fn.category}`);
+        btn.innerHTML =
+          `<span class="fn-name">${escapeHtml(fn.name)}</span>` +
+          `<span class="fn-sig">${escapeHtml(fn.name + fn.sig)}</span>`;
+
+        btn.addEventListener('click', () => {
+          exprInput.value = fn.name + '(';
+          exprInput.focus();
+          const len = exprInput.value.length;
+          exprInput.setSelectionRange(len, len);
+        });
+
+        li.appendChild(btn);
+        fnList.appendChild(li);
+      }
+    }
+
+    fnSearch.addEventListener('input', () => renderFnList(fnSearch.value));
+    renderFnList('');
+
+    // ── Resize handle ─────────────────────────────────────────────────────────
+    const resizeHandle = document.getElementById('resize-handle');
+    const refPanel     = document.getElementById('ref-panel');
+    const MIN_W = 150;
+    const MAX_W = 600;
+
+    function clampWidth(w) {
+      return Math.min(MAX_W, Math.max(MIN_W, w));
+    }
+
+    function applyWidth(w) {
+      refPanel.style.width = w + 'px';
+    }
+
+    // Mouse drag
+    resizeHandle.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      resizeHandle.classList.add('dragging');
+      const startX   = e.clientX;
+      const startW   = refPanel.getBoundingClientRect().width;
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+
+      function onMove(e) {
+        applyWidth(clampWidth(startW - (e.clientX - startX)));
+      }
+
+      function onUp() {
+        resizeHandle.classList.remove('dragging');
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+      }
+
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    });
+
+    // Keyboard resize (arrow keys, 16px steps)
+    resizeHandle.addEventListener('keydown', (e) => {
+      const current = refPanel.getBoundingClientRect().width;
+      if (e.key === 'ArrowLeft') { e.preventDefault(); applyWidth(clampWidth(current - 16)); }
+      if (e.key === 'ArrowRight'){ e.preventDefault(); applyWidth(clampWidth(current + 16)); }
+    });
+
+    // ── Boot ───────────────────────────────────────────────────────────────────
+    exprInput.focus();
+  </script>
+</body>
+</html>

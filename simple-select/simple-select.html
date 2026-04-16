@@ -1,0 +1,2780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>simple-select — Power Automate Select Builder</title>
+  <style>
+    /* ── Design tokens ─────────────────────────────────────────────────────── */
+    :root {
+      --bg:              #060606;
+      --bg-surface:      #17181c;
+      --bg-elevated:     #24272f;
+      --text-primary:    #e8eaed;
+      --text-secondary:  #b8bcc4;
+      --text-muted:      #848894;
+      --ink-purple:      #ac87eb;
+      --ink-blue:        #4fa0ff;
+      --ink-pink:        #d1617f;
+      --ink-green:       #a6e3a1;
+      --ink-yellow:      #f9e2af;
+      --ink-red:         #f28b82;
+      --border-subtle:   rgba(255, 255, 255, 0.10);
+      --border-muted:    rgba(255, 255, 255, 0.20);
+      --border-strong:   rgba(255, 255, 255, 0.30);
+      --gradient-cta:    linear-gradient(93deg, #4fa0ff 0%, #ac87eb 50%, #d1617f 100%);
+      --code-bg:         rgba(172, 135, 235, 0.10);
+      --font-sans:       -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      --font-mono:       ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      --radius-sm:       0.375rem;
+      --radius-md:       0.5rem;
+      --radius-lg:       1rem;
+      --radius-pill:     9999px;
+      --ease:            cubic-bezier(0.4, 0, 0.2, 1);
+      --ease-out:        cubic-bezier(0.2, 0.8, 0.2, 1);
+      --dur:             150ms;
+      --header-h:        52px;
+    }
+
+    /* ── Reset ─────────────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; border: 0; }
+    button { cursor: pointer; font: inherit; }
+    input, textarea, select { font: inherit; color: inherit; }
+
+    /* ── Base ──────────────────────────────────────────────────────────────── */
+    html, body { height: 100%; overflow: hidden; }
+
+    body {
+      font-family: var(--font-sans);
+      font-size: 0.9375rem;
+      line-height: 1.5;
+      color: var(--text-primary);
+      background-color: var(--bg);
+      /* Ambient glow — pure CSS, no external assets */
+      background-image:
+        radial-gradient(ellipse 90% 55% at 50% -5%,
+          rgba(79, 160, 255, 0.12) 0%,
+          rgba(172, 135, 235, 0.09) 40%,
+          transparent 70%);
+      background-attachment: fixed;
+    }
+
+    /* ── App header ────────────────────────────────────────────────────────── */
+    .app-header {
+      position: fixed;
+      inset: 0 0 auto 0;
+      height: var(--header-h);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      gap: 0.875rem;
+      padding: 0 1.5rem;
+      background: transparent;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .app-header h1 {
+      font-family: var(--font-mono);
+      font-size: 1rem;
+      font-weight: 500;
+      color: var(--text-primary);
+      letter-spacing: -0.02em;
+    }
+
+    .app-header .sep {
+      width: 1px;
+      height: 1.1em;
+      background: var(--border-subtle);
+    }
+
+    .app-header .tagline {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    /* ── Three-panel layout ────────────────────────────────────────────────── */
+    .panels {
+      position: fixed;
+      inset: var(--header-h) 0 0 0;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      overflow: hidden;
+    }
+
+    /* ── Panel shell ───────────────────────────────────────────────────────── */
+    .panel {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      overflow: hidden;
+      border-right: 1px solid var(--border-subtle);
+    }
+    .panel:last-child { border-right: none; }
+
+    .panel-header {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 0.625rem;
+      padding: 0 1.25rem;
+      height: 44px;
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border-subtle);
+      font-family: var(--font-mono);
+      font-size: 0.8125rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+    }
+
+    .panel-header .title { flex: 1; }
+
+    /* Scrollable body */
+    .panel-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1rem 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      min-height: 0;
+    }
+
+    .panel-body::-webkit-scrollbar { width: 5px; }
+    .panel-body::-webkit-scrollbar-track { background: transparent; }
+    .panel-body::-webkit-scrollbar-thumb { background: var(--border-subtle); border-radius: 3px; }
+
+    /* Chips shelf (pinned below panel-header in the middle panel) */
+    .chips-shelf {
+      flex-shrink: 0;
+      padding: 0.625rem 1.25rem;
+      border-bottom: 1px solid var(--border-subtle);
+      background: rgba(172, 135, 235, 0.03);
+    }
+    .chips-shelf.hidden { display: none; }
+
+    /* Fixed footer */
+    .panel-footer {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.75rem 1.25rem;
+      background: var(--bg-surface);
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    /* ── Badge ─────────────────────────────────────────────────────────────── */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.1rem 0.5rem;
+      border-radius: var(--radius-pill);
+      font-family: var(--font-mono);
+      font-size: 0.6875rem;
+      font-weight: 400;
+      line-height: 1.5;
+    }
+    .badge-ok {
+      background: rgba(166, 227, 161, 0.10);
+      color: var(--ink-green);
+      border: 1px solid rgba(166, 227, 161, 0.22);
+    }
+    .badge-err {
+      background: rgba(242, 139, 130, 0.10);
+      color: var(--ink-red);
+      border: 1px solid rgba(242, 139, 130, 0.22);
+    }
+    .badge-neutral {
+      background: rgba(255,255,255,0.05);
+      color: var(--text-secondary);
+      border: 1px solid var(--border-subtle);
+    }
+    .hidden { display: none !important; }
+
+    /* ── Buttons ───────────────────────────────────────────────────────────── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.375rem;
+      padding: 0.4rem 0.875rem;
+      border-radius: var(--radius-pill);
+      font-size: 0.8125rem;
+      font-weight: 500;
+      line-height: 1.4;
+      transition: background var(--dur) var(--ease),
+                  border-color var(--dur) var(--ease),
+                  color var(--dur) var(--ease),
+                  opacity var(--dur) var(--ease),
+                  transform 100ms var(--ease-out);
+      outline: none;
+      user-select: none;
+      white-space: nowrap;
+    }
+
+    .btn-ghost {
+      background: transparent;
+      border: 1px solid var(--border-muted);
+      color: rgba(255,255,255,0.65);
+    }
+    .btn-ghost:hover {
+      border-color: var(--border-strong);
+      color: var(--text-primary);
+      background: rgba(255,255,255,0.05);
+    }
+    .btn-ghost:active { transform: scale(0.97); }
+
+    .btn-primary {
+      background: var(--gradient-cta);
+      color: #060606;
+      border: 1px solid transparent;
+      font-weight: 600;
+    }
+    .btn-primary:hover { opacity: 0.88; transform: translateY(-1px); }
+    .btn-primary:active { transform: translateY(0); opacity: 1; }
+
+    .btn-icon {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-muted);
+      padding: 0.3rem 0.5rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.875rem;
+      line-height: 1;
+      transition: color var(--dur) var(--ease), background var(--dur) var(--ease);
+    }
+    .btn-icon:hover { color: var(--ink-red); background: rgba(242,139,130,0.10); }
+
+    .btn-copy-ok {
+      border-color: var(--ink-green) !important;
+      color: var(--ink-green) !important;
+    }
+
+    /* ── Inputs & textarea ─────────────────────────────────────────────────── */
+    textarea, input[type="text"], select {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      color: var(--text-primary);
+      outline: none;
+      transition: border-color var(--dur) var(--ease);
+    }
+    textarea:focus, input[type="text"]:focus, select:focus {
+      border-color: var(--ink-purple);
+    }
+    textarea.has-error, select.has-error { border-color: var(--ink-red); }
+
+    textarea {
+      width: 100%;
+      flex: 1;
+      min-height: 160px;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      line-height: 1.65;
+      padding: 0.75rem;
+      resize: none;
+    }
+    textarea::placeholder { color: var(--text-muted); }
+
+    /* ── Error message ─────────────────────────────────────────────────────── */
+    .error-msg {
+      font-size: 0.8125rem;
+      color: var(--ink-red);
+      padding: 0.5rem 0.75rem;
+      background: rgba(242,139,130,0.07);
+      border: 1px solid rgba(242,139,130,0.22);
+      border-radius: var(--radius-sm);
+      line-height: 1.45;
+    }
+
+    /* ── Array picker ──────────────────────────────────────────────────────── */
+    .picker-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+    .field-label {
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+    }
+    select {
+      padding: 0.375rem 0.625rem;
+      font-size: 0.875rem;
+    }
+
+    /* ── Field chips ───────────────────────────────────────────────────────── */
+    .chips-wrap {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.375rem;
+      margin-top: 0.35rem;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.2rem 0.6rem;
+      background: var(--code-bg);
+      border: 1px solid rgba(172, 135, 235, 0.28);
+      border-radius: var(--radius-pill);
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--ink-purple);
+      user-select: none;
+      transition: background var(--dur) var(--ease),
+                  border-color var(--dur) var(--ease),
+                  color var(--dur) var(--ease);
+    }
+    .chip.clickable {
+      cursor: pointer;
+    }
+    .chip.clickable:hover {
+      background: rgba(172,135,235,0.18);
+      border-color: rgba(172,135,235,0.55);
+      color: var(--text-primary);
+    }
+    .chip.clickable:active { transform: scale(0.95); }
+    .chip.added {
+      background: rgba(166, 227, 161, 0.10);
+      border-color: rgba(166, 227, 161, 0.35);
+      color: var(--ink-green);
+    }
+    .chip.added:hover {
+      background: rgba(166, 227, 161, 0.18);
+      border-color: rgba(166, 227, 161, 0.55);
+      color: var(--ink-green);
+    }
+
+    /* ── Mapping rows ──────────────────────────────────────────────────────── */
+    .rows-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .map-row {
+      display: flex;
+      align-items: stretch;
+      gap: 0;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      transition: border-color var(--dur) var(--ease);
+    }
+    .map-row:focus-within { border-color: var(--border-muted); }
+
+    .map-row input[type="text"],
+    .map-row textarea {
+      background: transparent;
+      border: none;
+      border-radius: 0;
+      padding: 0.45rem 0.6rem;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      outline: none;
+      transition: none;
+    }
+    .map-row input[type="text"]:focus,
+    .map-row textarea:focus { border-color: transparent; }
+
+    .row-key {
+      flex: 0 0 36%;
+      color: var(--ink-blue);
+      border-right: 1px solid var(--border-subtle) !important;
+    }
+    .row-key::placeholder { color: var(--text-muted); }
+
+    .row-colon {
+      flex-shrink: 0;
+      padding: 0.45rem 0.35rem 0;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      pointer-events: none;
+      align-self: flex-start;
+    }
+
+    .row-value {
+      flex: 1;
+      color: var(--text-primary);
+      min-width: 0;
+      resize: none;
+      overflow: hidden;
+      white-space: pre-wrap;
+      word-break: break-all;
+      line-height: 1.4;
+      min-height: 30px;
+      box-sizing: border-box;
+    }
+    .row-value::placeholder { color: var(--text-muted); }
+
+    .row-del {
+      flex-shrink: 0;
+      background: transparent;
+      border: none;
+      border-left: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      padding: 0 0.55rem;
+      font-size: 0.875rem;
+      line-height: 1;
+      height: 100%;
+      min-height: 32px;
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+      transition: color var(--dur) var(--ease), background var(--dur) var(--ease);
+    }
+    .row-del:hover { color: var(--ink-red); background: rgba(242,139,130,0.10); }
+
+    /* ── Empty state ───────────────────────────────────────────────────────── */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      padding: 2.5rem 1rem;
+      color: var(--text-muted);
+      font-size: 0.8375rem;
+      text-align: center;
+      line-height: 1.5;
+    }
+    .empty-state .icon { font-size: 1.6rem; opacity: 0.4; margin-bottom: 0.25rem; }
+
+    /* ── Output pre ────────────────────────────────────────────────────────── */
+    #output-display, #preview-display {
+      flex: 1;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 0.875rem 1rem;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      line-height: 1.65;
+      white-space: pre-wrap;
+      word-break: break-all;
+      overflow: auto;
+      color: var(--text-primary);
+      min-height: 0;
+    }
+    #output-display.placeholder,
+    #preview-display.placeholder { color: var(--text-muted); font-style: italic; }
+    #output-display::-webkit-scrollbar,
+    #preview-display::-webkit-scrollbar { width: 5px; height: 5px; }
+    #output-display::-webkit-scrollbar-track,
+    #preview-display::-webkit-scrollbar-track { background: transparent; }
+    #output-display::-webkit-scrollbar-thumb,
+    #preview-display::-webkit-scrollbar-thumb { background: var(--border-subtle); border-radius: 3px; }
+
+    /* ── Right column (two stacked panels) ─────────────────────────────────── */
+    .col-right {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      overflow: hidden;
+    }
+    .col-right .panel {
+      flex: 1;
+      height: auto;
+      min-height: 0;
+      border-right: none;
+    }
+    .col-right .panel:first-child {
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    /* ── Info note ─────────────────────────────────────────────────────────── */
+    .note {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+    .note strong { color: var(--ink-purple); font-weight: 500; }
+
+    /* ── Detected summary ─────────────────────────────────────────────────── */
+    .detect-summary {
+      font-size: 0.8125rem;
+      color: var(--text-secondary);
+    }
+
+    /* ── Signature tooltip ─────────────────────────────────────────────────── */
+    .sig-tooltip {
+      position: fixed;
+      z-index: 200;
+      background: #0e0f14;
+      border: 1px solid rgba(172, 135, 235, 0.35);
+      border-radius: var(--radius-sm);
+      padding: 0.3rem 0.65rem;
+      font-family: var(--font-mono);
+      font-size: 0.775rem;
+      line-height: 1.5;
+      color: var(--text-secondary);
+      pointer-events: none;
+      white-space: normal;
+      overflow: hidden;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.6), 0 0 0 1px rgba(172,135,235,0.08);
+      max-width: min(480px, calc(100vw - 16px));
+    }
+    .sig-fn           { color: var(--ink-purple); }
+    .sig-paren        { color: var(--text-muted); }
+    .sig-param        { color: var(--text-secondary); }
+    .sig-param-active { color: var(--ink-yellow); font-weight: 600; }
+    .sig-comma        { color: var(--text-muted); }
+    .sig-desc         { display: block; color: var(--text-muted); font-size: 0.71rem; margin-top: 0.15rem; }
+  </style>
+</head>
+<body>
+
+  <!-- ── Header ──────────────────────────────────────────────────────────── -->
+  <header class="app-header">
+    <h1>simple-select</h1>
+    <span class="sep"></span>
+    <span class="tagline">Power Automate · Select Action Builder</span>
+  </header>
+
+  <!-- ── Panels ──────────────────────────────────────────────────────────── -->
+  <main class="panels">
+
+    <!-- ── LEFT: JSON Input ──────────────────────────────────────────────── -->
+    <section class="panel" id="panel-left">
+      <div class="panel-header">
+        <span class="title">1. Paste your Array of JSON Objects  [ {...} ]</span>
+        <span id="left-badge" class="badge badge-neutral hidden"></span>
+      </div>
+
+      <div class="panel-body">
+        <textarea
+          id="json-input"
+          spellcheck="false"
+          autocomplete="off"
+          placeholder="Paste a JSON array - The pasted string should begin with [ and end with ]"
+        ></textarea>
+
+        <div id="json-error" class="error-msg hidden"></div>
+
+        <!-- Array picker (shown when object has multiple arrays) -->
+        <div id="array-picker-wrap" class="picker-group hidden">
+          <span class="field-label">Select array to map from</span>
+          <select id="array-picker"></select>
+        </div>
+
+        <!-- Detected info -->
+        <div id="detect-info" class="hidden">
+          <p id="detect-summary" class="detect-summary"></p>
+          <p class="note" style="margin-top:0.3rem">
+            Click <strong>field chips</strong> in the Map panel to add rows, or use <strong>+ Add custom row</strong> for custom expressions.
+          </p>
+        </div>
+
+        <p class="note">
+          Runs locally in your browser with no network calls or saved data.
+        </p>
+      </div>
+
+    </section>
+
+    <!-- ── MIDDLE: Mapping Builder ────────────────────────────────────────── -->
+    <section class="panel" id="panel-middle">
+      <div class="panel-header">
+        <span class="title">2. Build out the Select Action pairs</span>
+        <span id="row-badge" class="badge badge-neutral hidden"></span>
+        <button id="add-row-btn" class="btn btn-ghost">+ Add custom row</button>
+      </div>
+
+      <!-- Detected field chips (pinned, not in scroll area) -->
+      <div id="chips-shelf" class="chips-shelf hidden">
+        <span class="field-label" style="display:block; margin-bottom:0.4rem;">Detected fields — click to add</span>
+        <div id="field-chips" class="chips-wrap"></div>
+      </div>
+
+      <!-- Pivot-flattened nested array chips -->
+      <div id="pivot-shelf" class="chips-shelf hidden">
+        <span class="field-label" style="display:block; margin-bottom:0.4rem;">Pivot expressions — click to add</span>
+        <div id="pivot-chips" class="chips-wrap"></div>
+      </div>
+
+      <div class="panel-body">
+        <!-- Mapping rows -->
+        <div id="rows-list" class="rows-list"></div>
+
+        <!-- Empty state -->
+        <div id="rows-empty" class="empty-state">
+          <span class="icon">⇄</span>
+          <span>No mapping rows yet.</span>
+          <span>Paste JSON on the left, then click detected fields to add rows — or use <em>+ Add custom row</em>.</span>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ── RIGHT: two stacked panels ────────────────────────────────────── -->
+    <div class="col-right">
+
+      <!-- TOP: Map JSON output -->
+      <section class="panel" id="panel-output">
+        <div class="panel-header">
+          <span class="title">3. Copy & Paste into your Select Action (switch to text mode)</span>
+          <button id="copy-btn" class="btn btn-ghost">Copy</button>
+        </div>
+        <div class="panel-body">
+          <pre id="output-display" class="placeholder">// Add mapping rows on the left to build the output.</pre>
+        </div>
+      </section>
+
+      <!-- BOTTOM: Select action preview -->
+      <section class="panel" id="panel-preview">
+        <div class="panel-header">
+          <span class="title">PREVIEW</span>
+          <span id="preview-badge" class="badge badge-neutral hidden"></span>
+        </div>
+        <div class="panel-body">
+          <pre id="preview-display" class="placeholder">// Paste JSON and add rows to preview the Select action output.</pre>
+        </div>
+      </section>
+
+    </div>
+
+  </main>
+
+  <script>
+'use strict';
+
+// =============================================================================
+// Section 1: Decimal precision helper
+// =============================================================================
+
+function isDecimal(v) {
+  return v !== null && typeof v === 'object' && v._decimal === true;
+}
+
+function decimal(str) {
+  return { _decimal: true, str: String(str) };
+}
+
+function addDecimals(a, b) {
+  const aStr = a.str;
+  const bStr = b.str;
+  const aDot = aStr.indexOf('.');
+  const bDot = bStr.indexOf('.');
+  const aDP = aDot === -1 ? 0 : aStr.length - aDot - 1;
+  const bDP = bDot === -1 ? 0 : bStr.length - bDot - 1;
+  const maxDP = Math.max(aDP, bDP);
+
+  function toScaled(s, dp, targetDP) {
+    let intPart, fracPart;
+    const dot = s.indexOf('.');
+    if (dot === -1) {
+      intPart = s;
+      fracPart = '';
+    } else {
+      intPart = s.slice(0, dot);
+      fracPart = s.slice(dot + 1);
+    }
+    fracPart = fracPart.padEnd(targetDP, '0');
+    return BigInt(intPart + fracPart);
+  }
+
+  const aScaled = toScaled(aStr, aDP, maxDP);
+  const bScaled = toScaled(bStr, bDP, maxDP);
+  const sum = aScaled + bScaled;
+  const sumStr = sum.toString();
+
+  if (maxDP === 0) return { _decimal: true, str: sumStr };
+
+  const padded = sumStr.padStart(maxDP + 1, '0');
+  const intPart = padded.slice(0, padded.length - maxDP);
+  const fracPart = padded.slice(padded.length - maxDP);
+  return { _decimal: true, str: intPart + '.' + fracPart };
+}
+
+function decimalString(v) {
+  if (isDecimal(v)) return v.str;
+  return String(v);
+}
+
+function addValues(a, b) {
+  if (isDecimal(a) || isDecimal(b)) {
+    const da = isDecimal(a) ? a : decimal(String(a));
+    const db = isDecimal(b) ? b : decimal(String(b));
+    return addDecimals(da, db);
+  }
+  return a + b;
+}
+
+// =============================================================================
+// Section 2: Tokenizer
+// =============================================================================
+
+const TT = { STRING: 'STRING', NUMBER: 'NUMBER', BOOL: 'BOOL', NULL: 'NULL',
+              IDENT: 'IDENT', LPAREN: 'LPAREN', RPAREN: 'RPAREN', COMMA: 'COMMA' };
+
+function tokenize(src) {
+  const tokens = [];
+  let i = 0;
+
+  function peek() { return src[i]; }
+  function next() { return src[i++]; }
+
+  while (i < src.length) {
+    const ch = peek();
+
+    // whitespace
+    if (/\s/.test(ch)) { i++; continue; }
+
+    // string literal
+    if (ch === "'" || ch === '"') {
+      const q = next();
+      let s = '';
+      while (i < src.length && peek() !== q) {
+        if (peek() === '\\') { next(); }
+        s += next();
+      }
+      next(); // closing quote
+      tokens.push({ type: TT.STRING, value: s });
+      continue;
+    }
+
+    // number (including leading dot like .3)
+    // negative number only if preceded by LPAREN, COMMA, or start
+    const prevTT = tokens.length ? tokens[tokens.length - 1].type : null;
+    const canBeNeg = prevTT === null || prevTT === TT.LPAREN || prevTT === TT.COMMA;
+
+    if (/\d/.test(ch) || ch === '.' || (ch === '-' && canBeNeg && i + 1 < src.length && /[\d.]/.test(src[i + 1]))) {
+      let numStr = '';
+      if (ch === '-') numStr += next();
+      while (i < src.length && /\d/.test(peek())) numStr += next();
+      let isInt = true;
+      if (i < src.length && peek() === '.') {
+        isInt = false;
+        numStr += next(); // the dot
+        while (i < src.length && /\d/.test(peek())) numStr += next();
+      }
+      tokens.push({ type: TT.NUMBER, value: parseFloat(numStr), isInt });
+      continue;
+    }
+
+    if (ch === '(') { tokens.push({ type: TT.LPAREN }); i++; continue; }
+    if (ch === ')') { tokens.push({ type: TT.RPAREN }); i++; continue; }
+    if (ch === ',') { tokens.push({ type: TT.COMMA }); i++; continue; }
+
+    // identifier or keyword
+    if (/[a-zA-Z_$]/.test(ch)) {
+      let id = '';
+      while (i < src.length && /[a-zA-Z0-9_$]/.test(peek())) id += next();
+      if (id === 'true') tokens.push({ type: TT.BOOL, value: true });
+      else if (id === 'false') tokens.push({ type: TT.BOOL, value: false });
+      else if (id === 'null') tokens.push({ type: TT.NULL, value: null });
+      else tokens.push({ type: TT.IDENT, value: id });
+      continue;
+    }
+
+    throw new Error(`Unexpected character: ${ch}`);
+  }
+  return tokens;
+}
+
+// =============================================================================
+// Section 3: Parser
+// =============================================================================
+
+function parse(tokens) {
+  let pos = 0;
+  function peek() { return tokens[pos]; }
+  function consume(type) {
+    const t = tokens[pos];
+    if (type && t.type !== type) throw new Error(`Expected ${type}, got ${t ? t.type : 'EOF'}`);
+    pos++;
+    return t;
+  }
+
+  function parseExpr() {
+    const t = peek();
+    if (!t) throw new Error('Unexpected end of input');
+
+    if (t.type === TT.IDENT) {
+      // look ahead for LPAREN → function call
+      if (tokens[pos + 1] && tokens[pos + 1].type === TT.LPAREN) {
+        const name = consume(TT.IDENT).value;
+        consume(TT.LPAREN);
+        const args = [];
+        if (peek() && peek().type !== TT.RPAREN) {
+          args.push(parseExpr());
+          while (peek() && peek().type === TT.COMMA) {
+            consume(TT.COMMA);
+            args.push(parseExpr());
+          }
+        }
+        consume(TT.RPAREN);
+        return { type: 'Call', name, args };
+      }
+      // bare identifier (shouldn't normally appear but handle it)
+      return { type: 'Literal', value: consume(TT.IDENT).value };
+    }
+
+    if (t.type === TT.STRING) return { type: 'Literal', value: consume(TT.STRING).value };
+    if (t.type === TT.NUMBER) {
+      const tok = consume(TT.NUMBER);
+      return { type: 'Literal', value: tok.value, isInt: tok.isInt };
+    }
+    if (t.type === TT.BOOL) return { type: 'Literal', value: consume(TT.BOOL).value };
+    if (t.type === TT.NULL) return { type: 'Literal', value: consume(TT.NULL).value };
+
+    throw new Error(`Unexpected token type: ${t.type}`);
+  }
+
+  const ast = parseExpr();
+  return ast;
+}
+
+// =============================================================================
+// Section 4: DateTime helpers
+// =============================================================================
+
+function parseInputDate(str) {
+  if (!str) throw new Error('Empty date string');
+
+  // MM/DD/YYYY [HH:mm:ss]
+  const slashMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2}):(\d{2}))?/);
+  if (slashMatch) {
+    const [, mo, da, yr, hh = '0', mm = '0', ss = '0'] = slashMatch;
+    const date = new Date(Date.UTC(+yr, +mo - 1, +da, +hh, +mm, +ss));
+    return { date, isUTC: false };
+  }
+
+  // ISO-like with Z or offset → UTC
+  const hasUTC = /Z$|[+-]\d{2}:?\d{2}$/.test(str.trim());
+  const date = new Date(str);
+  if (isNaN(date)) throw new Error(`Cannot parse date: ${str}`);
+  return { date, isUTC: hasUTC };
+}
+
+function pad(n, w) { return String(n).padStart(w, '0'); }
+
+function toIso7(date, isUTC) {
+  const y = pad(date.getUTCFullYear(), 4);
+  const mo = pad(date.getUTCMonth() + 1, 2);
+  const da = pad(date.getUTCDate(), 2);
+  const hh = pad(date.getUTCHours(), 2);
+  const mm = pad(date.getUTCMinutes(), 2);
+  const ss = pad(date.getUTCSeconds(), 2);
+  const ms = pad(date.getUTCMilliseconds(), 3);
+  const frac = ms + '0000';
+  const suffix = isUTC ? 'Z' : '';
+  return `${y}-${mo}-${da}T${hh}:${mm}:${ss}.${frac}${suffix}`;
+}
+
+const LOCALE_CACHE = {};
+function getLocaleNames(locale, timeZone) {
+  const key = `${locale}|${timeZone}`;
+  if (LOCALE_CACHE[key]) return LOCALE_CACHE[key];
+  const months = Array.from({length: 12}, (_, i) => {
+    return new Intl.DateTimeFormat(locale, { month: 'long', timeZone }).format(new Date(Date.UTC(2000, i, 1)));
+  });
+  const days = Array.from({length: 7}, (_, i) => {
+    // 2000-01-02 is a Sunday
+    return new Intl.DateTimeFormat(locale, { weekday: 'long', timeZone }).format(new Date(Date.UTC(2000, 0, 2 + i)));
+  });
+  LOCALE_CACHE[key] = { months, days };
+  return LOCALE_CACHE[key];
+}
+
+const FORMAT_TOKENS = ['fffffff','yyyy','MMMM','dddd','MM','dd','HH','mm','ss','K','M','d','yy','h'];
+
+function formatWithPattern(date, pattern, locale, isUTC) {
+  if (!pattern || pattern === 'o') return toIso7(date, isUTC);
+
+  // Expand 'D' pattern
+  if (pattern === 'D') pattern = 'dddd, MMMM d, yyyy';
+
+  const tz = 'UTC';
+  const names = getLocaleNames(locale || 'en-US', tz);
+
+  const y = date.getUTCFullYear();
+  const mo = date.getUTCMonth(); // 0-based
+  const da = date.getUTCDate();
+  const hh = date.getUTCHours();
+  const mi = date.getUTCMinutes();
+  const ss = date.getUTCSeconds();
+  const ms = date.getUTCMilliseconds();
+  const dow = date.getUTCDay(); // 0=Sunday
+
+  const replacements = {
+    'fffffff': pad(ms, 3) + '0000',
+    'yyyy': pad(y, 4),
+    'yy': String(y).slice(-2),
+    'MMMM': names.months[mo],
+    'MM': pad(mo + 1, 2),
+    'M': String(mo + 1),
+    'dddd': names.days[dow],
+    'dd': pad(da, 2),
+    'd': String(da),
+    'HH': pad(hh, 2),
+    'h': String(hh % 12 || 12),
+    'mm': pad(mi, 2),
+    'ss': pad(ss, 2),
+    'K': isUTC ? 'Z' : '',
+  };
+
+  let result = '';
+  let i = 0;
+  while (i < pattern.length) {
+    let matched = false;
+    for (const tok of FORMAT_TOKENS) {
+      if (pattern.startsWith(tok, i)) {
+        result += replacements[tok] !== undefined ? replacements[tok] : tok;
+        i += tok.length;
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) {
+      result += pattern[i++];
+    }
+  }
+  return result;
+}
+
+function parseDateWithFormat(str, format) {
+  // Token extraction from format
+  const tokens = ['yyyyMMdd', 'ddMMyyyy', 'yyyy-MM-dd', 'MM/dd/yyyy', 'yyyy', 'MM', 'dd', 'HH', 'mm', 'ss'];
+  // Greedy parse: match format tokens against str
+  let year = 0, month = 1, day = 1, hour = 0, min = 0, sec = 0;
+  let fi = 0, si = 0;
+
+  const fmtTokens = [
+    { tok: 'yyyy', len: 4, set: v => { year = v; } },
+    { tok: 'MM', len: 2, set: v => { month = v; } },
+    { tok: 'dd', len: 2, set: v => { day = v; } },
+    { tok: 'HH', len: 2, set: v => { hour = v; } },
+    { tok: 'mm', len: 2, set: v => { min = v; } },
+    { tok: 'ss', len: 2, set: v => { sec = v; } },
+  ];
+
+  while (fi < format.length) {
+    let matched = false;
+    for (const { tok, len, set } of fmtTokens) {
+      if (format.startsWith(tok, fi)) {
+        const val = parseInt(str.slice(si, si + len), 10);
+        set(val);
+        fi += tok.length;
+        si += len;
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) {
+      // literal char — skip both
+      fi++;
+      si++;
+    }
+  }
+
+  return new Date(Date.UTC(year, month - 1, day, hour, min, sec));
+}
+
+function applyTimeUnit(date, n, unit) {
+  const ms = date.getTime();
+  switch (unit) {
+    case 'Second': return new Date(ms + n * 1000);
+    case 'Minute': return new Date(ms + n * 60000);
+    case 'Hour':   return new Date(ms + n * 3600000);
+    case 'Day':    return new Date(ms + n * 86400000);
+    case 'Week':   return new Date(ms + n * 7 * 86400000);
+    case 'Month': {
+      const d = new Date(date);
+      d.setUTCMonth(d.getUTCMonth() + n);
+      return d;
+    }
+    case 'Year': {
+      const d = new Date(date);
+      d.setUTCFullYear(d.getUTCFullYear() + n);
+      return d;
+    }
+    default: throw new Error(`Unknown time unit: ${unit}`);
+  }
+}
+
+const TZ_OFFSETS = {
+  'UTC': 0,
+  'Pacific Standard Time': -480,
+  'Pacific Daylight Time': -420,
+  'Mountain Standard Time': -420,
+  'Mountain Daylight Time': -360,
+  'Central Standard Time': -360,
+  'Central Daylight Time': -300,
+  'Eastern Standard Time': -300,
+  'Eastern Daylight Time': -240,
+  'Atlantic Standard Time': -240,
+  'GMT Standard Time': 0,
+  'W. Europe Standard Time': 60,
+  'Central Europe Standard Time': 60,
+  'Romance Standard Time': 60,
+  'E. Europe Standard Time': 120,
+  'GTB Standard Time': 120,
+  'Middle East Standard Time': 120,
+  'Egypt Standard Time': 120,
+  'South Africa Standard Time': 120,
+  'Russia Time Zone 3': 240,
+  'Arabian Standard Time': 240,
+  'India Standard Time': 330,
+  'SE Asia Standard Time': 420,
+  'China Standard Time': 480,
+  'Tokyo Standard Time': 540,
+  'AUS Eastern Standard Time': 600,
+  'New Zealand Standard Time': 720,
+};
+
+function getTzOffset(tzName) {
+  if (tzName in TZ_OFFSETS) return TZ_OFFSETS[tzName];
+  throw new Error(`Unknown timezone: ${tzName}`);
+}
+
+const DOTNET_EPOCH_TICKS = 621355968000000000n;
+
+function ticksFromDate(date) {
+  const result = DOTNET_EPOCH_TICKS + BigInt(date.getTime()) * 10000n;
+  return Number(result);
+}
+
+// XML → JSON helpers (used by json() when receiving XML input)
+
+function _xmlMergeKey(obj, key, val) {
+  if (Object.prototype.hasOwnProperty.call(obj, key)) {
+    if (!Array.isArray(obj[key])) obj[key] = [obj[key]];
+    obj[key].push(val);
+  } else {
+    obj[key] = val;
+  }
+}
+
+function _xmlElementToJson(el) {
+  const obj = {};
+  if (el.attributes) {
+    for (let i = 0; i < el.attributes.length; i++) {
+      const a = el.attributes[i];
+      obj['@' + a.name] = a.value;
+    }
+  }
+  let hasElementChild = false;
+  for (let c = el.firstChild; c; c = c.nextSibling) {
+    if (c.nodeType === 1) { hasElementChild = true; break; }
+  }
+  if (hasElementChild) {
+    for (let c = el.firstChild; c; c = c.nextSibling) {
+      if (c.nodeType === 1) _xmlMergeKey(obj, c.nodeName, _xmlElementToJson(c));
+    }
+  } else {
+    const text = el.textContent !== undefined ? el.textContent : '';
+    if (Object.keys(obj).length === 0) return text;
+    if (text) obj['#text'] = text;
+  }
+  return obj;
+}
+
+function _xmlDocToJson(doc) {
+  const result = {};
+  for (let c = doc.firstChild; c; c = c.nextSibling) {
+    if (c.nodeType === 7) { // Processing instruction
+      const piAttrs = {};
+      const re = /([\w.-]+)\s*=\s*"([^"]*)"/g;
+      let m;
+      while ((m = re.exec(c.data || '')) !== null) piAttrs['@' + m[1]] = m[2];
+      _xmlMergeKey(result, '?' + c.nodeName, piAttrs);
+    } else if (c.nodeType === 1) { // Element
+      _xmlMergeKey(result, c.nodeName, _xmlElementToJson(c));
+    }
+  }
+  return result;
+}
+
+// =============================================================================
+// Section 5: Built-in functions
+// =============================================================================
+
+const BUILTINS = {
+  // String
+  concat(...args) { return args.map(a => isDecimal(a) ? a.str : String(a)).join(''); },
+  replace(str, from, to) { return String(str).split(from).join(to); },
+  toLower(s) { return String(s).toLowerCase(); },
+  toUpper(s) { return String(s).toUpperCase(); },
+  split(str, sep) { return String(str).split(sep); },
+  trim(s) { return String(s).trim(); },
+  startsWith(s, prefix) { return String(s).startsWith(prefix); },
+  endsWith(s, suffix) { return String(s).endsWith(suffix); },
+  indexOf(s, sub) { return String(s).indexOf(sub); },
+  lastIndexOf(s, sub) { return String(s).lastIndexOf(sub); },
+  substring(s, start, len) { return String(s).substr(start, len); },
+  slice(s, start, end) {
+    if (end === undefined) return String(s).slice(start);
+    return String(s).slice(start, end);
+  },
+  chunk(input, size) {
+    const result = [];
+    if (typeof input === 'string') {
+      for (let i = 0; i < input.length; i += size) result.push(input.slice(i, i + size));
+    } else {
+      for (let i = 0; i < input.length; i += size) result.push(input.slice(i, i + size));
+    }
+    return result;
+  },
+  nthIndexOf(str, sub, n) {
+    let idx = -1;
+    for (let i = 0; i < n; i++) {
+      idx = str.indexOf(sub, idx + 1);
+      if (idx === -1) return -1;
+    }
+    return idx;
+  },
+  isFloat(s) {
+    const cleaned = String(s).replace(/,/g, '').replace(/\s/g, '');
+    return !isNaN(parseFloat(cleaned)) && isFinite(parseFloat(cleaned));
+  },
+  isInt(s) { return /^-?\d+$/.test(String(s).trim()); },
+  formatNumber(n, fmt, locale) {
+    locale = locale || 'en-US';
+    // Parse format like #,##0.00
+    const hasSep = fmt.includes(',');
+    const dotIdx = fmt.indexOf('.');
+    const minFrac = dotIdx === -1 ? 0 : fmt.length - dotIdx - 1;
+    const maxFrac = minFrac;
+    try {
+      return new Intl.NumberFormat(locale, {
+        minimumFractionDigits: minFrac,
+        maximumFractionDigits: maxFrac,
+        useGrouping: hasSep,
+      }).format(n);
+    } catch (e) {
+      throw new Error(`formatNumber: invalid locale '${locale}': ${e.message}`);
+    }
+  },
+  guid() {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+    // Manual uuid4
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+      const r = Math.random() * 16 | 0;
+      return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+    });
+  },
+
+  // Collection
+  first(col) { return typeof col === 'string' ? col[0] : col[0]; },
+  last(col) { return typeof col === 'string' ? col[col.length - 1] : col[col.length - 1]; },
+  length(col) { return col.length; },
+  join(arr, sep) { return arr.map(x => String(x)).join(sep); },
+  contains(col, item) {
+    if (typeof col === 'string') return col.includes(String(item));
+    return col.some(x => x === item || JSON.stringify(x) === JSON.stringify(item));
+  },
+  empty(col) { return col.length === 0; },
+  reverse(arr) { return [...arr].reverse(); },
+  skip(arr, n) { return arr.slice(n); },
+  take(col, n) { return typeof col === 'string' ? col.slice(0, n) : col.slice(0, n); },
+  sort(arr) { return [...arr].sort((a, b) => a < b ? -1 : a > b ? 1 : 0); },
+  intersection(...arrays) {
+    if (arrays.length === 0) return [];
+    return arrays[0].filter(item => arrays.slice(1).every(arr => arr.some(x => x == item)));
+  },
+  union(...arrays) {
+    const seen = [];
+    for (const arr of arrays) {
+      for (const item of arr) {
+        if (!seen.some(x => x == item)) seen.push(item);
+      }
+    }
+    return seen;
+  },
+  createArray(...args) { return args; },
+  range(start, count) {
+    if (count > 100000) throw new Error('range: count exceeds maximum (100000)');
+    return Array.from({ length: count }, (_, i) => start + i);
+  },
+  coalesce(...args) { return args.find(v => v !== null && v !== undefined) ?? null; },
+
+  // Logical
+  equals(a, b) { return a == b; },
+  greater(a, b) { return a > b; },
+  greaterOrEquals(a, b) { return a >= b; },
+  less(a, b) { return a < b; },
+  lessOrEquals(a, b) { return a <= b; },
+  and(...args) { return args.every(Boolean); },
+  or(...args) { return args.some(Boolean); },
+  not(v) { return !v; },
+  if(cond, t, f) { return cond ? t : f; },
+
+  // Conversion
+  int(v) { return parseInt(String(v), 10); },
+  float(v, locale) {
+    let s = String(v);
+    if (locale && locale.toLowerCase().startsWith('de')) {
+      // de-DE: 10.000,333 → 10000.333
+      s = s.replace(/\./g, '').replace(',', '.');
+    } else {
+      // en-US: remove commas
+      s = s.replace(/,/g, '');
+    }
+    return parseFloat(s);
+  },
+  string(v) {
+    if (isDecimal(v)) return v.str;
+    return String(v);
+  },
+  bool(v) {
+    if (typeof v === 'string') {
+      if (v.toLowerCase() === 'true') return true;
+      if (v.toLowerCase() === 'false') return false;
+    }
+    return Boolean(v);
+  },
+  array(v) { return [v]; },
+  decimal(str) { return decimal(String(str)); },
+  base64(str) {
+    if (typeof Buffer !== 'undefined') return Buffer.from(str, 'binary').toString('base64');
+    return btoa(str);
+  },
+  base64ToString(str) {
+    if (typeof Buffer !== 'undefined') return Buffer.from(str, 'base64').toString('binary');
+    return atob(str);
+  },
+  dataUri(str) {
+    const b64 = BUILTINS.base64(str);
+    return `data:text/plain;charset=utf-8;base64,${b64}`;
+  },
+  dataUriToString(uri) {
+    const b64 = uri.split(',')[1];
+    return BUILTINS.base64ToString(b64);
+  },
+  decodeUriComponent(s) {
+    try { return decodeURIComponent(s); }
+    catch (e) { throw new Error(`decodeUriComponent: malformed URI sequence: ${e.message}`); }
+  },
+  encodeUriComponent(s) { return encodeURIComponent(s); },
+  uriComponent(s) { return encodeURIComponent(s); },
+  uriComponentToString(s) {
+    try { return decodeURIComponent(s); }
+    catch (e) { throw new Error(`uriComponentToString: malformed URI sequence: ${e.message}`); }
+  },
+  json(s) {
+    if (s === null || s === undefined) return {};
+    const str = String(s).trim();
+    if (str.startsWith('<')) {
+      const doc = new DOMParser().parseFromString(str, 'application/xml');
+      const parseErr = doc.querySelector('parsererror');
+      if (parseErr) throw new Error('json: XML parse error');
+      return _xmlDocToJson(doc);
+    }
+    try { return JSON.parse(str); }
+    catch (e) { throw new Error(`json: invalid JSON: ${e.message}`); }
+  },
+  xpath(xmlStr, query) {
+    const doc = new DOMParser().parseFromString(String(xmlStr), 'application/xml');
+    const parseErr = doc.querySelector('parsererror');
+    if (parseErr) throw new Error('xpath: XML parse error: ' + parseErr.textContent.slice(0, 120));
+    const result = doc.evaluate(String(query), doc, null, XPathResult.ANY_TYPE, null);
+    switch (result.resultType) {
+      case XPathResult.NUMBER_TYPE:  return result.numberValue;
+      case XPathResult.STRING_TYPE:  return result.stringValue;
+      case XPathResult.BOOLEAN_TYPE: return result.booleanValue;
+      default: {
+        const ser = new XMLSerializer();
+        const values = [];
+        let node;
+        while ((node = result.iterateNext())) {
+          if (node.nodeType === 2 /* ATTR */ || node.nodeType === 3 /* TEXT */) {
+            values.push(node.nodeValue);
+          } else {
+            values.push(ser.serializeToString(node));
+          }
+        }
+        if (values.length === 0) return null;
+        return values.length === 1 ? values[0] : values;
+      }
+    }
+  },
+
+  // Math
+  add(a, b) { return addValues(a, b); },
+  sub(a, b) { return a - b; },
+  mul(a, b) { return a * b; },
+  // div handled specially in evalCall
+  div(a, b) { return a / b; },
+  max(...args) {
+    const flat = args.length === 1 && Array.isArray(args[0]) ? args[0] : args;
+    return Math.max(...flat);
+  },
+  min(...args) {
+    const flat = args.length === 1 && Array.isArray(args[0]) ? args[0] : args;
+    return Math.min(...flat);
+  },
+  mod(a, b) { return a % b; },
+  rand(min, max) {
+    const range = max - min;
+    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+      const arr = new Uint32Array(1);
+      crypto.getRandomValues(arr);
+      return min + Math.floor(arr[0] / (0x100000000 / range));
+    }
+    return Math.floor(Math.random() * range) + min;
+  },
+
+  // DateTime
+  utcNow(fmt) {
+    const now = new Date();
+    return formatWithPattern(now, fmt || 'o', 'en-US', true);
+  },
+  addDays(str, n, fmt) {
+    const { date, isUTC } = parseInputDate(str);
+    const result = applyTimeUnit(date, n, 'Day');
+    return formatWithPattern(result, fmt || 'o', 'en-US', isUTC);
+  },
+  addHours(str, n, fmt) {
+    const { date, isUTC } = parseInputDate(str);
+    const result = applyTimeUnit(date, n, 'Hour');
+    return formatWithPattern(result, fmt || 'o', 'en-US', isUTC);
+  },
+  addMinutes(str, n, fmt) {
+    const { date, isUTC } = parseInputDate(str);
+    const result = applyTimeUnit(date, n, 'Minute');
+    return formatWithPattern(result, fmt || 'o', 'en-US', isUTC);
+  },
+  addSeconds(str, n, fmt) {
+    const { date, isUTC } = parseInputDate(str);
+    const result = applyTimeUnit(date, n, 'Second');
+    return formatWithPattern(result, fmt || 'o', 'en-US', isUTC);
+  },
+  addToTime(str, n, unit, fmt) {
+    const { date, isUTC } = parseInputDate(str);
+    const result = applyTimeUnit(date, n, unit);
+    return formatWithPattern(result, fmt || 'o', 'en-US', isUTC);
+  },
+  subtractFromTime(str, n, unit, fmt) {
+    const { date, isUTC } = parseInputDate(str);
+    const result = applyTimeUnit(date, -n, unit);
+    return formatWithPattern(result, fmt || 'o', 'en-US', isUTC);
+  },
+  formatDateTime(str, fmt, locale) {
+    const { date, isUTC } = parseInputDate(str);
+    return formatWithPattern(date, fmt || 'o', locale || 'en-US', isUTC);
+  },
+  parseDateTime(str, locale, fmt) {
+    const date = parseDateWithFormat(str, fmt);
+    return formatWithPattern(date, 'o', locale || 'en-US', false);
+  },
+  dayOfMonth(str) {
+    const { date } = parseInputDate(str);
+    return date.getUTCDate();
+  },
+  dayOfWeek(str) {
+    const { date } = parseInputDate(str);
+    return date.getUTCDay();
+  },
+  dayOfYear(str) {
+    const { date } = parseInputDate(str);
+    const year = date.getUTCFullYear();
+    const startOfYear = new Date(Date.UTC(year, 0, 0)); // Dec 31 of prev year
+    return Math.floor((date - startOfYear) / 86400000);
+  },
+  startOfDay(str, fmt) {
+    const { date, isUTC } = parseInputDate(str);
+    const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+    return formatWithPattern(d, fmt || 'o', 'en-US', isUTC);
+  },
+  startOfHour(str, fmt) {
+    const { date, isUTC } = parseInputDate(str);
+    const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), date.getUTCHours()));
+    return formatWithPattern(d, fmt || 'o', 'en-US', isUTC);
+  },
+  startOfMonth(str, fmt) {
+    const { date, isUTC } = parseInputDate(str);
+    const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
+    return formatWithPattern(d, fmt || 'o', 'en-US', isUTC);
+  },
+  dateDifference(s1, s2) {
+    const d1 = parseInputDate(s1).date;
+    const d2 = parseInputDate(s2).date;
+    const diffMs = Math.abs(d2 - d1);
+    const totalSec = Math.floor(diffMs / 1000);
+    const days = Math.floor(diffMs / 86400000);
+    const rem = diffMs - days * 86400000;
+    const hh = pad(Math.floor(rem / 3600000), 2);
+    const mm = pad(Math.floor((rem % 3600000) / 60000), 2);
+    const ss = pad(Math.floor((rem % 60000) / 1000), 2);
+    return `${days}.${hh}:${mm}:${ss}`;
+  },
+  convertFromUtc(str, tzName, fmt) {
+    const { date } = parseInputDate(str);
+    const offsetMin = getTzOffset(tzName);
+    const localMs = date.getTime() + offsetMin * 60000;
+    const localDate = new Date(localMs);
+    return formatWithPattern(localDate, fmt || 'o', 'en-US', false);
+  },
+  convertToUtc(str, tzName, fmt) {
+    const { date } = parseInputDate(str);
+    const offsetMin = getTzOffset(tzName);
+    const utcMs = date.getTime() - offsetMin * 60000;
+    const utcDate = new Date(utcMs);
+    return formatWithPattern(utcDate, fmt || 'o', 'en-US', true);
+  },
+  convertTimeZone(str, fromTz, toTz, fmt) {
+    const { date } = parseInputDate(str);
+    // date is already stored as UTC internally; fromTz offset used to find true UTC if input was local
+    const fromOffset = getTzOffset(fromTz);
+    const toOffset = getTzOffset(toTz);
+    // str is provided in fromTz local time; we need to convert to UTC first
+    // If str has Z or offset, parseInputDate already gives UTC-based date
+    // For this function: treat the timestamp as-is in UTC representation, then shift
+    const utcMs = date.getTime() - fromOffset * 60000;
+    const localMs = utcMs + toOffset * 60000;
+    const result = new Date(localMs);
+    const isUTC = toTz === 'UTC';
+    return formatWithPattern(result, fmt || 'o', 'en-US', isUTC);
+  },
+  ticks(str) {
+    const { date } = parseInputDate(str);
+    return ticksFromDate(date);
+  },
+  getFutureTime(n, unit, fmt) {
+    const now = new Date();
+    const result = applyTimeUnit(now, n, unit);
+    return formatWithPattern(result, fmt || 'o', 'en-US', true);
+  },
+  getPastTime(n, unit, fmt) {
+    const now = new Date();
+    const result = applyTimeUnit(now, -n, unit);
+    return formatWithPattern(result, fmt || 'o', 'en-US', true);
+  },
+};
+
+// =============================================================================
+// Section 6: Evaluator
+// =============================================================================
+
+function evalNode(node) {
+  if (node.type === 'Literal') return node.value;
+  if (node.type === 'Call') return evalCall(node);
+  throw new Error(`Unknown AST node type: ${node.type}`);
+}
+
+function evalCall(node) {
+  // Special case: div needs to inspect AST arg nodes for isInt flag
+  if (node.name === 'div') {
+    const a = evalNode(node.args[0]);
+    const b = evalNode(node.args[1]);
+    const aIsInt = node.args[0].type === 'Literal' && node.args[0].isInt === true;
+    const bIsInt = node.args[1].type === 'Literal' && node.args[1].isInt === true;
+    return (aIsInt && bIsInt) ? Math.trunc(a / b) : a / b;
+  }
+
+  if (!Object.prototype.hasOwnProperty.call(BUILTINS, node.name)) {
+    throw new Error(`Unknown function: ${node.name}`);
+  }
+  const fn = BUILTINS[node.name];
+
+  // For slice, pass undefined for missing optional args
+  if (node.name === 'slice') {
+    const args = node.args.map(evalNode);
+    return BUILTINS.slice(args[0], args[1], args[2]);
+  }
+
+  const args = node.args.map(evalNode);
+  return fn(...args);
+}
+
+function evaluate(expressionStr) {
+  const tokens = tokenize(expressionStr);
+  const ast = parse(tokens);
+  return evalNode(ast);
+}
+
+// =============================================================================
+// Section 7: Export
+// =============================================================================
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { evaluate };
+} else if (typeof window !== 'undefined') {
+  window.evaluate = evaluate;
+}
+  </script>
+
+  <div id="sig-tooltip" class="sig-tooltip hidden" role="tooltip" aria-live="polite"></div>
+
+  <script>
+    'use strict';
+
+    // ── Function signatures ───────────────────────────────────────────────────
+    const FN_SIGS = {
+      // String
+      concat:             { params: ['text1', 'text2', '...'],                           desc: 'Combine two or more strings and return the combined string.' },
+      replace:            { params: ['text', 'oldText', 'newText'],                      desc: 'Replace a substring with the specified string.' },
+      toLower:            { params: ['text'],                                             desc: 'Return a string in lowercase format.' },
+      toUpper:            { params: ['text'],                                             desc: 'Return a string in uppercase format.' },
+      split:              { params: ['text', 'delimiter'],                               desc: 'Return an array of substrings based on the specified delimiter.' },
+      trim:               { params: ['text'],                                             desc: 'Remove leading and trailing whitespace from a string.' },
+      startsWith:         { params: ['text', 'searchText'],                              desc: 'Check whether a string starts with a specific substring.' },
+      endsWith:           { params: ['text', 'searchText'],                              desc: 'Check whether a string ends with a specific substring.' },
+      indexOf:            { params: ['text', 'searchText'],                              desc: 'Return the starting position or index value for a substring.' },
+      lastIndexOf:        { params: ['text', 'searchText'],                              desc: 'Return the starting position for the last occurrence of a substring.' },
+      substring:          { params: ['text', 'startIndex', 'length?'],                  desc: 'Return characters from a string, starting from the specified position.' },
+      slice:              { params: ['text', 'startIndex', 'endIndex?'],                desc: 'Return a substring by specifying the starting and ending position.' },
+      chunk:              { params: ['collection', 'length'],                            desc: 'Split a string or array into chunks of equal length.' },
+      nthIndexOf:         { params: ['text', 'searchText', 'occurrence'],               desc: 'Return the starting position where the Nth occurrence of a substring appears.' },
+      isFloat:            { params: ['string', 'locale?'],                              desc: 'Return a boolean indicating whether a string is a floating-point number.' },
+      isInt:              { params: ['string'],                                           desc: 'Return a boolean that indicates whether a string is an integer.' },
+      formatNumber:       { params: ['number', 'format', 'locale?'],                    desc: 'Return a number as a string based on the specified format.' },
+      guid:               { params: ['format?'],                                         desc: 'Generate a globally unique identifier (GUID) as a string.' },
+      // Collection
+      first:              { params: ['collection'],                                      desc: 'Return the first item from a string or array.' },
+      last:               { params: ['collection'],                                      desc: 'Return the last item from a collection.' },
+      length:             { params: ['collection'],                                      desc: 'Return the number of items in a collection.' },
+      join:               { params: ['collection', 'delimiter'],                         desc: 'Return a string that has all the items from an array, separated by a delimiter.' },
+      contains:           { params: ['collection', 'value'],                            desc: 'Check whether a collection has a specific item.' },
+      empty:              { params: ['collection'],                                      desc: 'Check whether a collection is empty.' },
+      reverse:            { params: ['collection'],                                      desc: 'Reverse the order of items in a collection.' },
+      skip:               { params: ['collection', 'count'],                            desc: 'Remove items from the front of a collection and return all other items.' },
+      take:               { params: ['collection', 'count'],                            desc: 'Return items from the front of a collection.' },
+      sort:               { params: ['collection', 'sortBy?'],                          desc: 'Sort items in a collection.' },
+      intersection:       { params: ['collection1', 'collection2', '...'],              desc: 'Return a collection that has only the common items across the specified collections.' },
+      union:              { params: ['collection1', 'collection2', '...'],              desc: 'Return a collection that has all the items from the specified collections.' },
+      createArray:        { params: ['object1', 'object2', '...'],                      desc: 'Return an array from multiple inputs.' },
+      range:              { params: ['startIndex', 'count'],                            desc: 'Return an integer array that starts from a specified integer.' },
+      coalesce:           { params: ['object_1', 'object_2', '...'],                    desc: 'Return the first non-null value from one or more parameters.' },
+      // Logical
+      equals:             { params: ['object1', 'object2'],                             desc: 'Check whether both values, expressions, or objects are equivalent.' },
+      greater:            { params: ['value', 'compareTo'],                             desc: 'Check whether the first value is greater than the second value.' },
+      greaterOrEquals:    { params: ['value', 'compareTo'],                             desc: 'Check whether the first value is greater than or equal to the second value.' },
+      less:               { params: ['value', 'compareTo'],                             desc: 'Check whether the first value is less than the second value.' },
+      lessOrEquals:       { params: ['value', 'compareTo'],                             desc: 'Check whether the first value is less than or equal to the second value.' },
+      and:                { params: ['expression1', 'expression2', '...'],              desc: 'Check whether all expressions are true.' },
+      or:                 { params: ['expression1', 'expression2', '...'],              desc: 'Check whether at least one expression is true.' },
+      not:                { params: ['expression'],                                      desc: 'Check whether an expression is false.' },
+      if:                 { params: ['expression', 'valueIfTrue', 'valueIfFalse'],      desc: 'Check whether an expression is true or false.' },
+      // Conversion
+      int:                { params: ['value'],                                           desc: 'Convert the string version for an integer to an actual integer number.' },
+      float:              { params: ['value', 'locale?'],                               desc: 'Convert a string for a floating-point number to an actual floating point number.' },
+      string:             { params: ['value'],                                           desc: 'Return the string version for a value.' },
+      bool:               { params: ['value'],                                           desc: 'Return the Boolean version of a value.' },
+      array:              { params: ['value'],                                           desc: 'Return an array from a single specified input.' },
+      decimal:            { params: ['value'],                                           desc: 'Return a decimal number string as a decimal number.' },
+      base64:             { params: ['value'],                                           desc: 'Return the base64-encoded version for a string.' },
+      base64ToString:     { params: ['value'],                                           desc: 'Return the string version for a base64-encoded string.' },
+      dataUri:            { params: ['value'],                                           desc: 'Return a data URI for a string.' },
+      dataUriToString:    { params: ['value'],                                           desc: 'Return the string version for a data URI.' },
+      decodeUriComponent: { params: ['value'],                                           desc: 'Return a string that replaces escape characters with decoded versions.' },
+      encodeUriComponent: { params: ['value'],                                           desc: 'Return a URI-encoded version for a string by replacing URL-unsafe characters.' },
+      uriComponent:       { params: ['value'],                                           desc: 'Return a URI-encoded version for a string.' },
+      uriComponentToString: { params: ['value'],                                         desc: 'Return the string version for a URI-encoded string.' },
+      json:               { params: ['value'],                                           desc: 'Return the JSON type value or object for a string or XML.' },
+      xml:                { params: ['value'],                                           desc: 'Return the XML version for a string that contains a JSON object.' },
+      xpath:              { params: ['xml', 'xpath'],                                    desc: 'Check XML for nodes or values that match an XPath expression, and return the matching nodes or values.' },
+      // Math
+      add:                { params: ['summand_1', 'summand_2'],                         desc: 'Return the result from adding two numbers.' },
+      sub:                { params: ['minuend', 'subtrahend'],                          desc: 'Return the result from subtracting the second number from the first number.' },
+      mul:                { params: ['multiplicand1', 'multiplicand2'],                 desc: 'Return the product from multiplying two numbers.' },
+      div:                { params: ['dividend', 'divisor'],                            desc: 'Return the result from dividing two numbers.' },
+      max:                { params: ['number1', 'number2', '...'],                      desc: 'Return the highest value from a set of numbers or an array.' },
+      min:                { params: ['number1', 'number2', '...'],                      desc: 'Return the lowest value from a set of numbers or an array.' },
+      mod:                { params: ['dividend', 'divisor'],                            desc: 'Return the remainder from dividing two numbers.' },
+      rand:               { params: ['minValue', 'maxValue'],                           desc: 'Return a random integer from a specified range.' },
+      // DateTime
+      utcNow:             { params: ['format?'],                                         desc: 'Return the current timestamp.' },
+      addDays:            { params: ['timestamp', 'days', 'format?'],                   desc: 'Add days to a timestamp.' },
+      addHours:           { params: ['timestamp', 'hours', 'format?'],                  desc: 'Add hours to a timestamp.' },
+      addMinutes:         { params: ['timestamp', 'minutes', 'format?'],                desc: 'Add minutes to a timestamp.' },
+      addSeconds:         { params: ['timestamp', 'seconds', 'format?'],                desc: 'Add seconds to a timestamp.' },
+      addToTime:          { params: ['timestamp', 'interval', 'timeUnit', 'format?'],   desc: 'Add the specified time units to a timestamp.' },
+      subtractFromTime:   { params: ['timestamp', 'interval', 'timeUnit', 'format?'],   desc: 'Subtract a number of time units from a timestamp.' },
+      formatDateTime:     { params: ['timestamp', 'format?', 'locale?'],                desc: 'Return a timestamp in the specified format.' },
+      parseDateTime:      { params: ['timestamp', 'locale?', 'format?'],                desc: 'Return the timestamp from a string that contains a timestamp.' },
+      dayOfMonth:         { params: ['timestamp'],                                       desc: 'Return the day of the month from a timestamp.' },
+      dayOfWeek:          { params: ['timestamp'],                                       desc: 'Return the day of the week from a timestamp.' },
+      dayOfYear:          { params: ['timestamp'],                                       desc: 'Return the day of the year from a timestamp.' },
+      startOfDay:         { params: ['timestamp', 'format?'],                           desc: 'Return the start of the day for a timestamp.' },
+      startOfHour:        { params: ['timestamp', 'format?'],                           desc: 'Return the start of the hour for a timestamp.' },
+      startOfMonth:       { params: ['timestamp', 'format?'],                           desc: 'Return the start of the month for a timestamp.' },
+      dateDifference:     { params: ['startDate', 'endDate'],                           desc: 'Return the difference between two timestamps as a timespan.' },
+      convertFromUtc:     { params: ['timestamp', 'destinationTimeZone', 'format?'],    desc: 'Convert a timestamp from UTC to the target time zone.' },
+      convertToUtc:       { params: ['timestamp', 'sourceTimeZone', 'format?'],         desc: 'Convert a timestamp from the source time zone to UTC.' },
+      convertTimeZone:    { params: ['timestamp', 'sourceTimeZone', 'destinationTimeZone', 'format?'], desc: 'Convert a timestamp from the source time zone to the target time zone.' },
+      ticks:              { params: ['timestamp'],                                       desc: 'Return the number of 100-nanosecond ticks since January 1, 0001.' },
+      getFutureTime:      { params: ['interval', 'timeUnit', 'format?'],                desc: 'Return the current timestamp plus the specified time units.' },
+      getPastTime:        { params: ['interval', 'timeUnit', 'format?'],                desc: 'Return the current timestamp minus the specified time units.' },
+    };
+
+    // ── Signature tooltip helpers ─────────────────────────────────────────────
+    function getFunctionContext(text, pos) {
+      let depth = 0, commas = 0, i = pos - 1;
+      while (i >= 0) {
+        const c = text[i];
+        if (c === ')') { depth++; i--; continue; }
+        if (c === '(') {
+          if (depth === 0) {
+            const m = text.slice(0, i).match(/([a-zA-Z_$][a-zA-Z0-9_$]*)$/);
+            return m ? { name: m[1], paramIndex: commas } : null;
+          }
+          depth--; i--; continue;
+        }
+        if (c === ',' && depth === 0) { commas++; i--; continue; }
+        if (c === "'") {   // skip single-quoted PA string literal backwards
+          i--;
+          while (i >= 0 && text[i] !== "'") i--;
+          i--; continue;
+        }
+        i--;
+      }
+      return null;
+    }
+
+    const sigTooltip = document.getElementById('sig-tooltip');
+
+    function showSigTooltip(name, paramIndex, anchorEl) {
+      const sig = FN_SIGS[name];
+      if (!sig) { hideSigTooltip(); return; }
+
+      const argsHtml = sig.params.map((p, i) =>
+        `<span class="${i === paramIndex ? 'sig-param-active' : 'sig-param'}">${p}</span>`
+      ).join('<span class="sig-comma">, </span>');
+
+      sigTooltip.innerHTML =
+        `<span class="sig-fn">${name}</span>` +
+        `<span class="sig-paren">(</span>${argsHtml}<span class="sig-paren">)</span>` +
+        (sig.desc ? `<span class="sig-desc">— ${sig.desc}</span>` : '');
+
+      const rect = anchorEl.getBoundingClientRect();
+      sigTooltip.style.left = rect.left + 'px';
+      sigTooltip.style.top  = (rect.bottom + 4) + 'px';
+      sigTooltip.classList.remove('hidden');
+
+      requestAnimationFrame(() => {
+        const tw = sigTooltip.offsetWidth;
+        if (rect.left + tw > window.innerWidth - 8)
+          sigTooltip.style.left = Math.max(8, window.innerWidth - tw - 8) + 'px';
+        if (sigTooltip.getBoundingClientRect().bottom > window.innerHeight - 8)
+          sigTooltip.style.top = (rect.top - sigTooltip.offsetHeight - 4) + 'px';
+      });
+    }
+
+    function hideSigTooltip() {
+      sigTooltip.classList.add('hidden');
+    }
+
+    function updateSigTooltip(valIn) {
+      const ctx = getFunctionContext(valIn.value, valIn.selectionStart);
+      if (ctx && FN_SIGS[ctx.name]) showSigTooltip(ctx.name, ctx.paramIndex, valIn);
+      else hideSigTooltip();
+    }
+
+    // ── State ─────────────────────────────────────────────────────────────────
+    let availableArrays  = {};   // { label: Array }
+    let selectedKey      = null;
+    let detectedFields   = [];
+    let fieldMeta        = null;
+    let rowId            = 0;
+    let refreshTimer     = null;
+
+    const LIMITS = {
+      maxJsonChars:         5 * 1024 * 1024,
+      maxFieldScanItems:    250,
+      maxFieldDepth:        12,
+      maxDetectedFields:    250,
+      maxPreviewItems:      40,
+      maxPreviewMappings:   50,
+      maxPreviewExprChars:  4000,
+      maxPreviewJsonChars:  100000,
+      maxPreviewXmlChars:   100000,
+      maxXPathQueryChars:   1000,
+      maxPreviewOutputChars:200000,
+      refreshDebounceMs:    120
+    };
+
+    const DANGEROUS_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+    const SP_META_KEYS = new Set([
+      '__metadata', 'odata.type', 'odata.id', 'odata.etag', 'odata.editLink',
+      'Id', 'ID', 'GUID', 'AuthorId', 'EditorId', 'AppAuthorId', 'AppEditorId',
+      'FileSystemObjectType', 'ContentTypeId', 'ComplianceAssetId',
+      'ServerRedirectedEmbedUrl', 'ServerRedirectedEmbedUri', 'Attachments',
+      'OData__UIVersionString', 'OData__ColorTag'
+    ]);
+    const SIMPLE_SEGMENT_RE = /^[^\s.\[\]'"\x00-\x1F]+$/;
+
+    // ── DOM ───────────────────────────────────────────────────────────────────
+    const $ = id => document.getElementById(id);
+
+    const jsonInput      = $('json-input');
+
+    const jsonError      = $('json-error');
+    const leftBadge      = $('left-badge');
+    const arrayPickerWrap= $('array-picker-wrap');
+    const arrayPicker    = $('array-picker');
+    const detectInfo     = $('detect-info');
+    const detectSummary  = $('detect-summary');
+
+    const chipsShelf     = $('chips-shelf');
+    const fieldChips     = $('field-chips');
+    const pivotShelf     = $('pivot-shelf');
+    const pivotChips     = $('pivot-chips');
+    const rowsList       = $('rows-list');
+    const rowsEmpty      = $('rows-empty');
+    const rowBadge       = $('row-badge');
+    const addRowBtn      = $('add-row-btn');
+
+    const outputDisplay  = $('output-display');
+    const previewDisplay = $('preview-display');
+    const previewBadge   = $('preview-badge');
+    const copyBtn        = $('copy-btn');
+
+    // ── Core logic ────────────────────────────────────────────────────────────
+
+    function isDangerousKey(key) {
+      return DANGEROUS_KEYS.has(key);
+    }
+
+    function isSharePointMetaKey(key) {
+      if (SP_META_KEYS.has(key)) return true;
+      if (key.startsWith('@')) return true;          // @odata.context etc.
+      if (key.startsWith('{')) return true;          // GUID-style keys
+      if (key.startsWith('odata.')) return true;     // OData namespace prefix
+      if (key.startsWith('OData__')) return true;    // SharePoint double-underscore fields
+      if (/^__.*__$/.test(key)) return true;         // __PowerAppsId__ etc.
+      if (key.includes('@odata')) return true;       // Skills@odata.type mid-string annotations
+      if (key.endsWith('#Claims')) return true;      // People-picker claim fields
+      return false;
+    }
+
+    function isODataAnnotationKey(key) {
+      if (key.startsWith('@')) return true;       // @odata.type, @odata.context etc.
+      if (key.includes('@odata')) return true;    // Skills@odata.type mid-string annotations
+      return false;
+    }
+
+    function escapePAString(value) {
+      return String(value).replace(/'/g, "''");
+    }
+
+    /**
+     * Scan objects in a nested array to find the best string field to pivot on.
+     * Returns the field name or null.
+     */
+    function detectPivotKey(subItems) {
+      if (!Array.isArray(subItems) || subItems.length === 0) return null;
+
+      const PREFERRED = ['type', 'name', 'category', 'status', 'key', 'label', 'role', 'kind'];
+      const candidates = new Map(); // fieldName → Set of unique values
+
+      for (const item of subItems) {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+        for (const [k, v] of Object.entries(item)) {
+          if (isDangerousKey(k) || isODataAnnotationKey(k)) continue;
+          if (typeof v !== 'string') continue;
+          if (!candidates.has(k)) candidates.set(k, new Set());
+          candidates.get(k).add(v);
+        }
+      }
+
+      // Require at least 2 unique values
+      for (const [k, vals] of [...candidates]) {
+        if (vals.size < 2) candidates.delete(k);
+      }
+      if (candidates.size === 0) return null;
+
+      // Check preferred names first (case-insensitive)
+      for (const pref of PREFERRED) {
+        for (const k of candidates.keys()) {
+          if (k.toLowerCase() === pref) return k;
+        }
+      }
+
+      // Fallback: highest unique value count
+      let best = null, bestCount = 0;
+      for (const [k, vals] of candidates) {
+        if (vals.size > bestCount) { best = k; bestCount = vals.size; }
+      }
+      return best;
+    }
+
+    function canUseBareSegment(segment) {
+      return SIMPLE_SEGMENT_RE.test(segment);
+    }
+
+    function formatFieldLabel(segments) {
+      return segments.map((segment, index) => {
+        if (canUseBareSegment(segment)) {
+          return index === 0 ? segment : `.${segment}`;
+        }
+        return `[${JSON.stringify(segment)}]`;
+      }).join('');
+    }
+
+    function pathToPA(segments) {
+      if (!Array.isArray(segments) || segments.length === 0) return 'item()';
+      return 'item()' + segments.map(segment => `?['${escapePAString(segment)}']`).join('');
+    }
+
+    function deepNestedToPA(deepNested) {
+      const { arrayPath, xpathParts } = deepNested;
+      const arrAccess = arrayPath.map(s => `?['${escapePAString(s)}']`).join('');
+      const arrExpr = `string(item()${arrAccess})`;
+      const xmlWrap = `xml(json(concat('{"root":{"row":', ${arrExpr}, '}}')))`;
+      const query = `'//row/${xpathParts.join('/')}/text()'`;
+      return `join(xpath(${xmlWrap}, ${query}), '|')`;
+    }
+
+    function pivotToPA(arrayPath, pivotKey, pivotValue, leafKey) {
+      const arrAccess = arrayPath.map(s => `?['${escapePAString(s)}']`).join('');
+      const arrExpr = `item()${arrAccess}`;
+      const arrayKey = escapePAString(arrayPath[arrayPath.length - 1]);
+      const xmlWrap = `xml(json(concat('{"root":{"${arrayKey}":',${arrExpr},'}}')))`;
+      const query = `'string(/root/${arrayKey}[${escapePAString(pivotKey)}=''${escapePAString(pivotValue)}'']/${escapePAString(leafKey)})'`;
+      return `xpath(${xmlWrap}, ${query})`;
+    }
+
+    function flatArrayToPA(flatArray) {
+      const { path } = flatArray;
+      return `join(item()${path.map(s => `?['${escapePAString(s)}']`).join('')}, '|')`;
+    }
+
+    function resetDetectedState() {
+      availableArrays = {};
+      selectedKey = null;
+      detectedFields = [];
+      fieldMeta = null;
+      arrayPicker.innerHTML = '';
+      fieldChips.innerHTML = '';
+      pivotChips.innerHTML = '';
+      arrayPickerWrap.classList.add('hidden');
+      detectInfo.classList.add('hidden');
+      chipsShelf.classList.add('hidden');
+      pivotShelf.classList.add('hidden');
+      leftBadge.classList.add('hidden');
+      setPreview('// Paste JSON and add rows to preview the Select action output.', true);
+    }
+
+    /**
+     * Walk the parsed JSON and return every array-valued slot as
+     * { label: Array }.  Root arrays become { '(root)': array }.
+     * Only searches one level deep (direct properties of a root object).
+     */
+    function detectArrays(parsed) {
+      if (Array.isArray(parsed)) return { '(root)': parsed };
+      if (parsed && typeof parsed === 'object') {
+        const found = {};
+        for (const [k, v] of Object.entries(parsed)) {
+          if (!isDangerousKey(k) && Array.isArray(v)) found[k] = v;
+        }
+        return found;
+      }
+      return {};
+    }
+
+    /**
+     * From items in the selected array, collect all scalar leaf paths using a
+     * unified deep traversal.  Handles any level of nested arrays by tracking
+     * the first array boundary and building XPath parts for subsequent segments.
+     *
+     * Field shapes:
+     *   Simple scalar:  { label, segments }
+     *   Nested array:   { label, deepNested: { arrayPath, xpathParts } }
+     *   Scalar array:   { label, flatArray:  { path } }
+     */
+    function detectFields(arr) {
+      const meta = {
+        fields: [],
+        scannedItems: 0,
+        truncatedItems: false,
+        truncatedFields: false,
+        truncatedDepth: false,
+        skippedDangerousKeys: 0
+      };
+
+      if (!arr || arr.length === 0) return meta;
+
+      const seen = new Map();
+      const itemLimit = Math.min(arr.length, LIMITS.maxFieldScanItems);
+      meta.scannedItems = itemLimit;
+      meta.truncatedItems = arr.length > itemLimit;
+
+      function addSimpleField(segments) {
+        const id = 's:' + JSON.stringify(segments);
+        if (seen.has(id)) return true;
+        if (seen.size >= LIMITS.maxDetectedFields) { meta.truncatedFields = true; return false; }
+        seen.set(id, { label: formatFieldLabel(segments), segments: segments.slice() });
+        return true;
+      }
+
+      function addDeepField(labelPath, deepNested) {
+        const id = 'd:' + JSON.stringify(deepNested);
+        if (seen.has(id)) return true;
+        if (seen.size >= LIMITS.maxDetectedFields) { meta.truncatedFields = true; return false; }
+        seen.set(id, { label: labelPath, deepNested });
+        return true;
+      }
+
+      function addFlatArrayField(segments) {
+        const id = 'f:' + JSON.stringify(segments);
+        if (seen.has(id)) return true;
+        if (seen.size >= LIMITS.maxDetectedFields) { meta.truncatedFields = true; return false; }
+        seen.set(id, { label: formatFieldLabel(segments), flatArray: { path: segments.slice() } });
+        return true;
+      }
+
+      /**
+       * @param {object}   obj          — current object being traversed
+       * @param {string[]} segments     — root-relative key segments (used for simple fields)
+       * @param {string}   labelPath    — display label built so far
+       * @param {object|null} boundary  — null if no array crossed yet;
+       *                                  { arrayPath, xpathParts } once an array is crossed
+       * @param {number}   depth
+       */
+      function traverseObject(obj, segments, labelPath, boundary, depth) {
+        if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return;
+        if (depth >= LIMITS.maxFieldDepth) { meta.truncatedDepth = true; return; }
+
+        for (const [k, v] of Object.entries(obj)) {
+          if (isDangerousKey(k)) { meta.skippedDangerousKeys++; continue; }
+          if (isODataAnnotationKey(k)) continue;  // always drop @odata annotations at any depth
+          // Apply SP meta filter only when no array has been crossed yet
+          if (boundary === null && isSharePointMetaKey(k)) continue;
+
+          const childLabel = labelPath ? labelPath + '.' + k : k;
+          const childSegments = segments.concat(k);
+
+          if (v === null || (typeof v !== 'object')) {
+            // Scalar leaf
+            if (boundary === null) {
+              if (!addSimpleField(childSegments)) return;
+            } else {
+              const xp = boundary.xpathParts.concat(k);
+              if (!addDeepField(childLabel, { arrayPath: boundary.arrayPath, xpathParts: xp })) return;
+            }
+          } else if (!Array.isArray(v)) {
+            // Object — recurse
+            const nextBoundary = boundary === null ? null
+              : { arrayPath: boundary.arrayPath, xpathParts: boundary.xpathParts.concat(k) };
+            traverseObject(v, childSegments, childLabel, nextBoundary, depth + 1);
+            if (seen.size >= LIMITS.maxDetectedFields) return;
+          } else {
+            // Array
+            if (v.length === 0) continue;
+            const hasObjects = v.some(el => el && typeof el === 'object' && !Array.isArray(el));
+            if (!hasObjects) {
+              // Scalar array
+              if (boundary === null) {
+                addFlatArrayField(childSegments);
+              }
+              // skip scalar arrays inside a nested context (too noisy)
+              continue;
+            }
+            // Array of objects
+            const arrayLabel = childLabel + '[]';
+            let nextBoundary;
+            if (boundary === null) {
+              // First array encountered — set the boundary
+              nextBoundary = { arrayPath: childSegments.slice(), xpathParts: [] };
+            } else {
+              // Already inside an array — push this key into xpathParts
+              nextBoundary = { arrayPath: boundary.arrayPath, xpathParts: boundary.xpathParts.concat(k) };
+            }
+            for (const el of v) {
+              if (el && typeof el === 'object' && !Array.isArray(el)) {
+                traverseObject(el, childSegments, arrayLabel, nextBoundary, depth + 1);
+                if (seen.size >= LIMITS.maxDetectedFields) return;
+              }
+            }
+          }
+        }
+      }
+
+      for (const item of arr.slice(0, itemLimit)) {
+        if (item && typeof item === 'object' && !Array.isArray(item)) {
+          traverseObject(item, [], '', null, 0);
+          if (seen.size >= LIMITS.maxDetectedFields) break;
+        }
+      }
+
+      meta.fields = [...seen.values()];
+      return meta;
+    }
+
+    /**
+     * Second pass: detect pivot-flattened fields from nested arrays.
+     * Returns array of { label, arrayKey, pivotKey, pivotValue, leafKey }.
+     */
+    function detectPivotFields(arr) {
+      const results = [];
+      if (!arr || arr.length === 0) return results;
+
+      const itemLimit = Math.min(arr.length, LIMITS.maxFieldScanItems);
+
+      // Collect nested arrays across sampled items
+      const nestedArrays = new Map(); // key → merged array of sub-items
+
+      for (const item of arr.slice(0, itemLimit)) {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+        for (const [k, v] of Object.entries(item)) {
+          if (isDangerousKey(k) || isODataAnnotationKey(k)) continue;
+          if (!Array.isArray(v)) continue;
+          // Check if it's an array of objects
+          const objs = v.filter(el => el && typeof el === 'object' && !Array.isArray(el));
+          if (objs.length === 0) continue;
+          if (!nestedArrays.has(k)) nestedArrays.set(k, []);
+          nestedArrays.get(k).push(...objs);
+        }
+      }
+
+      for (const [arrayKey, subItems] of nestedArrays) {
+        const pivotKey = detectPivotKey(subItems);
+        if (!pivotKey) continue;
+
+        // Collect unique pivot values and leaf keys
+        const pivotValues = new Set();
+        const leafKeys = new Set();
+        for (const item of subItems) {
+          if (typeof item[pivotKey] === 'string') pivotValues.add(item[pivotKey]);
+          for (const k of Object.keys(item)) {
+            if (k !== pivotKey && !isDangerousKey(k) && !isODataAnnotationKey(k)) {
+              leafKeys.add(k);
+            }
+          }
+        }
+
+        for (const pv of pivotValues) {
+          for (const lk of leafKeys) {
+            results.push({
+              label: `${arrayKey}[${pv}].${lk}`,
+              arrayKey,
+              pivotKey,
+              pivotValue: pv,
+              leafKey: lk
+            });
+          }
+        }
+      }
+
+      return results;
+    }
+
+    // ── Parse flow ────────────────────────────────────────────────────────────
+
+    function showError(msg) {
+      jsonError.textContent = msg;
+      jsonError.classList.remove('hidden');
+      jsonInput.classList.add('has-error');
+      leftBadge.textContent = 'error';
+      leftBadge.className = 'badge badge-err';
+      leftBadge.classList.remove('hidden');
+    }
+
+    function clearError() {
+      jsonError.classList.add('hidden');
+      jsonInput.classList.remove('has-error');
+    }
+
+    function onParse() {
+      clearError();
+      resetDetectedState();
+
+      const raw = jsonInput.value.trim();
+      if (!raw) { showError('Nothing to parse — paste some JSON first.'); return; }
+      if (raw.length > LIMITS.maxJsonChars) {
+        showError(`Input is too large to parse locally. Maximum supported size is ${Math.round(LIMITS.maxJsonChars / (1024 * 1024))} MB.`);
+        return;
+      }
+
+      let parsed;
+      try {
+        parsed = JSON.parse(raw);
+      } catch (e) {
+        showError('Invalid JSON: ' + e.message);
+        return;
+      }
+
+      availableArrays = detectArrays(parsed);
+      const keys = Object.keys(availableArrays);
+
+      if (keys.length === 0) {
+        showError(
+          'No arrays found. The Select action requires an array source. ' +
+          'Make sure your JSON is an array, or an object containing at least one array property.'
+        );
+        return;
+      }
+
+      // Badge
+      leftBadge.textContent = keys.length === 1 ? 'parsed' : `${keys.length} arrays`;
+      leftBadge.className = 'badge badge-ok';
+      leftBadge.classList.remove('hidden');
+
+      if (keys.length === 1) {
+        arrayPickerWrap.classList.add('hidden');
+        selectedKey = keys[0];
+      } else {
+        // Populate picker
+        arrayPicker.innerHTML = '';
+        keys.forEach(k => {
+          const opt = document.createElement('option');
+          opt.value = k;
+          opt.textContent = `${k}  (${availableArrays[k].length} item${availableArrays[k].length !== 1 ? 's' : ''})`;
+          arrayPicker.appendChild(opt);
+        });
+        selectedKey = keys[0];
+        arrayPickerWrap.classList.remove('hidden');
+      }
+
+      applySelectedArray();
+    }
+
+    function applySelectedArray() {
+      const arr = availableArrays[selectedKey];
+      fieldMeta = detectFields(arr);
+      detectedFields = fieldMeta.fields;
+
+      // Show summary
+      const label = selectedKey === '(root)' ? 'root array' : `"${selectedKey}"`;
+      const itemCount = arr.length;
+      const notes = [];
+      if (fieldMeta.truncatedItems) {
+        notes.push(`scanned first ${fieldMeta.scannedItems} items`);
+      }
+      if (fieldMeta.truncatedDepth) {
+        notes.push(`depth capped at ${LIMITS.maxFieldDepth}`);
+      }
+      if (fieldMeta.truncatedFields) {
+        notes.push(`field list capped at ${LIMITS.maxDetectedFields}`);
+      }
+      if (fieldMeta.skippedDangerousKeys > 0) {
+        notes.push(`skipped ${fieldMeta.skippedDangerousKeys} unsafe key${fieldMeta.skippedDangerousKeys !== 1 ? 's' : ''}`);
+      }
+
+      detectSummary.textContent =
+        `${label}: ${itemCount} item${itemCount !== 1 ? 's' : ''}, ` +
+        `${detectedFields.length} field${detectedFields.length !== 1 ? 's' : ''} detected` +
+        (notes.length ? ` (${notes.join('; ')})` : '') +
+        '.';
+      detectInfo.classList.remove('hidden');
+
+      renderChips();
+      const pivotFields = detectPivotFields(arr);
+      renderPivotChips(pivotFields);
+      buildPreview();
+    }
+
+    // ── Field chips ───────────────────────────────────────────────────────────
+
+    function renderChips() {
+      fieldChips.innerHTML = '';
+      if (detectedFields.length === 0) {
+        chipsShelf.classList.add('hidden');
+        return;
+      }
+      [...detectedFields].sort((a, b) => a.label.localeCompare(b.label)).forEach(field => {
+        const chip = document.createElement('button');
+        chip.className = 'chip clickable';
+        chip.type = 'button';
+        chip.textContent = field.label;
+        const expr = field.deepNested ? deepNestedToPA(field.deepNested)
+                   : field.flatArray  ? flatArrayToPA(field.flatArray)
+                   : pathToPA(field.segments);
+        chip.title = `Add row: "${field.label}" → ${expr}`;
+        chip.addEventListener('click', () => { addRow(field.label, expr); chip.classList.add('added'); });
+        fieldChips.appendChild(chip);
+      });
+      chipsShelf.classList.remove('hidden');
+    }
+
+    function renderPivotChips(pivotFields) {
+      pivotChips.innerHTML = '';
+      if (pivotFields.length === 0) {
+        pivotShelf.classList.add('hidden');
+        return;
+      }
+      pivotFields.sort((a, b) => a.label.localeCompare(b.label)).forEach(pf => {
+        const chip = document.createElement('button');
+        chip.className = 'chip clickable';
+        chip.type = 'button';
+        chip.textContent = pf.label;
+        const expr = pivotToPA([pf.arrayKey], pf.pivotKey, pf.pivotValue, pf.leafKey);
+        chip.title = `Add row: "${pf.label}" → ${expr}`;
+        chip.addEventListener('click', () => { addRow(pf.label, expr); chip.classList.add('added'); });
+        pivotChips.appendChild(chip);
+      });
+      pivotShelf.classList.remove('hidden');
+    }
+
+    // ── Mapping rows ──────────────────────────────────────────────────────────
+
+    function addRow(key = '', value = '') {
+      const id = ++rowId;
+
+      const row = document.createElement('div');
+      row.className = 'map-row';
+      row.dataset.id = id;
+
+      const keyIn = document.createElement('input');
+      keyIn.type = 'text';
+      keyIn.className = 'row-key';
+      keyIn.placeholder = 'key';
+      keyIn.value = key;
+      keyIn.setAttribute('aria-label', 'Output key name');
+      keyIn.spellcheck = false;
+      keyIn.autocomplete = 'off';
+
+      keyIn.addEventListener('input', () => { scheduleRefresh(); syncChipStates(); });
+
+      const colon = document.createElement('span');
+      colon.className = 'row-colon';
+      colon.textContent = ':';
+      colon.setAttribute('aria-hidden', 'true');
+
+      const valIn = document.createElement('textarea');
+      valIn.className = 'row-value';
+      valIn.placeholder = "item()?['field'] or expression";
+      valIn.value = value;
+      valIn.setAttribute('aria-label', 'Value expression');
+      valIn.spellcheck = false;
+      valIn.autocomplete = 'off';
+      valIn.rows = 1;
+
+      function autoResize() {
+        valIn.style.height = 'auto';
+        valIn.style.height = valIn.scrollHeight + 'px';
+      }
+      valIn.addEventListener('input',  () => { autoResize(); scheduleRefresh(); updateSigTooltip(valIn); });
+      valIn.addEventListener('keyup',  () => updateSigTooltip(valIn));
+      valIn.addEventListener('click',  () => updateSigTooltip(valIn));
+      valIn.addEventListener('blur',   () => setTimeout(hideSigTooltip, 100));
+      // Suppress newlines — Enter should not add line breaks
+      valIn.addEventListener('keydown', e => {
+        if (e.key === 'Enter') e.preventDefault();
+        if (e.key === 'Escape') hideSigTooltip();
+      });
+
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'row-del';
+      del.textContent = '✕';
+      del.title = 'Remove row';
+      del.setAttribute('aria-label', 'Remove this mapping row');
+      del.addEventListener('click', () => {
+        row.remove();
+        syncRowUI();
+      });
+
+      row.appendChild(keyIn);
+      row.appendChild(colon);
+      row.appendChild(valIn);
+      row.appendChild(del);
+
+      rowsList.appendChild(row);
+      autoResize();
+      syncRowUI();
+
+      // Focus the key for manual adds, value for chip-added rows
+      if (!key) keyIn.focus();
+    }
+
+    function syncChipStates() {
+      const keys = new Set(
+        [...rowsList.querySelectorAll('.row-key')].map(el => el.value.trim())
+      );
+      fieldChips.querySelectorAll('.chip').forEach(chip => {
+        chip.classList.toggle('added', keys.has(chip.textContent));
+      });
+      pivotChips.querySelectorAll('.chip').forEach(chip => {
+        chip.classList.toggle('added', keys.has(chip.textContent));
+      });
+    }
+
+    function syncRowUI() {
+      const count = rowsList.querySelectorAll('.map-row').length;
+      rowsEmpty.classList.toggle('hidden', count > 0);
+      if (count > 0) {
+        rowBadge.textContent = `${count} row${count !== 1 ? 's' : ''}`;
+        rowBadge.className = 'badge badge-neutral';
+        rowBadge.classList.remove('hidden');
+      } else {
+        rowBadge.classList.add('hidden');
+      }
+      syncChipStates();
+      refresh();
+    }
+
+    // ── Generate ──────────────────────────────────────────────────────────────
+
+    function generate() {
+      const rows = rowsList.querySelectorAll('.map-row');
+      if (rows.length === 0) {
+        setOutput('// No mapping rows — add some rows first.', true);
+        return;
+      }
+
+      const pairs = [];
+      let skipped = 0;
+      rows.forEach(row => {
+        const k = row.querySelector('.row-key').value.trim();
+        const v = row.querySelector('.row-value').value;
+        if (k) {
+          // Both key and value are properly JSON-encoded.
+          // Users type the raw PA expression (e.g. bare " chars); the tool
+          // handles the JSON escaping so the output is always valid JSON.
+          // The @ prefix is required by Power Automate to mark expression values.
+          const vOut = v && !v.startsWith('@') ? '@' + v : v;
+          pairs.push(`  ${JSON.stringify(k)}: ${JSON.stringify(vOut)}`);
+        } else {
+          skipped++;
+        }
+      });
+
+      if (pairs.length === 0) {
+        setOutput('// All rows have empty keys. Fill in the key names first.', true);
+        return;
+      }
+
+      let out = '{\n' + pairs.join(',\n') + '\n}';
+      if (skipped > 0) {
+        out += `\n\n// Note: ${skipped} row${skipped !== 1 ? 's were' : ' was'} skipped (empty key).`;
+      }
+      setOutput(out, false);
+    }
+
+    function setOutput(text, isPlaceholder) {
+      outputDisplay.textContent = text;
+      outputDisplay.classList.toggle('placeholder', isPlaceholder);
+    }
+
+    // ── PA expression evaluator ───────────────────────────────────────────────
+
+    /**
+     * Parse a single-quoted PA string literal starting at s[pos].
+     * Inside the literal, '' is an escaped single quote.
+     * Returns { value: string, end: indexAfterClosingQuote }.
+     */
+    function parseStringLiteral(s, pos) {
+      if (s[pos] !== "'") throw new Error('Expected string literal at pos ' + pos);
+      let value = '';
+      let i = pos + 1;
+      while (i < s.length) {
+        if (s[i] === "'") {
+          if (s[i + 1] === "'") { value += "'"; i += 2; } // '' → '
+          else { return { value, end: i + 1 }; }          // closing quote
+        } else {
+          value += s[i++];
+        }
+      }
+      throw new Error('Unterminated string literal');
+    }
+
+    /**
+     * Split a comma-separated argument string at the top level only,
+     * respecting nested parentheses and single-quoted string literals.
+     */
+    function splitArgs(s) {
+      const args = [];
+      let depth = 0;
+      let start = 0;
+      let i = 0;
+      while (i < s.length) {
+        const ch = s[i];
+        if (ch === "'") {
+          const { end } = parseStringLiteral(s, i);
+          i = end;
+        } else if (ch === '(') {
+          depth++; i++;
+        } else if (ch === ')') {
+          depth--; i++;
+        } else if (ch === ',' && depth === 0) {
+          args.push(s.slice(start, i).trim());
+          start = i + 1;
+          i++;
+        } else {
+          i++;
+        }
+      }
+      const last = s.slice(start).trim();
+      if (last.length > 0) args.push(last);
+      return args;
+    }
+
+    function parseItemChain(s) {
+      if (!s.startsWith('item()')) return null;
+
+      const keys = [];
+      let i = 'item()'.length;
+
+      while (i < s.length) {
+        if (s[i] === '?') {
+          i++;
+          continue;
+        }
+        if (s[i] !== '[' || s[i + 1] !== "'") return null;
+
+        i++;
+        const { value, end } = parseStringLiteral(s, i);
+        if (isDangerousKey(value)) {
+          throw new Error(`Unsafe key "${value}" is not previewed`);
+        }
+
+        keys.push(value);
+        i = end;
+        if (s[i] !== ']') return null;
+        i++;
+      }
+
+      return keys;
+    }
+
+    function toLimitedText(value, maxChars, label) {
+      const text = String(value ?? '');
+      if (text.length > maxChars) {
+        throw new Error(`${label} exceeds the safe preview limit`);
+      }
+      return text;
+    }
+
+    function assertSerializableSize(value, maxChars, label) {
+      const text = JSON.stringify(value);
+      if (text && text.length > maxChars) {
+        throw new Error(`${label} exceeds the safe preview limit`);
+      }
+    }
+
+    function xmlEscapeText(s) {
+      return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function xmlEscapeAttr(s) {
+      return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+    }
+
+    function xmlSerializeNode(tag, value) {
+      if (Array.isArray(value)) {
+        return value.map(item => xmlSerializeNode(tag, item)).join('');
+      }
+      if (value === null || value === undefined) {
+        return `<${tag}/>`;
+      }
+      if (typeof value === 'object') {
+        const attrs = [];
+        const children = [];
+        let textContent = null;
+        for (const [k, v] of Object.entries(value)) {
+          if (k === '#text') {
+            textContent = v;
+          } else if (k.startsWith('@')) {
+            attrs.push(`${k.slice(1)}="${xmlEscapeAttr(String(v))}"`);
+          } else {
+            children.push(xmlSerializeNode(k, v));
+          }
+        }
+        const attrStr = attrs.length ? ' ' + attrs.join(' ') : '';
+        if (textContent !== null) {
+          return `<${tag}${attrStr}>${xmlEscapeText(textContent)}</${tag}>`;
+        }
+        if (children.length === 0) return `<${tag}${attrStr}/>`;
+        return `<${tag}${attrStr}>${children.join('')}</${tag}>`;
+      }
+      return `<${tag}>${xmlEscapeText(value)}</${tag}>`;
+    }
+
+    /** PA xml() — convert a JSON object with a single root key to XML string. */
+    function paXml(obj) {
+      if (typeof obj === 'string') return obj; // already XML
+      const rootKey = Object.keys(obj)[0];
+      if (!rootKey || isDangerousKey(rootKey)) {
+        throw new Error('xml() preview requires a safe root key');
+      }
+      return xmlSerializeNode(rootKey, obj[rootKey]);
+    }
+
+    /**
+     * Recursively evaluate a PA expression string against a single data item.
+     * Supports: string literals, item()?['k']... chains,
+     * and functions: concat, json, xml, xpath.
+     */
+    function evalPA(s, dataItem) {
+      s = s.trim();
+
+      // String literal
+      if (s[0] === "'") {
+        const { value, end } = parseStringLiteral(s, 0);
+        if (end !== s.length) throw new Error('Unexpected characters after string literal');
+        return value;
+      }
+
+      // Number literal
+      if (/^-?\d+(\.\d+)?$/.test(s)) return Number(s);
+
+      // item()?['k1']?['k2']... chain
+      const itemKeys = parseItemChain(s);
+      if (itemKeys !== null) {
+        let val = dataItem;
+        for (const k of itemKeys) {
+          if (val === null || val === undefined) return null;
+          if (typeof val !== 'object') return s;
+          val = val[k];
+        }
+        return val !== undefined ? val : null;
+      }
+
+      // Function call: name(args...)
+      const fnMatch = s.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\s*\((.*)?\)$/s);
+      if (fnMatch) {
+        const fnName = fnMatch[1].toLowerCase();
+        const rawArgs = fnMatch[2] ? splitArgs(fnMatch[2]) : [];
+        const args = rawArgs.map(a => evalPA(a, dataItem));
+        switch (fnName) {
+          case 'string':
+            if (args[0] === null || args[0] === undefined) return '';
+            if (typeof args[0] === 'object') return JSON.stringify(args[0]);
+            return String(args[0]);
+          case 'first':
+            if (Array.isArray(args[0])) return args[0][0] ?? null;
+            return args[0]; // xpath may already unwrap single results
+          case 'concat':
+            return args.map(a => {
+              if (a === null || a === undefined) return '';
+              if (typeof a === 'object') return JSON.stringify(a);
+              return String(a);
+            }).join('');
+          case 'json': {
+            if (args[0] === null || args[0] === undefined) return {};
+            const jsonStr = String(args[0]).trim();
+            if (jsonStr.startsWith('<')) {
+              toLimitedText(args[0], LIMITS.maxPreviewXmlChars, 'json() XML input');
+              const jDoc = new DOMParser().parseFromString(jsonStr, 'application/xml');
+              const jErr = jDoc.querySelector('parsererror');
+              if (jErr) throw new Error('json: XML parse error');
+              return _xmlDocToJson(jDoc);
+            }
+            return JSON.parse(toLimitedText(args[0], LIMITS.maxPreviewJsonChars, 'json() input'));
+          }
+          case 'xml':
+            if (args[0] === null || args[0] === undefined) return null;
+            if (args[0] && typeof args[0] === 'object') {
+              assertSerializableSize(args[0], LIMITS.maxPreviewXmlChars, 'xml() input');
+            } else {
+              toLimitedText(args[0], LIMITS.maxPreviewXmlChars, 'xml() input');
+            }
+            return paXml(args[0]);
+          case 'xpath':
+            return BUILTINS.xpath(
+              toLimitedText(args[0], LIMITS.maxPreviewXmlChars, 'xpath() XML input'),
+              toLimitedText(args[1], LIMITS.maxXPathQueryChars, 'xpath() query')
+            );
+          case 'join': {
+            const arr = Array.isArray(args[0]) ? args[0] : (args[0] != null ? [args[0]] : []);
+            return arr.map(x => String(x ?? '')).join(args[1] ?? '');
+          }
+          default: {
+            // Delegate to the inlined expression-evaluator library.
+            // Use the original-case name and already-evaluated args so that
+            // PA syntax like item()?['field'] never reaches the library tokenizer.
+            const originalName = fnMatch[1];
+            if (!Object.prototype.hasOwnProperty.call(BUILTINS, originalName)) {
+              throw new Error(`Unknown PA function: ${originalName}`);
+            }
+            const fn = BUILTINS[originalName];
+            return fn(...args);
+          }
+        }
+      }
+
+      return s; // unrecognised — return raw
+    }
+
+    // ── Preview ───────────────────────────────────────────────────────────────
+
+    /**
+     * Evaluate a PA expression against a single item.
+     * Handles the full subset: item() chains, concat, json, xml, xpath.
+     */
+    function evaluateExpr(expr, item) {
+      const s = expr.trim().replace(/^@/, '');
+      if (!s) return expr;
+      if (s.length > LIMITS.maxPreviewExprChars) {
+        return '#ERR: Expression is too long for preview';
+      }
+      try {
+        return evalPA(s, item);
+      } catch (e) {
+        return '#ERR: ' + e.message;
+      }
+    }
+
+    function setPreview(text, isPlaceholder) {
+      previewDisplay.textContent = text;
+      previewDisplay.classList.toggle('placeholder', isPlaceholder);
+      previewBadge.classList.add('hidden');
+    }
+
+    function showPreviewBadge(text) {
+      previewBadge.textContent = text;
+      previewBadge.className = 'badge badge-neutral';
+      previewBadge.classList.remove('hidden');
+    }
+
+    function buildPreview() {
+      const arr = selectedKey ? availableArrays[selectedKey] : null;
+      if (!arr) {
+        setPreview('// Paste JSON and add rows to preview the Select action output.', true);
+        return;
+      }
+      if (arr.length === 0) {
+        setPreview('// The selected array is empty, so there is nothing to preview.', true);
+        return;
+      }
+
+      const rows = rowsList.querySelectorAll('.map-row');
+      const mappings = [];
+      rows.forEach(row => {
+        const k = row.querySelector('.row-key').value.trim();
+        const v = row.querySelector('.row-value').value;
+        if (k) mappings.push({ key: k, expr: v });
+      });
+      if (mappings.length === 0) {
+        setPreview('// Add mapping rows to see the preview.', true);
+        return;
+      }
+      if (mappings.length > LIMITS.maxPreviewMappings) {
+        setPreview(
+          `// Preview limited: ${mappings.length} mapping rows exceed the safe preview limit of ${LIMITS.maxPreviewMappings}.`,
+          true
+        );
+        showPreviewBadge('preview limited');
+        return;
+      }
+
+      const previewItems = arr.slice(0, LIMITS.maxPreviewItems);
+      const result = previewItems.map(item => {
+        const obj = Object.create(null);
+        for (const { key, expr } of mappings) {
+          obj[key] = evaluateExpr(expr, item);
+        }
+        return obj;
+      });
+
+      const previewText = JSON.stringify(result, null, 2);
+      if (previewText.length > LIMITS.maxPreviewOutputChars) {
+        setPreview(
+          `// Preview limited: rendered preview exceeds ${Math.round(LIMITS.maxPreviewOutputChars / 1024)} KB. Narrow the array or reduce the number of rows to inspect it safely.`,
+          true
+        );
+        showPreviewBadge(`${previewItems.length}/${arr.length} items`);
+        return;
+      }
+
+      previewDisplay.textContent = previewText;
+      previewDisplay.classList.remove('placeholder');
+      showPreviewBadge(
+        arr.length > previewItems.length
+          ? `${previewItems.length}/${arr.length} items`
+          : `${result.length} item${result.length !== 1 ? 's' : ''}`
+      );
+    }
+
+    // ── Refresh (generate + preview) ─────────────────────────────────────────
+
+    function refresh() {
+      if (refreshTimer !== null) {
+        clearTimeout(refreshTimer);
+        refreshTimer = null;
+      }
+      generate();
+      buildPreview();
+    }
+
+    function scheduleRefresh() {
+      generate();
+      if (refreshTimer !== null) {
+        clearTimeout(refreshTimer);
+      }
+      refreshTimer = window.setTimeout(() => {
+        refreshTimer = null;
+        buildPreview();
+      }, LIMITS.refreshDebounceMs);
+    }
+
+    // ── Copy ──────────────────────────────────────────────────────────────────
+
+    function copyOutput() {
+      const text = outputDisplay.textContent;
+      if (!text || outputDisplay.classList.contains('placeholder')) return;
+
+      const finish = () => {
+        copyBtn.textContent = 'Copied!';
+        copyBtn.classList.add('btn-copy-ok');
+        setTimeout(() => {
+          copyBtn.textContent = 'Copy';
+          copyBtn.classList.remove('btn-copy-ok');
+        }, 2000);
+      };
+
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(finish).catch(() => fallbackCopy(text, finish));
+      } else {
+        fallbackCopy(text, finish);
+      }
+    }
+
+    function fallbackCopy(text, cb) {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0;';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      try { document.execCommand('copy'); } catch (_) {}
+      document.body.removeChild(ta);
+      cb();
+    }
+
+    // ── Clear ─────────────────────────────────────────────────────────────────
+
+    function clearLeft() {
+      if (refreshTimer !== null) {
+        clearTimeout(refreshTimer);
+        refreshTimer = null;
+      }
+      jsonInput.value = '';
+      clearError();
+      resetDetectedState();
+    }
+
+    function clearOutput() {
+      setOutput('// Add mapping rows on the left to build the output.', true);
+    }
+
+    // ── Event listeners ───────────────────────────────────────────────────────
+
+    arrayPicker.addEventListener('change', () => {
+      selectedKey = arrayPicker.value;
+      applySelectedArray();
+    });
+
+    addRowBtn.addEventListener('click', () => addRow());
+    copyBtn.addEventListener('click', copyOutput);
+
+    // Ctrl/Cmd+Enter in textarea triggers parse
+    jsonInput.addEventListener('keydown', e => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        onParse();
+      }
+    });
+
+    // Auto-parse when JSON is pasted
+    jsonInput.addEventListener('paste', () => {
+      setTimeout(onParse, 0);
+    });
+  </script>
+
+
+</body>
+</html>

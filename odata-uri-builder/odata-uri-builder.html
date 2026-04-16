@@ -1,0 +1,1218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OData Query Builder — SharePoint Online</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+
+      --bg:      #0b0c0f;
+      --panel:   #12141a;
+      --panel-2: #0f1116;
+      --text:    #e8eaf0;
+      --muted:   #a6adbf;
+      --line:    rgba(255, 255, 255, 0.10);
+      --line-2:  rgba(255, 255, 255, 0.16);
+
+      --accent:   #742774;
+      --accent-2: #00BCB4;
+      --accent-3: #0078D4;
+
+      --good:   #107C10;
+      --warn:   #FFB900;
+      --bad:    #D13438;
+
+      --shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+
+      --sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Courier New', monospace;
+
+      --output-w: 420px;
+      --radius: 10px;
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg:      #faf9f8;
+        --panel:   #ffffff;
+        --panel-2: #f3f2f1;
+        --text:    #201f1e;
+        --muted:   #605e5c;
+        --line:    rgba(0, 0, 0, 0.12);
+        --line-2:  rgba(0, 0, 0, 0.18);
+        --shadow:  0 18px 50px rgba(0, 0, 0, 0.10);
+      }
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--sans);
+      font-size: 13px;
+      line-height: 1.45;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+      background:
+        radial-gradient(1200px 600px at 10% -10%, rgba(116, 39, 116, 0.18), transparent 45%),
+        radial-gradient(1200px 600px at 90% -20%, rgba(0, 188, 180, 0.16), transparent 50%),
+        var(--bg);
+      color: var(--text);
+    }
+
+    /* ─────────────────────────────────────── MAIN PANEL (left) */
+    .main-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      padding: 22px 28px 40px;
+      gap: 16px;
+      min-width: 0;
+    }
+
+    .main-panel::-webkit-scrollbar { width: 5px; }
+    .main-panel::-webkit-scrollbar-track { background: transparent; }
+    .main-panel::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--muted) 40%, transparent); border-radius: 3px; }
+
+    .app-header {
+      padding: 6px 2px 10px;
+      border-bottom: 1px solid var(--line);
+      margin-bottom: 4px;
+    }
+
+    .app-title {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.2px;
+    }
+
+    .app-title .logo-badge {
+      width: 30px;
+      height: 30px;
+      background: var(--accent);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 800;
+      color: #fff;
+      flex-shrink: 0;
+      letter-spacing: -0.5px;
+    }
+
+    .app-subtitle {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 5px;
+      padding-left: 39px;
+    }
+
+    /* ─────────────────────────────────────── CARD ROW (side-by-side) */
+    .card-row {
+      display: flex;
+      gap: 16px;
+      flex-shrink: 0;
+    }
+    .card-row > .input-card {
+      flex: 1;
+      min-width: 0;
+    }
+
+    /* ─────────────────────────────────────── INPUT CARDS */
+    .input-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .input-card-header {
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: color-mix(in srgb, var(--panel-2) 60%, transparent);
+    }
+
+    .input-card-icon { font-size: 13px; width: 18px; text-align: center; flex-shrink: 0; }
+
+    .input-card-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--muted);
+    }
+
+    .input-card-body {
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    /* ─────────────────────────────────────── OUTPUT PANEL (right) */
+    .output-panel {
+      width: var(--output-w);
+      min-width: var(--output-w);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      padding: 22px 18px 40px;
+      overflow-y: auto;
+      border-left: 1px solid var(--line);
+      background: color-mix(in srgb, var(--panel-2) 40%, transparent);
+    }
+
+    .output-panel-header {
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .output-panel-header h1 {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.2px;
+      margin: 0 0 4px;
+    }
+
+    .output-panel-header p {
+      font-size: 11.5px;
+      color: var(--muted);
+      line-height: 1.45;
+      margin: 0;
+    }
+
+    .output-panel-header p strong { color: var(--text); }
+    .output-panel-header p em { color: var(--accent-2); font-style: normal; }
+
+    /* Main panel form controls */
+    .main-panel input[type="text"],
+    .main-panel input[type="number"],
+    .main-panel textarea,
+    .main-panel select {
+      width: 100%;
+      background: color-mix(in srgb, var(--panel) 92%, transparent);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      color: var(--text);
+      padding: 8px 10px;
+      font-family: var(--sans);
+      font-size: 12px;
+      outline: none;
+      transition: border-color 0.12s, box-shadow 0.12s;
+    }
+
+    .main-panel input:focus,
+    .main-panel textarea:focus,
+    .main-panel select:focus {
+      border-color: color-mix(in srgb, var(--accent) 60%, var(--line));
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+    }
+
+    .main-panel input::placeholder,
+    .main-panel textarea::placeholder { color: color-mix(in srgb, var(--muted) 60%, transparent); font-size: 11.5px; }
+
+    .main-panel textarea { resize: vertical; min-height: 84px; font-size: 11.5px; }
+
+    .hint {
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+
+    /* Buttons */
+    .btn {
+      padding: 8px 13px;
+      border-radius: var(--radius);
+      border: 1px solid var(--line);
+      cursor: pointer;
+      font-family: var(--sans);
+      font-size: 12px;
+      font-weight: 600;
+      background: color-mix(in srgb, var(--panel) 92%, transparent);
+      color: var(--text);
+      transition: border-color 120ms ease, transform 80ms ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      white-space: nowrap;
+    }
+    .btn:hover { border-color: var(--line-2); }
+    .btn:active { transform: translateY(1px); }
+
+    .btn-secondary {
+      background: color-mix(in srgb, var(--accent) 12%, transparent);
+      border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+      color: var(--text);
+    }
+    .btn-secondary:hover { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
+
+    .btn-link {
+      background: none;
+      border: none;
+      color: var(--accent-2);
+      cursor: pointer;
+      font-family: var(--sans);
+      font-size: 12px;
+      padding: 0;
+      text-decoration: underline;
+    }
+    .btn-link:hover { color: color-mix(in srgb, var(--accent-2) 80%, var(--text)); }
+
+    .btn-icon-del {
+      background: none;
+      border: none;
+      color: color-mix(in srgb, var(--bad) 80%, var(--text));
+      cursor: pointer;
+      font-size: 13px;
+      padding: 2px 5px;
+      border-radius: var(--radius);
+      line-height: 1;
+      flex-shrink: 0;
+      transition: background 0.12s;
+    }
+    .btn-icon-del:hover { background: color-mix(in srgb, var(--bad) 20%, transparent); }
+
+    /* Preview box */
+    .preview-box {
+      background: color-mix(in srgb, var(--panel-2) 80%, transparent);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 6px 10px;
+    }
+    .preview-box .p-lbl {
+      font-size: 10px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 2px;
+    }
+    .preview-box .p-val {
+      color: var(--accent-2);
+      font-weight: 600;
+      font-size: 13px;
+      word-break: break-all;
+    }
+
+    /* Status messages */
+    .status-msg {
+      font-size: 11.5px;
+      padding: 6px 10px;
+      border-radius: var(--radius);
+      border: 1px solid var(--line);
+      display: none;
+    }
+    .status-msg.ok {
+      background: color-mix(in srgb, var(--good) 12%, transparent);
+      border-color: color-mix(in srgb, var(--good) 55%, var(--line));
+      color: color-mix(in srgb, var(--good) 80%, var(--text));
+      display: block;
+    }
+    .status-msg.err {
+      background: color-mix(in srgb, var(--bad) 12%, transparent);
+      border-color: color-mix(in srgb, var(--bad) 55%, var(--line));
+      color: color-mix(in srgb, var(--bad) 80%, var(--text));
+      display: block;
+    }
+
+    /* $select checkboxes */
+    .select-toolbar { display: flex; gap: 12px; align-items: center; }
+
+    .checkbox-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 3px 8px;
+      max-height: 220px;
+      overflow-y: auto;
+      padding-right: 2px;
+    }
+    .checkbox-grid::-webkit-scrollbar { width: 4px; }
+    .checkbox-grid::-webkit-scrollbar-thumb {
+      background: color-mix(in srgb, var(--muted) 40%, transparent);
+      border-radius: 2px;
+    }
+
+    .checkbox-grid label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      cursor: pointer;
+      color: var(--text);
+      padding: 2px 0;
+      overflow: hidden;
+    }
+    .checkbox-grid label span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .checkbox-grid input[type="checkbox"] {
+      width: 13px;
+      height: 13px;
+      flex-shrink: 0;
+      accent-color: var(--accent);
+    }
+
+    /* Filter rows */
+    #filterRows { display: flex; flex-direction: column; gap: 8px; }
+
+    .filter-card {
+      background: color-mix(in srgb, var(--panel-2) 80%, transparent);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .filter-connector {
+      display: flex;
+      align-items: center;
+      padding: 4px 8px;
+      background: color-mix(in srgb, var(--panel-2) 60%, transparent);
+      border-bottom: 1px solid var(--line);
+    }
+    .filter-connector select {
+      width: auto !important;
+      padding: 2px 7px !important;
+      font-size: 11px !important;
+      font-weight: 700 !important;
+    }
+
+    .filter-body { padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+
+    .filter-row1,
+    .filter-row2 { display: flex; gap: 6px; align-items: center; }
+
+    .filter-row1 .f-col  { flex: 2.5; min-width: 0; }
+    .filter-row1 .f-type { flex: 1.8; min-width: 0; }
+
+    .filter-row2 .f-dtfn { flex: 1.5; min-width: 0; }
+    .filter-row2 .f-op   { flex: 1.5; min-width: 0; }
+    .filter-row2 .f-val  { flex: 2;   min-width: 0; }
+
+    /* Orderby row */
+    .orderby-row { display: flex; gap: 8px; align-items: center; }
+    .orderby-row select { flex: 1; }
+    .radio-row { display: flex; gap: 14px; margin-top: 2px; }
+    .radio-row label {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+      font-size: 12px;
+      color: var(--text);
+    }
+    .radio-row input[type="radio"] { accent-color: var(--accent); width: 13px; height: 13px; }
+
+    /* Output card */
+    .output-card {
+      background: var(--panel);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--line);
+      overflow: hidden;
+    }
+    .output-card-hdr {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 11px 16px;
+      border-bottom: 1px solid var(--line);
+      background: color-mix(in srgb, var(--panel-2) 60%, transparent);
+    }
+    .output-card-hdr .card-lbl {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--muted);
+    }
+
+    .copy-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 16px;
+      background: color-mix(in srgb, var(--accent) 20%, transparent);
+      color: var(--text);
+      border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--line));
+      border-radius: var(--radius);
+      cursor: pointer;
+      font-family: var(--sans);
+      font-size: 12px;
+      font-weight: 700;
+      transition: border-color 120ms ease, transform 80ms ease;
+    }
+    .copy-btn:hover { border-color: color-mix(in srgb, var(--accent) 80%, var(--line)); }
+    .copy-btn:active { transform: translateY(1px); }
+    .copy-btn.copied {
+      background: color-mix(in srgb, var(--good) 20%, transparent);
+      border-color: color-mix(in srgb, var(--good) 55%, var(--line));
+    }
+
+    .uri-output {
+      width: 100%;
+      min-height: 90px;
+      padding: 14px 16px;
+      font-family: var(--mono);
+      font-size: 13px;
+      line-height: 1.65;
+      border: none;
+      resize: vertical;
+      color: var(--text);
+      outline: none;
+      background: transparent;
+      word-break: break-all;
+    }
+    .uri-output::placeholder { color: var(--muted); font-style: italic; }
+
+    /* Headers card */
+    .headers-card {
+      background: var(--panel);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--line);
+      overflow: hidden;
+    }
+    .headers-row {
+      display: flex;
+      gap: 0;
+    }
+    .header-field {
+      flex: 1;
+      padding: 10px 14px;
+      font-family: var(--mono);
+      font-size: 12px;
+    }
+    .header-field:first-child {
+      color: var(--muted);
+      border-right: 1px solid var(--line);
+    }
+    .header-field:last-child {
+      color: var(--accent-2);
+    }
+
+    /* Breakdown card */
+    .breakdown-card {
+      background: var(--panel);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--line);
+      padding: 16px;
+    }
+    .breakdown-card .bd-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+    .bd-table { width: 100%; border-collapse: collapse; }
+    .bd-table tr { border-bottom: 1px solid var(--line); }
+    .bd-table tr:last-child { border-bottom: none; }
+    .bd-table td { padding: 7px 4px; vertical-align: top; }
+    .bd-table .k {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--accent-2);
+      white-space: nowrap;
+      padding-right: 14px;
+      width: 1%;
+    }
+    .bd-table .v {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--text);
+      word-break: break-all;
+    }
+    .bd-table .v.none { color: var(--muted); font-style: italic; font-family: var(--sans); }
+
+    .empty-state {
+      text-align: center;
+      padding: 36px 20px;
+      color: var(--muted);
+    }
+    .empty-state .es-icon { font-size: 36px; margin-bottom: 10px; }
+    .empty-state p { font-size: 13px; }
+
+    .hidden { display: none !important; }
+
+    @media (max-width: 820px) {
+      body { flex-direction: column; height: auto; overflow: auto; }
+      .output-panel { width: 100%; min-width: 0; border-left: none; border-top: 1px solid var(--line); }
+      .main-panel { padding: 16px 16px 24px; }
+      :root { --output-w: 100%; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ════════════════════════════════ MAIN PANEL (left) ════════════════════════════════ -->
+<main class="main-panel">
+
+  <!-- App header -->
+  <div class="app-header">
+    <div class="app-title">
+      <div class="logo-badge">OD</div>
+      OData Query Builder
+    </div>
+    <div class="app-subtitle">SharePoint Online · Power Automate</div>
+  </div>
+
+  <!-- ── Row 1: List URL + Sample JSON ── -->
+  <div class="card-row">
+
+  <!-- ── 1. List URL ── -->
+  <div class="input-card" id="sec-url">
+    <div class="input-card-header">
+      <span class="input-card-icon">🔗</span>
+      <span class="input-card-label">List URL</span>
+    </div>
+    <div class="input-card-body">
+      <input type="text" id="urlInput"
+        placeholder="https://tenant.sharepoint.com/sites/Site/Lists/Employees/AllItems.aspx"
+        oninput="onURLChange()" />
+      <div id="titlePreview" class="preview-box hidden">
+        <div class="p-lbl">Extracted List Title</div>
+        <div class="p-val" id="titleValue"></div>
+      </div>
+      <div class="hint">The list title is extracted automatically from the URL.</div>
+    </div>
+  </div>
+
+  <!-- ── 2. Sample JSON ── -->
+  <div class="input-card" id="sec-json">
+    <div class="input-card-header">
+      <span class="input-card-icon">📋</span>
+      <span class="input-card-label">Sample JSON</span>
+    </div>
+    <div class="input-card-body">
+      <textarea id="jsonInput"
+        placeholder='Paste a single JSON item from the list response here (e.g. body["value"][0])…'
+        onpaste="scheduleParse()"></textarea>
+      <div id="jsonStatus" class="status-msg"></div>
+      <div class="hint">Internal SharePoint metadata keys are filtered out automatically.</div>
+    </div>
+  </div>
+
+  </div><!-- end card-row -->
+
+  <!-- ── Row 2: $select + $filter ── -->
+  <div class="card-row">
+
+  <!-- ── 3. $select ── -->
+  <div class="input-card" id="sec-select">
+    <div class="input-card-header">
+      <span class="input-card-icon">☑</span>
+      <span class="input-card-label">$select</span>
+    </div>
+    <div class="input-card-body">
+      <div id="selectCBPanel" class="hidden">
+        <div class="select-toolbar">
+          <button class="btn-link" onclick="selectAll(true)">Select All</button>
+          <button class="btn-link" onclick="selectAll(false)">Deselect All</button>
+        </div>
+        <div id="columnCheckboxes" class="checkbox-grid" style="margin-top:6px;"></div>
+      </div>
+      <div id="selectManualPanel">
+        <input type="text" id="manualSelect"
+          placeholder="e.g. Title,Author,Created"
+          oninput="updateURI()" />
+        <div class="hint">Comma-separated column names. Paste JSON above to get checkboxes.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 4. $filter ── -->
+  <div class="input-card" id="sec-filter">
+    <div class="input-card-header">
+      <span class="input-card-icon">🔍</span>
+      <span class="input-card-label">$filter</span>
+    </div>
+    <div class="input-card-body">
+      <div id="filterRows"></div>
+      <button class="btn btn-secondary" onclick="addFilterRow()" style="margin-top:2px;">+ Add Condition</button>
+    </div>
+  </div>
+
+  </div><!-- end card-row -->
+
+  <!-- ── Row 3: $orderby + $top ── -->
+  <div class="card-row">
+
+  <!-- ── 5. $orderby ── -->
+  <div class="input-card" id="sec-orderby">
+    <div class="input-card-header">
+      <span class="input-card-icon">↕</span>
+      <span class="input-card-label">$orderby</span>
+    </div>
+    <div class="input-card-body">
+      <select id="orderbyColSel" onchange="syncOrderby(this)" style="display:none;">
+        <option value="">— Select column —</option>
+      </select>
+      <input type="text" id="orderbyColTxt" placeholder="Column name" oninput="updateURI()" />
+      <div class="radio-row">
+        <label><input type="radio" name="orderDir" value="asc" checked onchange="updateURI()"> asc</label>
+        <label><input type="radio" name="orderDir" value="desc" onchange="updateURI()"> desc</label>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 6. $top ── -->
+  <div class="input-card" id="sec-top">
+    <div class="input-card-header">
+      <span class="input-card-icon">🔢</span>
+      <span class="input-card-label">$top</span>
+    </div>
+    <div class="input-card-body">
+      <input type="number" id="topInput" min="1" max="5000" placeholder="e.g. 100" oninput="updateURI()" />
+      <div class="hint">Limits the number of items returned.</div>
+    </div>
+  </div>
+
+  </div><!-- end card-row -->
+
+</main>
+
+<!-- ════════════════════════════════ OUTPUT PANEL (right) ════════════════════════════════ -->
+<aside class="output-panel">
+
+  <div class="output-panel-header">
+    <h1>Generated OData URI</h1>
+    <p>Paste this into the <strong>Send an HTTP request to SharePoint</strong> action → <em>URI</em> field in Power Automate.</p>
+  </div>
+
+  <!-- URI output -->
+  <div class="output-card">
+    <div class="output-card-hdr">
+      <span class="card-lbl">OData URI</span>
+      <button class="copy-btn" id="copyBtn" onclick="copyURI()">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M4 2a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H4zm0 1h6a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM2 1h7.5v1H2V1zm9.5 2H11v1h1.5v9H5v-1H4v1a2 2 0 0 0 2 2h7a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"/>
+        </svg>
+        Copy
+      </button>
+    </div>
+    <textarea id="uriOutput" class="uri-output" readonly
+      placeholder="_api/web/lists/getbytitle('YourList')/items?$select=…"></textarea>
+  </div>
+
+  <!-- Headers -->
+  <div class="headers-card">
+    <div class="output-card-hdr">
+      <span class="card-lbl">Headers</span>
+    </div>
+    <div class="headers-row">
+      <div class="header-field">Accept</div>
+      <div class="header-field">application/json;odata=nometadata</div>
+    </div>
+  </div>
+
+  <!-- Breakdown -->
+  <div class="breakdown-card">
+    <div class="bd-title">Query Breakdown</div>
+    <div id="breakdown">
+      <div class="empty-state">
+        <div class="es-icon">📐</div>
+        <p>Your query breakdown will appear here as you build it.</p>
+      </div>
+    </div>
+  </div>
+
+</aside>
+
+<!-- ════════════════════════════════════ SCRIPT ════════════════════════════════════ -->
+<script>
+'use strict';
+
+/* ── STATE ─────────────────────────────────────────────── */
+let parsedColumns = [];
+let filterCounter = 0;
+let parseTimer    = null;
+
+/* ── SECTION TOGGLE ─────────────────────────────────────── */
+function toggleSection(id) {
+  document.getElementById(id).classList.toggle('closed');
+}
+
+/* ── URL EXTRACTION ─────────────────────────────────────── */
+function onURLChange() {
+  const url   = document.getElementById('urlInput').value.trim();
+  const title = extractTitle(url);
+  const prev  = document.getElementById('titlePreview');
+  const bdg   = document.getElementById('bdg-url');
+
+  if (title) {
+    document.getElementById('titleValue').textContent = title;
+    prev.classList.remove('hidden');
+    setBadge('bdg-url', title);
+  } else {
+    prev.classList.add('hidden');
+    setBadge('bdg-url', null);
+  }
+  updateURI();
+}
+
+function extractTitle(url) {
+  if (!url) return '';
+  // /Lists/ListName/  or  /Lists/ListName?
+  let m = url.match(/\/[Ll]ists\/([^\/\?#]+)/);
+  if (m) return decodeURIComponent(m[1].replace(/\+/g, ' '));
+  // getbytitle('Name')
+  m = url.match(/getbytitle\s*\(\s*['"]([^'"]+)['"]\s*\)/i);
+  if (m) return m[1];
+  // listTitle=Name
+  m = url.match(/[?&]listTitle=([^&]+)/i);
+  if (m) return decodeURIComponent(m[1].replace(/\+/g, ' '));
+  return '';
+}
+
+/* ── JSON PARSING ───────────────────────────────────────── */
+const META_KEYS = new Set([
+  '__metadata','odata.type','odata.id','odata.etag','odata.editLink',
+  'Id','ID','GUID','AuthorId','EditorId','AppAuthorId','AppEditorId',
+  'FileSystemObjectType','ContentTypeId','ComplianceAssetId',
+  'ServerRedirectedEmbedUrl','ServerRedirectedEmbedUri','Attachments',
+  'OData__UIVersionString','OData__ColorTag',
+]);
+
+function isMetaKey(k) {
+  if (META_KEYS.has(k)) return true;
+  if (k.startsWith('@')) return true;
+  if (k.startsWith('{')) return true;
+  if (k.startsWith('odata.')) return true;
+  if (k.startsWith('OData__')) return true;
+  if (/^__.+__$/.test(k)) return true;  // __xxx__
+  if (k.includes('@odata')) return true; // mid-string annotations e.g. Skills@odata.type
+  if (k.endsWith('#Claims')) return true; // SharePoint people-picker claim fields
+  return false;
+}
+
+function scheduleParse() {
+  clearTimeout(parseTimer);
+  parseTimer = setTimeout(parseJSON, 350);
+}
+
+function parseJSON() {
+  const raw    = document.getElementById('jsonInput').value.trim();
+  const status = document.getElementById('jsonStatus');
+
+  if (!raw) { showStatus(status, 'No JSON detected.', 'err'); return; }
+
+  let obj;
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      obj = parsed[0];
+    } else if (parsed && typeof parsed === 'object') {
+      // Support {value:[...]} envelope
+      obj = (parsed.value && Array.isArray(parsed.value)) ? parsed.value[0] : parsed;
+    }
+  } catch (e) {
+    showStatus(status, '✕ Invalid JSON — ' + e.message, 'err');
+    return;
+  }
+
+  if (!obj || typeof obj !== 'object') {
+    showStatus(status, '✕ Could not find a JSON object to parse.', 'err');
+    return;
+  }
+
+  const keys = Object.keys(obj).filter(k => !isMetaKey(k));
+  if (keys.length === 0) {
+    showStatus(status, '✕ No usable columns found after filtering metadata.', 'err');
+    return;
+  }
+
+  parsedColumns = keys.slice().sort((a, b) => a.localeCompare(b));
+  renderCheckboxes(parsedColumns);
+  updateAllColumnDropdowns();
+  setBadge('bdg-json', parsedColumns.length + ' cols');
+  showStatus(status, '✓ Found ' + parsedColumns.length + ' columns.', 'ok');
+  updateURI();
+}
+
+function showStatus(el, msg, cls) {
+  el.textContent = msg;
+  el.className   = 'status-msg ' + cls;
+}
+
+/* ── $SELECT CHECKBOXES ──────────────────────────────────── */
+function renderCheckboxes(keys) {
+  const grid = document.getElementById('columnCheckboxes');
+  grid.innerHTML = '';
+
+  keys.forEach(k => {
+    const lbl = document.createElement('label');
+    const cb  = document.createElement('input');
+    cb.type     = 'checkbox';
+    cb.value    = k;
+    cb.checked  = false;
+    cb.onchange = updateURI;
+
+    const sp = document.createElement('span');
+    sp.textContent = k;
+    sp.title       = k;
+
+    lbl.appendChild(cb);
+    lbl.appendChild(sp);
+    grid.appendChild(lbl);
+  });
+
+  document.getElementById('selectCBPanel').classList.remove('hidden');
+  document.getElementById('selectManualPanel').classList.add('hidden');
+}
+
+function selectAll(checked) {
+  document.querySelectorAll('#columnCheckboxes input[type="checkbox"]').forEach(cb => {
+    cb.checked = checked;
+  });
+  updateURI();
+}
+
+/* ── COLUMN DROPDOWNS (shared helper) ───────────────────── */
+function populateColSelect(sel, currentVal) {
+  const prev = currentVal !== undefined ? currentVal : sel.value;
+  sel.innerHTML = '<option value="">— Column —</option>';
+  parsedColumns.forEach(k => {
+    const opt = document.createElement('option');
+    opt.value       = k;
+    opt.textContent = k;
+    sel.appendChild(opt);
+  });
+  if (prev) sel.value = prev;
+}
+
+function updateAllColumnDropdowns() {
+  // Filter rows
+  document.querySelectorAll('.filter-card').forEach(card => {
+    const sel = card.querySelector('.f-col-sel');
+    if (sel) {
+      populateColSelect(sel);
+      sel.style.display = '';
+      const txt = card.querySelector('.f-col-txt');
+      if (txt) txt.style.display = 'none';
+    }
+  });
+
+  // $orderby
+  const obSel = document.getElementById('orderbyColSel');
+  const obTxt = document.getElementById('orderbyColTxt');
+  const prev  = obTxt.value.trim();
+  populateColSelect(obSel);
+  obSel.style.display = '';
+  if (prev) {
+    obSel.value = prev;
+    if (obSel.value) obTxt.value = '';  // matched — clear manual
+  }
+}
+
+/* ── $FILTER BUILDER ────────────────────────────────────── */
+const NUM_OPS  = ['eq','ne','lt','le','gt','ge'];
+const STR_OPS  = ['eq','ne','startswith','substringof'];
+const DT_OPS   = ['eq','ne','lt','le','gt','ge'];
+const DT_FUNCS = ['day','month','year','hour','minute','second'];
+
+function opOptions(ops) {
+  return ops.map(o => `<option value="${o}">${o}</option>`).join('');
+}
+function dtFuncOptions() {
+  return DT_FUNCS.map(f => `<option value="${f}">${f}()</option>`).join('');
+}
+
+function addFilterRow() {
+  const id  = 'fc' + (++filterCounter);
+  const idx = document.getElementById('filterRows').children.length;
+
+  const card = document.createElement('div');
+  card.className = 'filter-card';
+  card.id        = id;
+
+  const hasColumns = parsedColumns.length > 0;
+
+  card.innerHTML = `
+    <div class="filter-connector${idx === 0 ? ' hidden' : ''}">
+      <select class="f-logic" onchange="updateURI()">
+        <option value="and">AND</option>
+        <option value="or">OR</option>
+      </select>
+    </div>
+    <div class="filter-body">
+      <div class="filter-row1">
+        <select class="f-col-sel f-col" onchange="updateURI()"
+          style="${hasColumns ? '' : 'display:none;'}">
+          <option value="">— Column —</option>
+        </select>
+        <input type="text" class="f-col-txt f-col" placeholder="Column name"
+          oninput="updateURI()"
+          style="${hasColumns ? 'display:none;' : ''}" />
+        <select class="f-type f-type" onchange="onFilterTypeChange(this)">
+          <option value="string">String</option>
+          <option value="numeric">Numeric</option>
+          <option value="datetime">DateTime</option>
+        </select>
+        <button class="btn-icon-del" onclick="removeFilterRow('${id}')" title="Remove">✕</button>
+      </div>
+      <div class="filter-row2">
+        <select class="f-dtfn hidden" onchange="updateURI()">${dtFuncOptions()}</select>
+        <select class="f-op" onchange="onFilterOpChange(this)">${opOptions(STR_OPS)}</select>
+        <input type="text" class="f-val" placeholder="Value" oninput="updateURI()" />
+      </div>
+    </div>`;
+
+  document.getElementById('filterRows').appendChild(card);
+
+  if (hasColumns) {
+    populateColSelect(card.querySelector('.f-col-sel'));
+  }
+
+  updateFilterBadge();
+  updateURI();
+}
+
+function removeFilterRow(id) {
+  const el = document.getElementById(id);
+  if (el) el.remove();
+
+  // First card should never show the connector
+  const first = document.querySelector('#filterRows .filter-card');
+  if (first) first.querySelector('.filter-connector').classList.add('hidden');
+
+  updateFilterBadge();
+  updateURI();
+}
+
+function onFilterTypeChange(sel) {
+  const card = sel.closest('.filter-card');
+  const opSel = card.querySelector('.f-op');
+  const dtFn  = card.querySelector('.f-dtfn');
+  const val   = card.querySelector('.f-val');
+
+  opSel.innerHTML = '';
+
+  switch (sel.value) {
+    case 'numeric':
+      opSel.innerHTML = opOptions(NUM_OPS);
+      dtFn.classList.add('hidden');
+      val.placeholder = 'Numeric value';
+      break;
+    case 'datetime':
+      opSel.innerHTML = opOptions(DT_OPS);
+      dtFn.classList.remove('hidden');
+      val.placeholder = 'e.g. 2024 or 15';
+      break;
+    default: // string
+      opSel.innerHTML = opOptions(STR_OPS);
+      dtFn.classList.add('hidden');
+      val.placeholder = 'Value';
+  }
+  updateURI();
+}
+
+function onFilterOpChange(sel) {
+  const val = sel.closest('.filter-card').querySelector('.f-val');
+  switch (sel.value) {
+    case 'substringof': val.placeholder = 'Search string (will be 1st param)'; break;
+    case 'startswith':  val.placeholder = 'Prefix string'; break;
+    default:            val.placeholder = 'Value';
+  }
+  updateURI();
+}
+
+function getFilterCol(card) {
+  const sel = card.querySelector('.f-col-sel');
+  const txt = card.querySelector('.f-col-txt');
+  if (sel && sel.style.display !== 'none' && sel.value) return sel.value;
+  if (txt && txt.value.trim()) return txt.value.trim();
+  return '';
+}
+
+function buildFilter() {
+  const parts = [];
+
+  document.querySelectorAll('#filterRows .filter-card').forEach((card, i) => {
+    const col   = getFilterCol(card);
+    const type  = card.querySelector('.f-type').value;
+    const op    = card.querySelector('.f-op').value;
+    const val   = card.querySelector('.f-val').value.trim();
+    const logic = i > 0 ? card.querySelector('.f-logic').value : null;
+
+    if (!col || !val) return;
+
+    let expr = '';
+    if (type === 'numeric') {
+      expr = `${col} ${op} ${val}`;
+    } else if (type === 'string') {
+      if      (op === 'startswith')  expr = `startswith(${col}, '${val}')`;
+      else if (op === 'substringof') expr = `substringof('${val}', ${col})`;
+      else                           expr = `${col} ${op} '${val}'`;
+    } else if (type === 'datetime') {
+      const fn = card.querySelector('.f-dtfn').value;
+      expr = `${fn}(${col}) ${op} ${val}`;
+    }
+
+    if (expr) {
+      if (parts.length && logic) parts.push(logic);
+      parts.push(expr);
+    }
+  });
+
+  return parts.join(' ');
+}
+
+function updateFilterBadge() {
+  const n = document.querySelectorAll('#filterRows .filter-card').length;
+  setBadge('bdg-filter', n > 0 ? n + (n === 1 ? ' cond.' : ' conds.') : null);
+}
+
+/* ── $ORDERBY ────────────────────────────────────────────── */
+function syncOrderby(sel) {
+  // When dropdown changes, mirror to text input
+  const txt = document.getElementById('orderbyColTxt');
+  txt.value = sel.value;
+  updateURI();
+}
+
+/* ── URI BUILDER ─────────────────────────────────────────── */
+function updateURI() {
+  const title   = getListTitle();
+  const select  = getSelectValue();
+  const filter  = buildFilter();
+  const orderby = getOrderby();
+  const top     = document.getElementById('topInput').value.trim();
+
+  // Badges
+  const selCount = select ? select.split(',').filter(Boolean).length : 0;
+  setBadge('bdg-select',  selCount > 0  ? selCount + ' col' + (selCount > 1 ? 's' : '') : null);
+  setBadge('bdg-orderby', orderby || null);
+  setBadge('bdg-top',     top ? '≤ ' + top : null);
+
+  const base = `_api/web/lists/getbytitle('${title || 'YourListTitle'}')/items`;
+
+  const params = [];
+  if (select)  params.push('$select='  + select);
+  if (filter)  params.push('$filter='  + filter);
+  if (orderby) params.push('$orderby=' + orderby);
+  if (top)     params.push('$top='     + top);
+
+  const uri = params.length ? base + '?' + params.join('&') : base;
+
+  document.getElementById('uriOutput').value = uri;
+  renderBreakdown(title, base, select, filter, orderby, top);
+}
+
+function getListTitle() {
+  const tv = document.getElementById('titleValue').textContent.trim();
+  if (tv) return tv;
+  return extractTitle(document.getElementById('urlInput').value.trim());
+}
+
+function getSelectValue() {
+  const cbPanel = document.getElementById('selectCBPanel');
+  if (!cbPanel.classList.contains('hidden')) {
+    return Array.from(
+      document.querySelectorAll('#columnCheckboxes input[type="checkbox"]:checked')
+    ).map(cb => cb.value).join(',');
+  }
+  return document.getElementById('manualSelect').value.trim()
+    .replace(/\s*,\s*/g, ',').replace(/,$/, '');
+}
+
+function getOrderby() {
+  const col = document.getElementById('orderbyColTxt').value.trim();
+  if (!col) return '';
+  const dir = document.querySelector('input[name="orderDir"]:checked').value;
+  return `${col} ${dir}`;
+}
+
+/* ── BREAKDOWN ───────────────────────────────────────────── */
+function renderBreakdown(title, base, select, filter, orderby, top) {
+  const el = document.getElementById('breakdown');
+
+  const rows = [
+    { k: 'Base',      v: base },
+    { k: '$select',   v: select  || null },
+    { k: '$filter',   v: filter  || null },
+    { k: '$orderby',  v: orderby || null },
+    { k: '$top',      v: top     || null },
+  ];
+
+  el.innerHTML = '';
+  const tbl = document.createElement('table');
+  tbl.className = 'bd-table';
+
+  rows.forEach(r => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="k">${r.k}</td>
+      <td class="v${r.v ? '' : ' none'}">${r.v || '(not set)'}</td>`;
+    tbl.appendChild(tr);
+  });
+
+  el.appendChild(tbl);
+}
+
+/* ── COPY ────────────────────────────────────────────────── */
+function copyURI() {
+  const uri = document.getElementById('uriOutput').value;
+  if (!uri) return;
+
+  const btn = document.getElementById('copyBtn');
+
+  const doSuccess = () => {
+    btn.textContent = '✓ Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.innerHTML = `
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M4 2a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H4zm0 1h6a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM2 1h7.5v1H2V1zm9.5 2H11v1h1.5v9H5v-1H4v1a2 2 0 0 0 2 2h7a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"/>
+        </svg> Copy`;
+      btn.classList.remove('copied');
+    }, 2200);
+  };
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(uri).then(doSuccess).catch(() => legacyCopy(uri, doSuccess));
+  } else {
+    legacyCopy(uri, doSuccess);
+  }
+}
+
+function legacyCopy(text, cb) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'position:fixed;opacity:0;';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); cb(); } catch(_) {}
+  document.body.removeChild(ta);
+}
+
+/* ── BADGE HELPER ────────────────────────────────────────── */
+function setBadge(id, text) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (text) { el.textContent = text; el.classList.add('on'); }
+  else       { el.classList.remove('on'); }
+}
+
+/* ── INIT ────────────────────────────────────────────────── */
+updateURI();
+</script>
+</body>
+</html>

@@ -1,0 +1,1193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SharePoint List Schema Parser</title>
+<style>
+  :root {
+    --bg: #0e1117;
+    --surface: #161b22;
+    --surface-2: #1c2333;
+    --border: #2a3140;
+    --border-focus: #4a8cff;
+    --text: #e2e8f0;
+    --text-dim: #7b8ba3;
+    --text-muted: #4a5568;
+    --accent: #4a8cff;
+    --accent-glow: rgba(74, 140, 255, 0.15);
+    --accent-dim: rgba(74, 140, 255, 0.08);
+    --green: #3dd68c;
+    --green-glow: rgba(61, 214, 140, 0.15);
+    --red: #f87171;
+    --orange: #fb923c;
+    --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+    --sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --radius: 10px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Subtle grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(74, 140, 255, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(74, 140, 255, 0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app {
+    position: relative;
+    z-index: 1;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+
+  /* Header */
+  .header {
+    margin-bottom: 40px;
+  }
+
+  .header-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    background: var(--accent-dim);
+    border: 1px solid rgba(74, 140, 255, 0.2);
+    padding: 5px 12px;
+    border-radius: 20px;
+    margin-bottom: 16px;
+  }
+
+  .header-tag::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
+  }
+
+  .header h1 {
+    font-size: 32px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    margin-bottom: 8px;
+  }
+
+  .header p {
+    color: var(--text-dim);
+    font-size: 15px;
+    line-height: 1.5;
+  }
+
+  .header code,
+  .step-content code {
+    font-family: var(--mono);
+    font-size: 0.92em;
+    color: var(--text);
+    background: rgba(74, 140, 255, 0.12);
+    border: 1px solid rgba(74, 140, 255, 0.18);
+    border-radius: 6px;
+    padding: 2px 6px;
+  }
+
+  /* Guided workflow */
+  .workflow {
+    display: grid;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .step-card {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 16px;
+    align-items: start;
+    padding: 18px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+  }
+
+  .step-number {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-dim);
+    border: 1px solid rgba(74, 140, 255, 0.2);
+    flex-shrink: 0;
+  }
+
+  .step-content {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+  }
+
+  .step-title {
+    font-size: 17px;
+    font-weight: 600;
+    line-height: 1.35;
+  }
+
+  .step-content p {
+    color: var(--text-dim);
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  .step-field-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(240px, 1fr);
+    gap: 12px;
+  }
+
+  .field-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .field-wrap label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-family: var(--mono);
+  }
+
+  .field-wrap input[type="text"],
+  .field-wrap input[type="url"] {
+    font-family: var(--mono);
+    font-size: 13px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 7px 12px;
+    border-radius: 6px;
+    transition: border-color 0.2s;
+  }
+
+  .field-wrap input[type="text"],
+  .field-wrap input[type="url"] {
+    width: 100%;
+  }
+
+  .field-wrap input[type="text"]:focus,
+  .field-wrap input[type="url"]:focus {
+    outline: none;
+    border-color: var(--border-focus);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+
+  .field-wrap input[type="text"]::placeholder,
+  .field-wrap input[type="url"]::placeholder {
+    color: var(--text-muted);
+  }
+
+  /* Panels */
+  .panels {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    align-items: stretch;
+  }
+
+  @media (max-width: 800px) {
+    .panels { grid-template-columns: 1fr; }
+    .step-card { grid-template-columns: 1fr; }
+    .step-field-grid { grid-template-columns: 1fr; }
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+  }
+
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    height: 64px;
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-2);
+  }
+
+  .panel-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .panel-title-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 24px;
+  }
+
+  .panel-title {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+    font-family: var(--mono);
+  }
+
+  .panel-badge {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 10px;
+    background: var(--accent-dim);
+    color: var(--accent);
+    border: 1px solid rgba(74, 140, 255, 0.2);
+  }
+
+  .panel-badge.success {
+    background: var(--green-glow);
+    color: var(--green);
+    border-color: rgba(61, 214, 140, 0.2);
+  }
+
+  .panel-badge.error {
+    background: rgba(248, 113, 113, 0.1);
+    color: var(--red);
+    border-color: rgba(248, 113, 113, 0.2);
+  }
+
+  textarea {
+    width: 100%;
+    min-height: 460px;
+    padding: 18px;
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.6;
+    background: transparent;
+    border: none;
+    color: var(--text);
+    resize: vertical;
+    tab-size: 2;
+  }
+
+  textarea:focus {
+    outline: none;
+  }
+
+  textarea::placeholder {
+    color: var(--text-muted);
+  }
+
+  .step-actions {
+    margin-top: 0;
+    flex-wrap: wrap;
+  }
+
+  .query-output {
+    min-height: 120px;
+    padding: 14px 16px;
+    background: rgba(14, 17, 23, 0.55);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+
+  .query-output:focus {
+    border-color: var(--border-focus);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+
+  .query-output.error {
+    color: var(--red);
+    border-color: rgba(248, 113, 113, 0.35);
+  }
+
+  .panel-copy-btn {
+    padding: 6px 10px;
+    font-size: 12px;
+    border-radius: 6px;
+    flex-shrink: 0;
+  }
+
+  .panel-step-number {
+    width: 24px;
+    height: 24px;
+    font-size: 11px;
+  }
+
+  .output-wrap {
+    position: relative;
+    flex: 1;
+    overflow: auto;
+    min-height: 0;
+  }
+
+  .output-pre {
+    padding: 18px;
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--text);
+    white-space: pre-wrap;
+    word-break: break-word;
+    min-height: 460px;
+  }
+
+  .output-pre .key { color: #7dd3fc; }
+  .output-pre .string { color: #86efac; }
+  .output-pre .number { color: #fbbf24; }
+  .output-pre .boolean { color: #c4b5fd; }
+  .output-pre .null { color: var(--text-muted); }
+  .output-pre .bracket { color: var(--text-dim); }
+  .output-pre .comma { color: var(--text-muted); }
+
+  .placeholder-msg {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 460px;
+    color: var(--text-muted);
+    font-size: 14px;
+    gap: 12px;
+    padding: 40px;
+    text-align: center;
+  }
+
+  .placeholder-msg .icon {
+    font-size: 32px;
+    opacity: 0.4;
+  }
+
+  /* Buttons */
+  .actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+  }
+
+  .btn {
+    font-family: var(--sans);
+    font-size: 14px;
+    font-weight: 600;
+    padding: 11px 22px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+
+  .btn-primary:hover {
+    background: #3b7be8;
+    box-shadow: 0 4px 20px rgba(74, 140, 255, 0.3);
+    transform: translateY(-1px);
+  }
+
+  .btn-primary:active {
+    transform: translateY(0);
+  }
+
+  .btn-secondary {
+    background: var(--surface);
+    color: var(--text);
+    border-color: var(--border);
+  }
+
+  .btn-secondary:hover {
+    background: var(--surface-2);
+    border-color: var(--text-dim);
+  }
+
+  .btn-copy {
+    background: var(--green-glow);
+    color: var(--green);
+    border-color: rgba(61, 214, 140, 0.25);
+  }
+
+  .btn-copy:hover {
+    background: rgba(61, 214, 140, 0.2);
+    box-shadow: 0 4px 20px rgba(61, 214, 140, 0.15);
+    transform: translateY(-1px);
+  }
+
+  .btn-copy:active {
+    transform: translateY(0);
+  }
+
+  .btn-copy.copied {
+    background: var(--green);
+    color: #0e1117;
+    border-color: var(--green);
+  }
+
+  .btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    transform: none !important;
+    box-shadow: none !important;
+  }
+
+  /* Stats */
+  .stats {
+    display: flex;
+    gap: 20px;
+    margin-top: 20px;
+    flex-wrap: wrap;
+  }
+
+  .stat {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .stat-value {
+    font-weight: 700;
+    font-size: 18px;
+    color: var(--text);
+  }
+
+  .stat-value.accent { color: var(--accent); }
+  .stat-value.green { color: var(--green); }
+  .stat-value.orange { color: var(--orange); }
+
+  /* Checkbox settings */
+  .checkbox-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+
+  .checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--text-dim);
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.2s;
+  }
+
+  .checkbox-label:hover { color: var(--text); }
+
+  .checkbox-label input[type="checkbox"] {
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border: 1.5px solid var(--border);
+    border-radius: 4px;
+    background: var(--surface);
+    cursor: pointer;
+    position: relative;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+
+  .checkbox-label input[type="checkbox"]:checked {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+
+  .checkbox-label input[type="checkbox"]:checked::after {
+    content: '';
+    position: absolute;
+    left: 4.5px;
+    top: 1.5px;
+    width: 5px;
+    height: 8px;
+    border: solid #fff;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+  }
+
+  /* Error display */
+  .error-msg {
+    color: var(--red);
+    padding: 18px;
+    font-size: 13px;
+    line-height: 1.6;
+    min-height: 460px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .error-msg .err-icon {
+    flex-shrink: 0;
+    font-size: 16px;
+  }
+
+  /* Scroll */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="header">
+    <div class="header-tag">Schema Tool</div>
+    <h1>SharePoint List Schema Parser</h1>
+    <p>Follow the guided flow: paste a SharePoint list URL, generate the REST API schema query, then paste the XML response into <code>XML Input</code> to get a compact, token-efficient JSON schema.</p>
+  </div>
+
+  <div class="workflow">
+    <div class="step-card">
+      <div class="step-number">1</div>
+      <div class="step-content">
+        <div class="step-title">Paste the SharePoint List URL</div>
+        <p>Paste the SharePoint list page URL you want to inspect. If the tool cannot infer the list title from the URL, use the optional list name field as a fallback.</p>
+        <div class="step-field-grid">
+          <div class="field-wrap">
+            <label for="listUrl">SharePoint List URL</label>
+            <input type="url" id="listUrl" placeholder="https://80v7vn.sharepoint.com/sites/MyTestingSite/Lists/Employees/AllItems.aspx" spellcheck="false" />
+          </div>
+          <div class="field-wrap">
+            <label for="listName">List Name (optional)</label>
+            <input type="text" id="listName" placeholder="Fallback title / JSON list name" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="step-card">
+      <div class="step-number">2</div>
+      <div class="step-content">
+        <div class="step-title">Generate the SharePoint REST API query</div>
+        <p>Build the schema request that matches the fields this parser expects, then run that query in SharePoint.</p>
+        <div class="actions step-actions">
+          <button class="btn btn-secondary" id="generateQueryBtn" onclick="generateSchemaQuery()">Generate Query</button>
+          <button class="btn btn-copy" id="copyQueryBtn" onclick="copyQuery()" disabled>Copy Query</button>
+        </div>
+        <textarea id="queryOutput" class="query-output" readonly spellcheck="false" placeholder="The generated SharePoint REST API query will appear here."></textarea>
+      </div>
+    </div>
+  </div>
+
+  <div class="checkbox-group">
+    <label class="checkbox-label">
+      <input type="checkbox" id="optReadonly" />
+      Include read-only columns separately
+    </label>
+    <label class="checkbox-label">
+      <input type="checkbox" id="optMaxLen" checked />
+      Include MaxLength (when non-default)
+    </label>
+    <label class="checkbox-label">
+      <input type="checkbox" id="optMinMax" checked />
+      Include MinValue / MaxValue (when set)
+    </label>
+    <label class="checkbox-label">
+      <input type="checkbox" id="optFmt" checked />
+      Include DisplayFormat
+    </label>
+  </div>
+
+  <div class="panels">
+    <!-- Input Panel -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title-group">
+          <span class="step-number panel-step-number">3</span>
+          <span class="panel-title">XML Input</span>
+        </div>
+        <div class="panel-header-actions">
+          <span class="panel-badge" id="inputBadge">Paste XML</span>
+        </div>
+      </div>
+      <textarea id="xmlInput" placeholder="Step 3: paste the full SharePoint REST API XML schema response here..." spellcheck="false"></textarea>
+    </div>
+
+    <!-- Output Panel -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title-group">
+          <span class="panel-title">JSON Output</span>
+        </div>
+        <div class="panel-header-actions">
+          <button class="btn btn-copy panel-copy-btn" id="copyBtn" onclick="copyOutput()" disabled>Copy JSON</button>
+          <span class="panel-badge" id="outputBadge">Waiting</span>
+        </div>
+      </div>
+      <div class="output-wrap" id="outputWrap">
+        <div class="placeholder-msg" id="placeholder">
+          <span class="icon">&#123; &#125;</span>
+          <span>Parsed JSON will appear here</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="btn btn-primary" id="parseBtn" onclick="parseSchema()">Parse Schema</button>
+    <button class="btn btn-secondary" id="clearBtn" onclick="clearAll()">Clear</button>
+  </div>
+
+  <div class="stats" id="stats" style="display:none;">
+    <div class="stat"><span class="stat-value accent" id="statTotal">0</span> columns</div>
+    <div class="stat"><span class="stat-value green" id="statEditable">0</span> editable</div>
+    <div class="stat"><span class="stat-value orange" id="statReadonly">0</span> read-only</div>
+  </div>
+</div>
+
+<script>
+  var lastOutput = '';
+  var lastQuery = '';
+  var listNameWasAutoFilled = false;
+  var COPY_OUTPUT_LABEL = 'Copy JSON';
+
+  // Known system/internal columns to skip entirely
+  var SYSTEM_INTERNALS = new Set([
+    '_ColorTag', 'ComplianceAssetId', 'ContentType', 'Edit',
+    'LinkTitleNoMenu', 'LinkTitle', 'DocIcon',
+    'ItemChildCount', 'FolderChildCount',
+    '_ComplianceFlags', '_ComplianceTag', '_ComplianceTagWrittenTime',
+    '_ComplianceTagUserId', '_IsRecord', 'AppAuthor', 'AppEditor'
+  ]);
+
+  // Read-only system columns that are useful to list
+  var READONLY_COLUMNS = new Set([
+    'ID', 'Modified', 'Created', 'Author', 'Editor', '_UIVersionString'
+  ]);
+
+  // IEEE max float — means "no constraint set"
+  var IEEE_MAX = 1.7976931348623157e+308;
+  var SCHEMA_QUERY_SELECT = 'Title,InternalName,TypeAsString,Required,Choices,DefaultValue,Description,MaxLength,MinimumValue,MaximumValue,DisplayFormat,RichText,FillInChoice,Indexed,EnforceUniqueValues';
+  var SCHEMA_QUERY_FILTER = 'Hidden%20eq%20false';
+
+  function getTextContent(entry, tagName) {
+    // Try with d: namespace prefix first (most browsers)
+    var els = entry.getElementsByTagName('d:' + tagName);
+    if (els.length === 0) {
+      // Fallback: try without namespace prefix
+      els = entry.getElementsByTagName(tagName);
+    }
+    if (els.length === 0) return null;
+    var el = els[0];
+    // Check for null attribute
+    if (el.getAttribute('m:null') === 'true') return null;
+    return el.textContent || null;
+  }
+
+  function getChoices(entry) {
+    var choices = [];
+    // Try d:element first
+    var elements = entry.getElementsByTagName('d:element');
+    if (elements.length === 0) {
+      elements = entry.getElementsByTagName('element');
+    }
+    for (var i = 0; i < elements.length; i++) {
+      var text = elements[i].textContent;
+      if (text) choices.push(text);
+    }
+    return choices.length > 0 ? choices : null;
+  }
+
+  function formatDisplayFormat(value, type) {
+    if (value === null) return null;
+    var num = parseInt(value, 10);
+    if (isNaN(num)) return null;
+    if (type === 'DateTime') {
+      return num === 1 ? 'DateOnly' : 'DateTime';
+    }
+    if (type === 'URL') {
+      return num === 1 ? 'Image' : 'Hyperlink';
+    }
+    if (type === 'Number' || type === 'Currency') {
+      return num === -1 ? 'Auto' : num + ' decimals';
+    }
+    return null;
+  }
+
+  function decodeUrlSegment(segment) {
+    try {
+      return decodeURIComponent(segment);
+    } catch (e) {
+      return segment;
+    }
+  }
+
+  function extractListContext(rawUrl) {
+    var url;
+    try {
+      url = new URL(rawUrl);
+    } catch (e) {
+      throw new Error('Enter a valid SharePoint list URL.');
+    }
+
+    var rawSegments = url.pathname.split('/').filter(Boolean);
+    var decodedSegments = rawSegments.map(decodeUrlSegment);
+    var siteSegments = [];
+    var listTitle = '';
+    var listsIndex = decodedSegments.indexOf('Lists');
+    var formsIndex = decodedSegments.indexOf('Forms');
+    var layoutsIndex = decodedSegments.indexOf('_layouts');
+
+    if (listsIndex !== -1 && rawSegments.length > listsIndex + 1) {
+      siteSegments = rawSegments.slice(0, listsIndex);
+      listTitle = decodeUrlSegment(rawSegments[listsIndex + 1]);
+    } else if (formsIndex > 0) {
+      siteSegments = rawSegments.slice(0, formsIndex - 1);
+      listTitle = decodeUrlSegment(rawSegments[formsIndex - 1]);
+    } else if (layoutsIndex !== -1) {
+      siteSegments = rawSegments.slice(0, layoutsIndex);
+    } else if (rawSegments.length > 0) {
+      if (/\.aspx$/i.test(rawSegments[rawSegments.length - 1])) {
+        siteSegments = rawSegments.slice(0, rawSegments.length - 1);
+      } else {
+        siteSegments = rawSegments.slice();
+      }
+    }
+
+    if (!listTitle) {
+      listTitle = url.searchParams.get('ListTitle') || url.searchParams.get('listTitle') || '';
+    }
+
+    var siteUrl = url.origin;
+    if (siteSegments.length > 0) {
+      siteUrl += '/' + siteSegments.join('/');
+    }
+
+    return {
+      siteUrl: siteUrl.replace(/\/+$/, ''),
+      listTitle: listTitle.trim()
+    };
+  }
+
+  function buildSchemaQuery(siteUrl, listTitle) {
+    var escapedTitle = encodeURIComponent(listTitle.replace(/'/g, "''"));
+    return siteUrl + "/_api/web/lists/GetByTitle('" + escapedTitle + "')/Fields?$filter=" + SCHEMA_QUERY_FILTER + '&$select=' + SCHEMA_QUERY_SELECT;
+  }
+
+  function clearAutoFilledListName() {
+    if (!listNameWasAutoFilled) return;
+    document.getElementById('listName').value = '';
+    listNameWasAutoFilled = false;
+  }
+
+  function resetCopyButton(btn, defaultText) {
+    btn.textContent = defaultText;
+    btn.classList.remove('copied');
+  }
+
+  function setCopiedState(btn, defaultText) {
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(function() {
+      resetCopyButton(btn, defaultText);
+    }, 2000);
+  }
+
+  function copyText(text, btn, defaultText) {
+    navigator.clipboard.writeText(text).then(function() {
+      setCopiedState(btn, defaultText);
+    }).catch(function() {
+      // Fallback for older browsers
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand('copy');
+        setCopiedState(btn, defaultText);
+      } catch (e) {
+        btn.textContent = 'Copy failed';
+        setTimeout(function() {
+          resetCopyButton(btn, defaultText);
+        }, 2000);
+      }
+      document.body.removeChild(ta);
+    });
+  }
+
+  function resetQueryState() {
+    var queryOutput = document.getElementById('queryOutput');
+    var copyQueryBtn = document.getElementById('copyQueryBtn');
+    lastQuery = '';
+    queryOutput.value = '';
+    queryOutput.classList.remove('error');
+    copyQueryBtn.disabled = true;
+    resetCopyButton(copyQueryBtn, 'Copy Query');
+  }
+
+  function showQueryError(msg) {
+    var queryOutput = document.getElementById('queryOutput');
+    var copyQueryBtn = document.getElementById('copyQueryBtn');
+    lastQuery = '';
+    queryOutput.value = msg;
+    queryOutput.classList.add('error');
+    copyQueryBtn.disabled = true;
+    resetCopyButton(copyQueryBtn, 'Copy Query');
+  }
+
+  function generateSchemaQuery() {
+    var listUrl = document.getElementById('listUrl').value.trim();
+    var listNameInput = document.getElementById('listName');
+    var manualListName = listNameInput.value.trim();
+
+    if (!listUrl) {
+      showQueryError('Paste a SharePoint list URL first.');
+      return;
+    }
+
+    try {
+      var context = extractListContext(listUrl);
+      var listTitle = context.listTitle || manualListName;
+      if (!listTitle) {
+        throw new Error('Could not determine the list title from the URL. Enter it in "List Name (optional)" and generate again.');
+      }
+      if (context.listTitle && (!manualListName || listNameWasAutoFilled)) {
+        listNameInput.value = context.listTitle;
+        manualListName = context.listTitle;
+        listNameWasAutoFilled = true;
+      } else if (manualListName) {
+        listNameWasAutoFilled = false;
+      }
+
+      lastQuery = buildSchemaQuery(context.siteUrl, listTitle);
+      document.getElementById('queryOutput').value = lastQuery;
+      document.getElementById('queryOutput').classList.remove('error');
+      document.getElementById('copyQueryBtn').disabled = false;
+      resetCopyButton(document.getElementById('copyQueryBtn'), 'Copy Query');
+    } catch (err) {
+      showQueryError(err.message);
+    }
+  }
+
+  function parseSchema() {
+    var xml = document.getElementById('xmlInput').value.trim();
+    if (!xml) {
+      showError('Please paste a SharePoint REST API XML response.');
+      return;
+    }
+
+    var parser = new DOMParser();
+    var doc = parser.parseFromString(xml, 'application/xml');
+
+    // Check for parse errors
+    var parseError = doc.querySelector('parsererror');
+    if (parseError) {
+      showError('XML parsing failed. Make sure you pasted valid XML from the SharePoint REST API.\n\n' + parseError.textContent.substring(0, 300));
+      return;
+    }
+
+    var entries = doc.getElementsByTagName('entry');
+    if (entries.length === 0) {
+      showError('No field entries found in the XML. Make sure you\'re pasting the full API response from the /fields endpoint.');
+      return;
+    }
+
+    var listName = document.getElementById('listName').value.trim() || 'SharePointList';
+    var optReadonly = document.getElementById('optReadonly').checked;
+    var optMaxLen = document.getElementById('optMaxLen').checked;
+    var optMinMax = document.getElementById('optMinMax').checked;
+    var optFmt = document.getElementById('optFmt').checked;
+
+    var columns = [];
+    var readonlyCols = [];
+    var editableCount = 0;
+    var readonlyCount = 0;
+
+    for (var i = 0; i < entries.length; i++) {
+      var entry = entries[i];
+      var internalName = getTextContent(entry, 'InternalName');
+      var readOnly = getTextContent(entry, 'ReadOnlyField');
+      var title = getTextContent(entry, 'Title');
+      var type = getTextContent(entry, 'TypeAsString');
+      var required = getTextContent(entry, 'Required');
+      var defaultVal = getTextContent(entry, 'DefaultValue');
+      var description = getTextContent(entry, 'Description');
+      var maxLength = getTextContent(entry, 'MaxLength');
+      var minValue = getTextContent(entry, 'MinimumValue');
+      var maxValue = getTextContent(entry, 'MaximumValue');
+      var displayFormat = getTextContent(entry, 'DisplayFormat');
+      var richText = getTextContent(entry, 'RichText');
+      var fillInChoice = getTextContent(entry, 'FillInChoice');
+      var indexed = getTextContent(entry, 'Indexed');
+      var enforceUnique = getTextContent(entry, 'EnforceUniqueValues');
+      var choices = getChoices(entry);
+
+      if (!internalName || !type) continue;
+
+      // Skip known system junk columns
+      if (SYSTEM_INTERNALS.has(internalName)) continue;
+
+      // Computed columns are never editable, skip
+      if (type === 'Computed') continue;
+
+      var isReadOnly = readOnly === 'true';
+
+      // Handle read-only columns
+      if (isReadOnly) {
+        readonlyCount++;
+        if (optReadonly && READONLY_COLUMNS.has(internalName)) {
+          var roLabel = (title && title !== internalName) ?
+            internalName + '/' + title + ' (' + type + ')' :
+            internalName + ' (' + type + ')';
+          readonlyCols.push(roLabel);
+        }
+        continue;
+      }
+
+      editableCount++;
+
+      // Build compact column object
+      var col = {};
+      col.d = title || internalName;
+      col.i = internalName;
+      col.t = type;
+
+      // Only include req if true (false is the default)
+      if (required === 'true') col.req = true;
+
+      // Choices
+      if (choices) col.c = choices;
+
+      // Default value
+      if (defaultVal) col.def = defaultVal;
+
+      // Description (only if non-empty)
+      if (description && description.trim()) col.desc = description.trim();
+
+      // MaxLength (only if non-default 255 for Text)
+      if (optMaxLen && maxLength) {
+        var ml = parseInt(maxLength, 10);
+        if (!isNaN(ml) && ml !== 255) {
+          col.max = ml;
+        }
+        // Still include 255 for Text fields so agent knows the limit
+        if (!isNaN(ml) && ml === 255 && type === 'Text') {
+          col.max = ml;
+        }
+      }
+
+      // Min/Max values (only if real constraints, not IEEE max)
+      if (optMinMax && minValue !== null) {
+        var mnv = parseFloat(minValue);
+        if (!isNaN(mnv) && Math.abs(mnv) < IEEE_MAX) {
+          col.min_v = mnv;
+        }
+      }
+      if (optMinMax && maxValue !== null) {
+        var mxv = parseFloat(maxValue);
+        if (!isNaN(mxv) && Math.abs(mxv) < IEEE_MAX) {
+          col.max_v = mxv;
+        }
+      }
+
+      // DisplayFormat
+      if (optFmt && displayFormat !== null) {
+        var fmtStr = formatDisplayFormat(displayFormat, type);
+        if (fmtStr && fmtStr !== 'Auto') {
+          col.fmt = fmtStr;
+        }
+      }
+
+      // RichText (only if true, false is default)
+      if (richText === 'true') col.rich = true;
+
+      // FillInChoice (only if true, false is default)
+      if (fillInChoice === 'true') col.fill = true;
+
+      // Indexed (only if true)
+      if (indexed === 'true') col.idx = true;
+
+      // EnforceUniqueValues (only if true)
+      if (enforceUnique === 'true') col.uniq = true;
+
+      columns.push(col);
+    }
+
+    if (columns.length === 0) {
+      showError('No editable columns found. Check that your XML contains field entries with editable (non-read-only) columns.');
+      return;
+    }
+
+    // Build output object
+    var output = {};
+    output._legend = 'd=Display Name, i=Internal Name (use in Power Fx), t=Type, req=Required, c=Choices, def=Default, desc=Description, max=MaxLength, min_v=MinValue, max_v=MaxValue, fmt=DisplayFormat, rich=RichText, fill=FillInChoice, idx=Indexed, uniq=EnforceUniqueValues';
+    output.list = listName;
+    output.defaults = { req: false, fill: false, rich: false, idx: false, uniq: false };
+    output.columns = columns;
+
+    if (optReadonly && readonlyCols.length > 0) {
+      output._readonly = readonlyCols;
+    }
+
+    lastOutput = JSON.stringify(output, null, 2);
+
+    // Render with syntax highlighting
+    renderOutput(lastOutput);
+
+    // Update badges
+    document.getElementById('outputBadge').textContent = columns.length + ' columns';
+    document.getElementById('outputBadge').className = 'panel-badge success';
+    document.getElementById('inputBadge').textContent = 'Parsed';
+    document.getElementById('inputBadge').className = 'panel-badge success';
+    document.getElementById('copyBtn').disabled = false;
+
+    // Update stats
+    document.getElementById('stats').style.display = 'flex';
+    document.getElementById('statTotal').textContent = editableCount + readonlyCount;
+    document.getElementById('statEditable').textContent = editableCount;
+    document.getElementById('statReadonly').textContent = readonlyCount;
+  }
+
+  function renderOutput(jsonStr) {
+    var wrap = document.getElementById('outputWrap');
+    var highlighted = syntaxHighlight(jsonStr);
+    wrap.innerHTML = '<pre class="output-pre">' + highlighted + '</pre>';
+  }
+
+  function syntaxHighlight(json) {
+    // Escape HTML first
+    json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return json.replace(
+      /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+      function(match) {
+        var cls = 'number';
+        if (/^"/.test(match)) {
+          if (/:$/.test(match)) {
+            cls = 'key';
+          } else {
+            cls = 'string';
+          }
+        } else if (/true|false/.test(match)) {
+          cls = 'boolean';
+        } else if (/null/.test(match)) {
+          cls = 'null';
+        }
+        return '<span class="' + cls + '">' + match + '</span>';
+      }
+    );
+  }
+
+  function showError(msg) {
+    var wrap = document.getElementById('outputWrap');
+    wrap.innerHTML = '<div class="error-msg"><span class="err-icon">&#9888;</span><span>' + escapeHtml(msg) + '</span></div>';
+    document.getElementById('outputBadge').textContent = 'Error';
+    document.getElementById('outputBadge').className = 'panel-badge error';
+    document.getElementById('inputBadge').textContent = 'Error';
+    document.getElementById('inputBadge').className = 'panel-badge error';
+    lastOutput = '';
+    document.getElementById('copyBtn').disabled = true;
+    resetCopyButton(document.getElementById('copyBtn'), COPY_OUTPUT_LABEL);
+  }
+
+  function escapeHtml(str) {
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function copyOutput() {
+    if (!lastOutput) return;
+    var btn = document.getElementById('copyBtn');
+    copyText(lastOutput, btn, COPY_OUTPUT_LABEL);
+  }
+
+  function copyQuery() {
+    if (!lastQuery) return;
+    var btn = document.getElementById('copyQueryBtn');
+    copyText(lastQuery, btn, 'Copy Query');
+  }
+
+  function clearAll() {
+    document.getElementById('listUrl').value = '';
+    clearAutoFilledListName();
+    document.getElementById('xmlInput').value = '';
+    document.getElementById('outputWrap').innerHTML =
+      '<div class="placeholder-msg" id="placeholder"><span class="icon">&#123; &#125;</span><span>Parsed JSON will appear here</span></div>';
+    document.getElementById('outputBadge').textContent = 'Waiting';
+    document.getElementById('outputBadge').className = 'panel-badge';
+    document.getElementById('inputBadge').textContent = 'Paste XML';
+    document.getElementById('inputBadge').className = 'panel-badge';
+    document.getElementById('copyBtn').disabled = true;
+    document.getElementById('stats').style.display = 'none';
+    lastOutput = '';
+    resetCopyButton(document.getElementById('copyBtn'), COPY_OUTPUT_LABEL);
+    resetQueryState();
+  }
+
+  document.getElementById('listName').addEventListener('input', function() {
+    listNameWasAutoFilled = false;
+  });
+
+  document.getElementById('listUrl').addEventListener('input', function() {
+    clearAutoFilledListName();
+    resetQueryState();
+  });
+
+  document.getElementById('listUrl').addEventListener('paste', function() {
+    setTimeout(function() { generateSchemaQuery(); }, 100);
+  });
+
+  // Auto-parse on paste
+  document.getElementById('xmlInput').addEventListener('paste', function() {
+    setTimeout(function() { parseSchema(); }, 100);
+  });
+</script>
+
+</body>
+</html>

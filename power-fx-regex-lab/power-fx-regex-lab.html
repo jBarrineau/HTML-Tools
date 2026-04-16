@@ -1,0 +1,2275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Power Fx Regex Lab</title>
+  <style>
+    /* ── CSS Custom Properties (style-guide.md) ────────────────────────────── */
+    :root {
+      --color-bg:             #060606;
+      --color-surface:        #17181c;
+      --color-surface-alt:    #24272f;
+      --color-text-primary:   #e8eaed;
+      --color-text-secondary: #999999;
+      --color-text-tertiary:  #888b96;
+      --color-border:         #353841;
+      --color-white:          #ffffff;
+
+      --ink-purple: #ac87eb;
+      --ink-blue:   #4fa0ff;
+      --ink-pink:   #d1617f;
+      --ink-green:  #a6e3a1;
+      --ink-yellow: #f9e2af;
+      --ink-link:   #89b4fa;
+
+      --color-success:  #4caf50;
+      --color-error:    #f44336;
+      --color-code-bg:  #ac87eb1a;
+
+      --font-heading: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --font-body:    system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --font-mono:    ui-monospace, SFMono-Regular, "Cascadia Code", "Segoe UI Mono", Menlo, Monaco,
+                      Consolas, "Liberation Mono", "Courier New", monospace;
+
+      --radius-sm:   0.25rem;
+      --radius-md:   0.375rem;
+      --radius-lg:   0.5rem;
+      --radius-2xl:  1rem;
+      --radius-full: 9999px;
+
+      --shadow-sm: 0px 1px 1px hsla(0,0%,0%,.12), 0px 2px 1px hsla(0,0%,0%,.24);
+      --shadow-md: 0px 8px 4px hsla(0,0%,0%,.08), 0px 5px 2px hsla(0,0%,0%,.08),
+                   0px 3px 2px hsla(0,0%,0%,.12), 0px 1px 1px hsla(0,0%,0%,.15);
+
+      --ease-default: cubic-bezier(0.4, 0, 0.2, 1);
+      --duration-fast: 150ms;
+      --duration-normal: 200ms;
+
+      /* match highlight palette */
+      --match-full-bg:    rgba(79, 160, 255, 0.14);
+      --match-full-line:  var(--ink-blue);
+      --match-g1:         var(--ink-purple);
+      --match-g2:         var(--ink-pink);
+      --match-g3:         var(--ink-green);
+    }
+
+    /* ── Reset / base ──────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 1.5rem;
+      background-color: var(--color-bg);
+      color: var(--color-text-primary);
+      font-family: var(--font-body);
+      font-size: 1rem;
+      line-height: 1.5;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ── Scrollbar ─────────────────────────────────────────────────────────── */
+    ::-webkit-scrollbar       { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: var(--radius-full); }
+    ::-webkit-scrollbar-thumb:hover { background: #4a4d58; }
+
+    /* ── Page header ───────────────────────────────────────────────────────── */
+    .page-header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.625rem 1.25rem;
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-2xl);
+      box-shadow: var(--shadow-sm);
+      flex-shrink: 0;
+    }
+
+    .page-title {
+      margin: 0;
+      font-family: var(--font-heading);
+      font-size: 1.25rem;
+      font-weight: 600;
+      letter-spacing: -0.25px;
+      line-height: 1.2;
+      white-space: nowrap;
+      background: linear-gradient(93deg, var(--ink-blue) 0%, var(--ink-purple) 50%, var(--ink-pink) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    /* ── Controls row (actions card + control bar side by side) ───────────── */
+    .controls-row {
+      display: flex;
+      gap: 1rem;
+      align-items: stretch;
+      flex-shrink: 0;
+    }
+
+    /* ── Actions card ──────────────────────────────────────────────────────── */
+    .actions-card {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-2xl);
+      padding: 1rem 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.625rem;
+      flex-shrink: 0;
+      box-shadow: var(--shadow-sm);
+    }
+
+    /* ── Control bar ───────────────────────────────────────────────────────── */
+    .control-bar {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-2xl);
+      padding: 1rem 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      flex: 1;
+    }
+
+    .control-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    /* Function selector pills */
+    .fn-group {
+      display: flex;
+      background: var(--color-surface-alt);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-full);
+      padding: 3px;
+      gap: 2px;
+      flex-shrink: 0;
+    }
+
+    .fn-btn {
+      background: transparent;
+      border: none;
+      color: var(--color-text-secondary);
+      font-family: var(--font-mono);
+      font-size: 0.8125rem;
+      font-weight: 500;
+      padding: 5px 14px;
+      border-radius: var(--radius-full);
+      cursor: pointer;
+      transition: background var(--duration-fast) var(--ease-default),
+                  color var(--duration-fast) var(--ease-default);
+      white-space: nowrap;
+    }
+
+    .fn-btn.active {
+      background: linear-gradient(93deg, var(--ink-blue), var(--ink-purple));
+      color: var(--color-bg);
+    }
+
+    .fn-btn:not(.active):hover {
+      background: rgba(255,255,255,0.06);
+      color: var(--color-text-primary);
+    }
+
+    /* Slash separator */
+    .slash {
+      font-family: var(--font-mono);
+      font-size: 1.1rem;
+      color: var(--color-text-tertiary);
+      flex-shrink: 0;
+      user-select: none;
+    }
+
+    /* Pattern input */
+    #pattern-input {
+      flex: 1;
+      min-width: 0;
+      background: var(--color-surface-alt);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      color: var(--color-text-primary);
+      font-family: var(--font-mono);
+      font-size: 0.9375rem;
+      padding: 7px 12px;
+      outline: none;
+      transition: border-color var(--duration-fast) var(--ease-default),
+                  box-shadow var(--duration-fast) var(--ease-default);
+    }
+
+    #pattern-input::placeholder { color: var(--color-text-tertiary); }
+
+    #pattern-input:focus {
+      border-color: var(--ink-purple);
+      box-shadow: 0 0 0 3px rgba(172, 135, 235, 0.18);
+    }
+
+    /* Anchor select */
+    #anchor-select {
+      background: var(--color-surface-alt);
+      border: 1px solid var(--ink-purple);
+      border-radius: var(--radius-md);
+      color: var(--color-text-secondary);
+      font-family: var(--font-body);
+      font-size: 0.8125rem;
+      padding: 6px 10px;
+      outline: none;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: border-color var(--duration-fast) var(--ease-default);
+    }
+
+    #anchor-select:focus { border-color: var(--ink-purple); }
+    #anchor-select option { background: var(--color-surface); color: var(--color-text-primary); }
+
+    /* MatchOptions toggles */
+    .opts-group {
+      display: flex;
+      gap: 0.375rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .opt-toggle {
+      background: transparent;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-full);
+      color: var(--color-text-secondary);
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 500;
+      padding: 4px 10px;
+      cursor: pointer;
+      transition: background var(--duration-fast) var(--ease-default),
+                  border-color var(--duration-fast) var(--ease-default),
+                  color var(--duration-fast) var(--ease-default);
+      white-space: nowrap;
+    }
+
+    .opt-toggle:hover {
+      border-color: var(--ink-purple);
+      color: var(--color-text-primary);
+    }
+
+    .opt-toggle.active {
+      background: rgba(172, 135, 235, 0.28);
+      border-color: var(--ink-purple);
+      color: #e0d0ff;
+      text-shadow: 0 0 6px rgba(172, 135, 235, 0.4);
+    }
+
+    /* Copy / action buttons */
+    .btn {
+      background: transparent;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-full);
+      color: var(--color-text-secondary);
+      font-family: var(--font-body);
+      font-size: 0.8125rem;
+      font-weight: 500;
+      padding: 6px 14px;
+      cursor: pointer;
+      transition: background var(--duration-fast) var(--ease-default),
+                  border-color var(--duration-fast) var(--ease-default),
+                  color var(--duration-fast) var(--ease-default);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .btn:hover {
+      border-color: var(--ink-blue);
+      color: var(--color-text-primary);
+      background: rgba(79, 160, 255, 0.08);
+    }
+
+    .btn.success {
+      border-color: var(--ink-green);
+      color: var(--ink-green);
+      background: rgba(166, 227, 161, 0.1);
+    }
+
+    /* Pattern library dropdown */
+    #pattern-library {
+      background: var(--color-surface-alt);
+      border: 1px solid var(--ink-purple);
+      border-radius: var(--radius-md);
+      color: var(--color-text-secondary);
+      font-family: var(--font-body);
+      font-size: 0.8125rem;
+      padding: 6px 10px;
+      outline: none;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: border-color var(--duration-fast) var(--ease-default);
+    }
+
+    #pattern-library:focus { border-color: var(--ink-purple); }
+    #pattern-library option { background: var(--color-surface); color: var(--color-text-primary); }
+
+    /* ── Error bar ─────────────────────────────────────────────────────────── */
+    #error-bar {
+      background: rgba(244, 67, 54, 0.08);
+      border: 1px solid rgba(244, 67, 54, 0.3);
+      border-radius: var(--radius-lg);
+      color: #ef9a9a;
+      font-family: var(--font-mono);
+      font-size: 0.8125rem;
+      padding: 10px 14px;
+      display: none;
+    }
+
+    #error-bar.visible { display: block; }
+
+    .error-code {
+      font-weight: 700;
+      color: var(--color-error);
+      margin-right: 6px;
+    }
+
+    /* ── Workspace ─────────────────────────────────────────────────────────── */
+    .workspace {
+      display: flex;
+      gap: 1rem;
+      flex: 1 1 auto;
+      min-height: 280px;
+      overflow: hidden;
+    }
+
+    .panel {
+      display: flex;
+      flex-direction: column;
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-2xl);
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .panel-header {
+      padding: 0 16px;
+      height: 38px;
+      background: var(--color-surface-alt);
+      border-bottom: 1px solid var(--color-border);
+      font-size: 0.6875rem;
+      font-weight: 600;
+      color: var(--color-text-tertiary);
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .panel-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1rem;
+      font-family: var(--font-mono);
+      font-size: 0.875rem;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    /* Test string panel */
+    .panel-input { flex: 1; }
+
+    #test-string {
+      width: 100%;
+      height: 100%;
+      border: none;
+      background: transparent;
+      color: var(--color-text-primary);
+      font-family: var(--font-mono);
+      font-size: 0.875rem;
+      line-height: 1.7;
+      resize: none;
+      outline: none;
+      padding: 1rem;
+    }
+
+    #test-string::placeholder { color: var(--color-text-tertiary); }
+
+    /* Output panel */
+    .panel-output { flex: 2; }
+
+    #output-view {
+      min-height: 100%;
+    }
+
+    /* IsMatch result */
+    .ismatch-result {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      font-family: var(--font-mono);
+      font-size: 3rem;
+      font-weight: 700;
+      letter-spacing: -1px;
+    }
+
+    .ismatch-true  { color: var(--ink-green); }
+    .ismatch-false { color: var(--color-text-tertiary); }
+
+    /* Match highlighting */
+    .m-full {
+      background: rgba(79, 160, 255, 0.18);
+      border-bottom: 2.5px solid var(--match-full-line);
+      border-radius: var(--radius-sm);
+      padding: 2px 3px;
+    }
+
+    .m-full.hover-active {
+      background: rgba(79, 160, 255, 0.32);
+      border-bottom-color: var(--ink-yellow);
+    }
+
+    .m-g1 { color: var(--match-g1); font-weight: 700; text-shadow: 0 0 8px rgba(172,135,235,0.5); }
+    .m-g2 { color: var(--match-g2); font-weight: 700; text-shadow: 0 0 8px rgba(209,97,127,0.5); }
+    .m-g3 { color: var(--match-g3); font-weight: 700; text-shadow: 0 0 8px rgba(166,227,161,0.5); }
+
+    /* Match details panel */
+    .panel-details { flex: 1; }
+
+    #details-view {
+      padding: 0;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    /* Output panel label — keep mixed case so "MatchAll" doesn't become "MATCHALL" */
+    #output-label { text-transform: none; font-size: 0.6875rem; letter-spacing: 0.6px; }
+
+    /* ── Match cards ──────────────────────────────────────────────────────── */
+    .match-card {
+      padding: 11px 14px;
+      border-bottom: 1px solid var(--color-border);
+      transition: background var(--duration-fast) var(--ease-default);
+    }
+
+    .match-card:last-child { border-bottom: none; }
+    .match-card:hover,
+    .match-card.hover-active { background: rgba(255,255,255,0.05); }
+
+    .match-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 7px;
+    }
+
+    .match-num {
+      font-size: 0.6875rem;
+      font-weight: 700;
+      color: var(--color-text-tertiary);
+      font-family: var(--font-body);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .match-pos {
+      font-size: 0.6875rem;
+      color: var(--color-text-tertiary);
+      font-family: var(--font-mono);
+    }
+
+    .match-kv {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      column-gap: 10px;
+      row-gap: 3px;
+      font-size: 0.8125rem;
+      font-family: var(--font-mono);
+      align-items: baseline;
+    }
+
+    .match-key {
+      color: var(--color-text-tertiary);
+      font-size: 0.6875rem;
+      font-family: var(--font-body);
+      white-space: nowrap;
+    }
+
+    .match-val {
+      color: var(--color-text-primary);
+      overflow-wrap: anywhere;
+      word-break: normal;
+      min-width: 0;
+    }
+
+    .match-captures {
+      margin-top: 7px;
+      padding-top: 7px;
+      border-top: 1px solid rgba(53, 56, 65, 0.6);
+    }
+
+    .capture-g1 { color: var(--match-g1); }
+    .capture-g2 { color: var(--match-g2); }
+    .capture-g3 { color: var(--match-g3); }
+
+    /* Empty state */
+    .empty-state {
+      padding: 2rem 1rem;
+      text-align: center;
+      color: var(--color-text-tertiary);
+      font-family: var(--font-body);
+      font-size: 0.875rem;
+    }
+
+    /* Select labels */
+    .select-label {
+      font-size: 0.6875rem;
+      font-weight: 600;
+      color: var(--color-text-tertiary);
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      white-space: nowrap;
+      flex-shrink: 0;
+      user-select: none;
+    }
+
+    /* Copy small button */
+    .btn-xs {
+      background: transparent;
+      border: 1px solid var(--color-border);
+      color: var(--color-text-tertiary);
+      font-size: 0.6875rem;
+      font-weight: 600;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+      cursor: pointer;
+      padding: 3px 8px;
+      border-radius: var(--radius-full);
+      transition: color var(--duration-fast) var(--ease-default),
+                  border-color var(--duration-fast) var(--ease-default),
+                  background var(--duration-fast) var(--ease-default);
+    }
+
+    .btn-xs:hover { color: var(--ink-blue); border-color: var(--ink-blue); background: rgba(79, 160, 255, 0.08); }
+    .btn-xs.success { color: var(--ink-green); border-color: var(--ink-green); background: rgba(166, 227, 161, 0.08); }
+
+    /* ── Responsive ────────────────────────────────────────────────────────── */
+    @media (max-width: 768px) {
+      body { padding: 0.75rem; gap: 0.75rem; height: auto; overflow: auto; }
+      .controls-row { flex-direction: column; }
+      .workspace { flex-direction: column; overflow: visible; }
+      .panel { min-height: 200px; }
+      .panel-details { flex: 0 0 auto; }
+      #test-string { min-height: 160px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Header ──────────────────────────────────────────────────────────── -->
+  <header class="page-header">
+    <h1 class="page-title">Power Fx Regex Lab</h1>
+  </header>
+
+  <!-- ── Controls row ────────────────────────────────────────────────────── -->
+  <div class="controls-row">
+
+    <!-- Actions card -->
+    <div class="actions-card">
+      <!-- Pattern library -->
+      <div style="display:flex; align-items:center; gap:0.5rem;">
+        <select id="pattern-library" title="Load a pattern example">
+          <option value="">Load sample pattern</option>
+        </select>
+      </div>
+      <button class="btn" id="clear-btn" title="Clear pattern and test string">Clear</button>
+    </div>
+
+    <!-- Control bar -->
+    <div class="control-bar">
+      <!-- Row 1: function + pattern + anchor -->
+      <div class="control-row">
+        <!-- Function selector -->
+        <div class="fn-group" id="fn-group" role="group" aria-label="Function">
+          <button class="fn-btn active" data-fn="IsMatch">IsMatch</button>
+          <button class="fn-btn"        data-fn="Match">Match</button>
+          <button class="fn-btn"        data-fn="MatchAll">MatchAll</button>
+        </div>
+
+        <input
+          type="text"
+          id="pattern-input"
+          placeholder="Enter Power Fx regex pattern…"
+          spellcheck="false"
+          autocomplete="off"
+          value="(\d{4})-(\d{2})-(\d{2})"
+        >
+
+        <!-- Anchor mode -->
+        <select id="anchor-select" title="Match anchor mode">
+          <option value="Contains">Contains</option>
+          <option value="Complete" selected>Complete</option>
+          <option value="BeginsWith">BeginsWith</option>
+          <option value="EndsWith">EndsWith</option>
+        </select>
+      </div>
+
+      <!-- Row 2: MatchOptions -->
+      <div class="control-row">
+        <div class="opts-group" id="opts-group" aria-label="MatchOptions">
+          <button class="opt-toggle" data-opt="IgnoreCase"         title="MatchOptions.IgnoreCase">IgnoreCase</button>
+          <button class="opt-toggle" data-opt="Multiline"          title="MatchOptions.Multiline">Multiline</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Error bar ────────────────────────────────────────────────────────── -->
+  <div id="error-bar" role="alert"></div>
+
+  <!-- ── Workspace ────────────────────────────────────────────────────────── -->
+  <div class="workspace">
+
+    <!-- Test string -->
+    <div class="panel panel-input">
+      <div class="panel-header">
+        <span>Test String</span>
+        <span id="char-count" style="font-family:var(--font-mono);"></span>
+      </div>
+      <textarea
+        id="test-string"
+        spellcheck="false"
+        placeholder="Paste or type test text here…"
+      >Events: 2024-12-25, 2025-01-01, and 2025-07-04</textarea>
+    </div>
+
+    <!-- Output -->
+    <div class="panel panel-output">
+      <div class="panel-header">
+        <span id="output-label">Result</span>
+        <button class="btn-xs" id="copy-fx-btn" title="Copy as a Power Fx formula — uses 'subject' as the input variable name">Copy Pattern as Power Fx</button>
+      </div>
+      <div class="panel-body" id="output-view"></div>
+    </div>
+
+    <!-- Match details -->
+    <div class="panel panel-details" id="details-panel">
+      <div class="panel-header">
+        <span>Match Details</span>
+        <button class="btn-xs" id="copy-all-btn">Copy All</button>
+      </div>
+      <div id="details-view"></div>
+    </div>
+
+  </div>
+
+  <!-- ── Evaluator ────────────────────────────────────────────────────────── -->
+  <script>
+/**
+ * Power Fx Regular Expression Evaluator
+ *
+ * Implements IsMatch, Match, and MatchAll targeting the Power Fx regex dialect.
+ * Translates Power Fx patterns to JavaScript RegExp (u flag, ES2022+).
+ *
+ * No dependencies. Single file. Browser globals + CommonJS compatible.
+ *
+ * Reference: power-fx/regular-expressions.md
+ */
+(function (global) {
+  'use strict';
+
+  // ─── Error ──────────────────────────────────────────────────────────────────
+
+  class PowerFxRegexError extends Error {
+    constructor(code, message, position) {
+      super(message);
+      this.name = 'PowerFxRegexError';
+      this.code = code;
+      if (position !== undefined) this.position = position;
+    }
+  }
+
+  const ErrorCode = Object.freeze({
+    UNSUPPORTED_ESCAPE:              'UNSUPPORTED_ESCAPE',
+    UNSUPPORTED_QUANTIFIER:          'UNSUPPORTED_QUANTIFIER',
+    NESTED_CHARACTER_CLASS:          'NESTED_CHARACTER_CLASS',
+    UNESCAPED_HYPHEN:                'UNESCAPED_HYPHEN',
+    UNESCAPED_BRACKET:               'UNESCAPED_BRACKET',
+    UNESCAPED_CARET:                 'UNESCAPED_CARET',
+    UNESCAPED_BRACE:                 'UNESCAPED_BRACE',
+    EMPTY_CHARACTER_CLASS:           'EMPTY_CHARACTER_CLASS',
+    NEGATIVE_CLASS_IN_NEGATED_CLASS: 'NEGATIVE_CLASS_IN_NEGATED_CLASS',
+    SURROGATE_IN_CHARACTER_CLASS:    'SURROGATE_IN_CHARACTER_CLASS',
+    DUPLICATE_NAMED_GROUP:           'DUPLICATE_NAMED_GROUP',
+    MIXED_SUBMATCH_TYPES:            'MIXED_SUBMATCH_TYPES',
+    INLINE_OPTION_NOT_AT_START:      'INLINE_OPTION_NOT_AT_START',
+    UNSUPPORTED_INLINE_OPTION:       'UNSUPPORTED_INLINE_OPTION',
+    LOOKAHEAD_SUBMATCH:              'LOOKAHEAD_SUBMATCH',
+    INVALID_UNICODE_CODEPOINT:       'INVALID_UNICODE_CODEPOINT',
+    INVALID_UNICODE_CATEGORY:        'INVALID_UNICODE_CATEGORY',
+    INVALID_PATTERN:                 'INVALID_PATTERN',
+  });
+
+  // ─── MatchOptions ───────────────────────────────────────────────────────────
+
+  const MatchOptions = Object.freeze({
+    Contains:          'Contains',
+    Complete:          'Complete',
+    BeginsWith:        'BeginsWith',
+    EndsWith:          'EndsWith',
+    IgnoreCase:        'IgnoreCase',
+    Multiline:         'Multiline',
+    DotAll:            'DotAll',
+    FreeSpacing:       'FreeSpacing',
+    NumberedSubMatches:'NumberedSubMatches',
+  });
+
+  // ─── Unicode helpers ─────────────────────────────────────────────────────────
+
+  // Power Fx \w: Unicode letters, digits, connectors
+  const WORD_INNER  = '\\p{Ll}\\p{Lu}\\p{Lt}\\p{Lo}\\p{Nd}\\p{Pc}\\p{Lm}';
+  const WORD_CLASS  = `[${WORD_INNER}]`;
+
+  // Power Fx \s: Unicode whitespace + control space chars
+  const SPACE_INNER = ' \\t\\n\\x0b\\f\\r\\x85\\u2028\\u2029\\p{Z}';
+  const SPACE_CLASS = `[${SPACE_INNER}]`;
+
+  // Power Fx dot: matches everything except newline characters per spec
+  // JS dot only excludes \n, \r, \u2028, \u2029 — Power Fx also excludes \x0b, \f, \x85
+  const DOT_CLASS = '[^\\n\\x0b\\f\\r\\x85\\u2028\\u2029]';
+
+  // Power Fx $: matches end of line including \r\n, \r, or \n (JS $ misses standalone \r)
+  // Also handles \u2028/\u2029 which JS already treats as line terminators
+  const DOLLAR_MULTILINE = '(?=\\r\\n|[\\r\\n\\u2028\\u2029]|$)';
+  // Non-multiline $: matches only the very end of text, but still allows trailing newline(s)
+  const DOLLAR_NONMULTILINE = '(?=\\r?\\n?$)';
+
+  // Power Fx ^: matches start of line after \r\n, \r, or \n (JS ^ misses standalone \r)
+  const CARET_MULTILINE = '(?:(?<=\\r\\n|[\\r\\n\\u2028\\u2029])|^)';
+
+  // Power Fx \d: Unicode decimal digits
+  const DIGIT_INNER = '\\p{Nd}';
+  const DIGIT_CLASS = `[${DIGIT_INNER}]`;
+
+  // Unicode word-boundary assertions (replace JS ASCII \b / \B)
+  const UNICODE_WORD_BOUND =
+    `(?:(?<=${WORD_CLASS})(?!${WORD_CLASS})|(?<!${WORD_CLASS})(?=${WORD_CLASS}))`;
+  const UNICODE_NON_WORD_BOUND =
+    `(?:(?<=${WORD_CLASS})(?=${WORD_CLASS})|(?<!${WORD_CLASS})(?!${WORD_CLASS}))`;
+
+  // Valid Unicode category names per the Power Fx spec
+  const VALID_UNICODE_CATS = new Set([
+    'L',  'Lu', 'Ll', 'Lt', 'Lm', 'Lo',
+    'M',  'Mn', 'Mc', 'Me',
+    'N',  'Nd', 'Nl', 'No',
+    'P',  'Pc', 'Pd', 'Ps', 'Pe', 'Pi', 'Pf', 'Po',
+    'S',  'Sm', 'Sc', 'Sk', 'So',
+    'Z',  'Zs', 'Zl', 'Zp',
+    'Cc', 'Cf',
+  ]);
+
+  // ─── Match enum (predefined patterns) ────────────────────────────────────────
+  //
+  // Values are Power Fx regex strings. The translator converts \d, \w, \s etc.
+  // \p{} categories are valid in both Power Fx and JS (u flag) — passed through.
+
+  // Match.Email: local@domain.tld, supports Unicode letters/numbers and common
+  // email-safe punctuation. Requires at least one dot in the domain.
+  // Not a strict RFC validator; see spec notes.
+  // Power Apps Match.Email: simpler pattern (not suitable for extraction, captures spaces)
+  const EMAIL_PATTERN = '.+@.+\\..+';
+
+  const MatchEnum = Object.freeze({
+    Any:              '.',
+    Comma:            ',',
+    Digit:            '\\d',
+    Email:            EMAIL_PATTERN,
+    Hyphen:           '\\-',
+    LeftParen:        '\\(',
+    Letter:           '\\p{L}',
+    MultipleDigits:   '\\d+',
+    MultipleLetters:  '\\p{L}+',
+    MultipleNonSpaces:'\\S+',
+    MultipleSpaces:   '\\s+',
+    NonSpace:         '\\S',
+    OptionalDigits:   '\\d*',
+    OptionalLetters:  '\\p{L}*',
+    OptionalNonSpaces:'\\S*',
+    OptionalSpaces:   '\\s*',
+    Period:           '\\.',
+    RightParen:       '\\)',
+    Space:            '\\s',
+    Tab:              '\\t',
+  });
+
+  // ─── Option parsing ──────────────────────────────────────────────────────────
+
+  function parseOptions(rawOpts, defaultAnchor) {
+    const s = rawOpts || '';
+    // Determine anchor mode; BeginsWith/EndsWith may coexist with each other
+    // but Complete wins if present.
+    let anchorMode = defaultAnchor || 'Contains';
+    if (s.includes('Contains'))  anchorMode = 'Contains';
+    if (s.includes('Complete'))   anchorMode = 'Complete';
+    else if (s.includes('BeginsWith') && s.includes('EndsWith')) anchorMode = 'Complete';
+    else if (s.includes('BeginsWith')) anchorMode = 'BeginsWith';
+    else if (s.includes('EndsWith'))   anchorMode = 'EndsWith';
+
+    return {
+      anchorMode,
+      ignoreCase:        s.includes('IgnoreCase'),
+      multiline:         s.includes('Multiline'),
+      dotAll:            s.includes('DotAll'),
+      freeSpacing:       s.includes('FreeSpacing'),
+      numberedSubMatches:true, // Power Apps default: numbered submatches enabled
+    };
+  }
+
+  // ─── FreeSpacing preprocessor ────────────────────────────────────────────────
+  //
+  // When (?x) / MatchOptions.FreeSpacing is active:
+  //   - Outside character classes: whitespace is stripped, # begins a line comment.
+  //   - Inside character classes: whitespace and # are literal.
+
+  function preprocessFreeSpacing(src) {
+    let out = '';
+    let i = 0;
+    let inClass = false;
+
+    while (i < src.length) {
+      const ch = src[i];
+
+      if (ch === '\\') {
+        // Escape sequence: always copy both chars, never strip
+        out += ch + (src[i + 1] || '');
+        i += 2;
+        continue;
+      }
+
+      if (inClass) {
+        if (ch === ']') { inClass = false; }
+        out += ch;
+        i++;
+      } else {
+        if (ch === '[') {
+          inClass = true;
+          out += ch;
+          i++;
+        } else if (ch === '#') {
+          // Line comment: skip to end of line
+          i++;
+          while (i < src.length && src[i] !== '\n' && src[i] !== '\r') i++;
+        } else if (
+          ch === ' '  || ch === '\t' || ch === '\n' || ch === '\r' ||
+          ch === '\f' || ch === '\x0b' || ch === '\x85' ||
+          ch === '\u2028' || ch === '\u2029'
+        ) {
+          i++; // skip whitespace
+        } else {
+          out += ch;
+          i++;
+        }
+      }
+    }
+
+    return out;
+  }
+
+  // ─── Inline option extraction ────────────────────────────────────────────────
+  //
+  // Detects and removes a (?flags) prefix at the very start of the (raw) pattern.
+
+  function extractInlineOptions(src) {
+    const m = /^\(\?([a-zA-Z]+)\)/.exec(src);
+    if (!m) return { inlineFlags: '', body: src };
+    return { inlineFlags: m[1], body: src.slice(m[0].length) };
+  }
+
+  // ─── Validator + Translator ──────────────────────────────────────────────────
+  //
+  // Single-pass character-by-character walk of the (preprocessed) pattern.
+  // Validates Power Fx restrictions and emits equivalent JS regex string.
+
+  function translatePattern(src, opts) {
+    let pos = 0;
+    let out = '';
+
+    const namedGroups    = new Set();
+    let hasNamed      = false;
+    let hasNumbered   = false;
+    const groupStack  = []; // { type, startPos }
+    let lookaheadDepth = 0;
+
+    // ── helpers ──────────────────────────────────────────────────────────────
+
+    function err(code, msg) {
+      throw new PowerFxRegexError(code, msg, pos);
+    }
+
+    function peek(off = 0) { return src[pos + off]; }
+
+    function eatHex(n) {
+      const s = src.slice(pos, pos + n);
+      if (s.length < n || !/^[0-9a-fA-F]+$/.test(s)) return null;
+      pos += n;
+      return s;
+    }
+
+    // Parse {cat} for \p / \P
+    function eatUnicodeCategory() {
+      if (peek() !== '{') err(ErrorCode.INVALID_UNICODE_CATEGORY, 'Expected { after \\p or \\P');
+      pos++; // {
+      let cat = '';
+      while (pos < src.length && src[pos] !== '}') cat += src[pos++];
+      if (src[pos] !== '}') err(ErrorCode.INVALID_UNICODE_CATEGORY, 'Unclosed { in \\p{} or \\P{}');
+      pos++; // }
+      if (!VALID_UNICODE_CATS.has(cat)) {
+        err(ErrorCode.INVALID_UNICODE_CATEGORY, `Unsupported Unicode category: \\p{${cat}}`);
+      }
+      return cat;
+    }
+
+    // Returns the next quantifier token if present (without consuming it)
+    function peekQuantifier() {
+      const ch = src[pos];
+      if (ch === '?' || ch === '*' || ch === '+') return ch;
+      if (ch === '{') {
+        const m = /^\{\d+(?:,\d*)?\}/.exec(src.slice(pos));
+        if (m) return m[0];
+      }
+      return null;
+    }
+
+    // Is the next quantifier one of the "unlimited" variety (* + {n,}) ?
+    function isUnlimitedQuantifier(q) {
+      if (!q) return false;
+      if (q === '*' || q === '+') return true;
+      // {n,} — has a comma but no upper bound
+      if (q[0] === '{' && /^\{(\d+),\}$/.test(q)) return true;
+      return false;
+    }
+
+    // ── character-class translator ────────────────────────────────────────────
+
+    function translateCharClass() {
+      // Called when pos is AT '[', returns output string and advances pos past ']'
+      const startPos = pos;
+      pos++; // consume '['
+      let classOut = '[';
+      let negated = false;
+      let itemCount = 0;
+      // Codepoint of the last range-eligible single-character item; -1 means none.
+      let lastSingleCharCP = -1;
+
+      if (peek() === '^') {
+        negated = true;
+        classOut += '^';
+        pos++;
+      }
+
+      if (peek() === ']') {
+        err(ErrorCode.EMPTY_CHARACTER_CLASS, 'Empty character class [] is not supported');
+      }
+
+      // Parses one range-endpoint character (literal or single-char escape) from src at pos.
+      // Returns { str, cp } and advances pos, or throws if not a single-char element.
+      function parseRangeEndChar(hyphenPos) {
+        if (pos >= src.length || src[pos] === ']') {
+          err(ErrorCode.UNESCAPED_HYPHEN, 'Hyphen in a character class must be escaped as \\-', hyphenPos);
+        }
+        if (src[pos] !== '\\') {
+          const c = src[pos++];
+          return { str: c, cp: c.codePointAt(0) };
+        }
+        pos++; // skip '\'
+        const esc = src[pos++];
+        switch (esc) {
+          case 'n': return { str: '\\n', cp: 0x0A };
+          case 'r': return { str: '\\r', cp: 0x0D };
+          case 't': return { str: '\\t', cp: 0x09 };
+          case 'f': return { str: '\\f', cp: 0x0C };
+          case 'b': return { str: '\\x08', cp: 0x08 };
+          case '0': {
+            if (/[0-9]/.test(peek())) {
+              err(ErrorCode.UNSUPPORTED_ESCAPE, 'Octal character codes are not supported; use \\x or \\u instead');
+            }
+            return { str: '\\0', cp: 0 };
+          }
+          case 'x': {
+            const hex = eatHex(2);
+            if (!hex) err(ErrorCode.INVALID_PATTERN, 'Malformed \\xHH escape');
+            return { str: `\\x${hex}`, cp: parseInt(hex, 16) };
+          }
+          case 'u': {
+            if (peek() === '{') {
+              pos++; // {
+              let hex = '';
+              while (pos < src.length && src[pos] !== '}') hex += src[pos++];
+              if (src[pos] !== '}') err(ErrorCode.INVALID_UNICODE_CODEPOINT, 'Unclosed \\u{}');
+              pos++; // }
+              const cp = parseInt(hex, 16);
+              if (isNaN(cp) || cp < 0 || cp > 0x10FFFF) {
+                err(ErrorCode.INVALID_UNICODE_CODEPOINT, `\\u{${hex}} is out of the Unicode range`);
+              }
+              if (cp >= 0xD800 && cp <= 0xDFFF) {
+                err(ErrorCode.INVALID_UNICODE_CODEPOINT, `\\u{${hex}} is a surrogate and is not allowed`);
+              }
+              return { str: `\\u{${hex}}`, cp };
+            } else {
+              const hex = eatHex(4);
+              if (!hex) err(ErrorCode.INVALID_PATTERN, 'Malformed \\uHHHH escape');
+              const cp = parseInt(hex, 16);
+              return { str: `\\u${hex}`, cp };
+            }
+          }
+          default:
+            // Class shorthand escapes (\w, \d, \s, \p, \P, \W, \D, \S) cannot be range endpoints
+            if ('wWdDsSpPv'.includes(esc)) {
+              err(ErrorCode.UNESCAPED_HYPHEN, `Hyphen before \\${esc} in a character class must be escaped as \\-`, hyphenPos);
+            }
+            // Single-char escape (\\, \-, \], \[, \^, \{, \}, \#, \ , etc.)
+            return { str: `\\${esc}`, cp: esc.codePointAt(0) };
+        }
+      }
+
+      while (pos < src.length) {
+        const ch = src[pos];
+
+        if (ch === ']') {
+          classOut += ']';
+          pos++;
+          return classOut;
+        }
+
+        // Nested class: unescaped '[' inside a class
+        if (ch === '[') {
+          err(ErrorCode.UNESCAPED_BRACKET, 'Unescaped [ inside a character class; use \\[', pos);
+        }
+
+        // Unescaped hyphen: valid as a range operator between two single characters
+        if (ch === '-') {
+          const hyphenPos = pos;
+          if (lastSingleCharCP >= 0 && pos + 1 < src.length && src[pos + 1] !== ']') {
+            pos++; // consume '-'
+            const rangeEnd = parseRangeEndChar(hyphenPos);
+            classOut += `-${rangeEnd.str}`;
+            lastSingleCharCP = -1; // range consumed; not eligible for further chaining
+            itemCount++;
+            continue;
+          }
+          err(ErrorCode.UNESCAPED_HYPHEN, 'Hyphen in a character class must be escaped as \\-', hyphenPos);
+        }
+
+        // Unescaped ^ not at the first position (negation consumed above)
+        if (ch === '^') {
+          err(ErrorCode.UNESCAPED_CARET, 'Caret ^ inside a character class must be escaped as \\^', pos);
+        }
+
+        // Unescaped { or }
+        if (ch === '{' || ch === '}') {
+          err(ErrorCode.UNESCAPED_BRACE, `Unescaped ${ch} in a character class; use \\${ch}`, pos);
+        }
+
+        if (ch === '\\') {
+          pos++; // skip '\'
+          const esc = src[pos++];
+
+          switch (esc) {
+            case 'v':
+              err(ErrorCode.UNSUPPORTED_ESCAPE, '\\v is not supported; use \\x0b instead');
+              break;
+
+            case '0': {
+              // \0 followed by digit → octal
+              if (/[0-9]/.test(peek())) {
+                err(ErrorCode.UNSUPPORTED_ESCAPE, 'Octal character codes are not supported; use \\x or \\u instead');
+              }
+              // Bare \0 = null char, pass through
+              classOut += '\\0';
+              lastSingleCharCP = 0;
+              break;
+            }
+
+            case '1': case '2': case '3': case '4': case '5':
+            case '6': case '7': case '8': case '9':
+              // Numeric escapes inside character classes are not back-references; they're octal
+              err(ErrorCode.UNSUPPORTED_ESCAPE, 'Octal character codes are not supported; use \\x or \\u instead');
+              break;
+
+            case 'o':
+              err(ErrorCode.UNSUPPORTED_ESCAPE, '\\o{} octal codes are not supported; use \\x or \\u instead');
+              break;
+
+            case 'w':
+              // \w inside positive class: inline expansion
+              classOut += WORD_INNER;
+              lastSingleCharCP = -1;
+              break;
+
+            case 'W':
+              if (negated) {
+                err(ErrorCode.NEGATIVE_CLASS_IN_NEGATED_CLASS, '\\W cannot be used inside a negated character class [^...]');
+              }
+              // Positive class: pass through with note (JS ASCII semantics)
+              classOut += '\\W';
+              lastSingleCharCP = -1;
+              break;
+
+            case 'd':
+              // \d inside class: inline expansion to \p{Nd}
+              classOut += DIGIT_INNER;
+              lastSingleCharCP = -1;
+              break;
+
+            case 'D':
+              if (negated) {
+                err(ErrorCode.NEGATIVE_CLASS_IN_NEGATED_CLASS, '\\D cannot be used inside a negated character class [^...]');
+              }
+              classOut += '\\D';
+              lastSingleCharCP = -1;
+              break;
+
+            case 's':
+              // \s inside class: inline expansion
+              classOut += SPACE_INNER;
+              lastSingleCharCP = -1;
+              break;
+
+            case 'S':
+              if (negated) {
+                err(ErrorCode.NEGATIVE_CLASS_IN_NEGATED_CLASS, '\\S cannot be used inside a negated character class [^...]');
+              }
+              classOut += '\\S';
+              lastSingleCharCP = -1;
+              break;
+
+            case 'b':
+              // \b inside a character class = backspace (U+0008)
+              classOut += '\\x08';
+              lastSingleCharCP = 0x08;
+              break;
+
+            case 'B':
+              // Unusual but pass through; not range-eligible
+              classOut += '\\B';
+              lastSingleCharCP = -1;
+              break;
+
+            case 'p': {
+              const cat = eatUnicodeCategory();
+              classOut += `\\p{${cat}}`;
+              lastSingleCharCP = -1;
+              break;
+            }
+
+            case 'P':
+              if (negated) {
+                err(ErrorCode.NEGATIVE_CLASS_IN_NEGATED_CLASS, '\\P{} cannot be used inside a negated character class [^...]');
+              } else {
+                const cat = eatUnicodeCategory();
+                classOut += `\\P{${cat}}`;
+                lastSingleCharCP = -1;
+              }
+              break;
+
+            case 'u':
+              if (peek() === '{') {
+                pos++; // {
+                let hex = '';
+                while (pos < src.length && src[pos] !== '}') hex += src[pos++];
+                if (src[pos] !== '}') err(ErrorCode.INVALID_UNICODE_CODEPOINT, 'Unclosed \\u{}');
+                pos++; // }
+                const cp = parseInt(hex, 16);
+                if (isNaN(cp) || cp < 0 || cp > 0x10FFFF) {
+                  err(ErrorCode.INVALID_UNICODE_CODEPOINT, `\\u{${hex}} is out of the Unicode range`);
+                }
+                if (cp >= 0xD800 && cp <= 0xDFFF) {
+                  err(ErrorCode.INVALID_UNICODE_CODEPOINT, `\\u{${hex}} is a surrogate and is not allowed`);
+                }
+                classOut += `\\u{${hex}}`;
+                lastSingleCharCP = cp;
+              } else {
+                const hex = eatHex(4);
+                if (!hex) err(ErrorCode.INVALID_PATTERN, 'Malformed \\uHHHH escape');
+                const cp = parseInt(hex, 16);
+                classOut += `\\u${hex}`;
+                lastSingleCharCP = cp;
+              }
+              break;
+
+            case 'x': {
+              const hex = eatHex(2);
+              if (!hex) err(ErrorCode.INVALID_PATTERN, 'Malformed \\xHH escape');
+              classOut += `\\x${hex}`;
+              lastSingleCharCP = parseInt(hex, 16);
+              break;
+            }
+
+            case 'r': classOut += '\\r'; lastSingleCharCP = 0x0D; break;
+            case 'n': classOut += '\\n'; lastSingleCharCP = 0x0A; break;
+            case 'f': classOut += '\\f'; lastSingleCharCP = 0x0C; break;
+            case 't': classOut += '\\t'; lastSingleCharCP = 0x09; break;
+
+            default:
+              // Pass through all other escapes (\\, \], \[, \-, \^, \{, \}, \#, \ , etc.)
+              classOut += `\\${esc}`;
+              lastSingleCharCP = esc.codePointAt(0);
+              break;
+          }
+        } else {
+          classOut += ch;
+          lastSingleCharCP = ch.codePointAt(0);
+          pos++;
+        }
+
+        itemCount++;
+      }
+
+      err(ErrorCode.INVALID_PATTERN, 'Unclosed character class [');
+    }
+
+    // ── escape translator (outside character class) ───────────────────────────
+
+    function translateEscape() {
+      // pos is past '\', sitting at the escape character
+      const esc = src[pos++];
+
+      switch (esc) {
+        case 'v':
+          err(ErrorCode.UNSUPPORTED_ESCAPE, '\\v is not supported; use \\x0b instead');
+          break;
+
+        case '0': {
+          if (/[0-9]/.test(peek())) {
+            err(ErrorCode.UNSUPPORTED_ESCAPE, 'Octal character codes are not supported; use \\x or \\u instead');
+          }
+          return '\\0';
+        }
+
+        case '1': case '2': case '3': case '4': case '5':
+        case '6': case '7': case '8': case '9':
+          if (opts.numberedSubMatches) {
+            // Numbered back-reference: validate it's not > current group count
+            return `\\${esc}`;
+          }
+          err(ErrorCode.UNSUPPORTED_ESCAPE, `Numbered back-references \\${esc} require MatchOptions.NumberedSubMatches`);
+          break;
+
+        case 'o':
+          err(ErrorCode.UNSUPPORTED_ESCAPE, '\\o{} octal codes are not supported; use \\x or \\u instead');
+          break;
+
+        case 'w': return WORD_CLASS;
+        case 'W': return `[^${WORD_INNER}]`;
+        case 'd': return DIGIT_CLASS;
+        case 'D': return `[^${DIGIT_INNER}]`;
+        case 's': return SPACE_CLASS;
+        case 'S': return `[^${SPACE_INNER}]`;
+
+        case 'b': return UNICODE_WORD_BOUND;
+        case 'B': return UNICODE_NON_WORD_BOUND;
+
+        case 'p': {
+          const cat = eatUnicodeCategory();
+          return `\\p{${cat}}`;
+        }
+
+        case 'P': {
+          const cat = eatUnicodeCategory();
+          return `\\P{${cat}}`;
+        }
+
+        case 'k': {
+          // Named back-reference \k<name>
+          if (opts.numberedSubMatches) {
+            err(ErrorCode.MIXED_SUBMATCH_TYPES, 'Named back-references \\k<name> cannot be used when MatchOptions.NumberedSubMatches is enabled');
+          }
+          if (peek() !== '<') err(ErrorCode.INVALID_PATTERN, 'Expected \\k<name>');
+          pos++; // <
+          let name = '';
+          while (pos < src.length && src[pos] !== '>') name += src[pos++];
+          if (src[pos] !== '>') err(ErrorCode.INVALID_PATTERN, 'Unclosed \\k<name>');
+          pos++; // >
+          return `\\k<${name}>`;
+        }
+
+        case 'u':
+          if (peek() === '{') {
+            pos++; // {
+            let hex = '';
+            while (pos < src.length && src[pos] !== '}') hex += src[pos++];
+            if (src[pos] !== '}') err(ErrorCode.INVALID_UNICODE_CODEPOINT, 'Unclosed \\u{}');
+            pos++; // }
+            const cp = parseInt(hex, 16);
+            if (isNaN(cp) || cp < 0 || cp > 0x10FFFF) {
+              err(ErrorCode.INVALID_UNICODE_CODEPOINT, `\\u{${hex}} is out of the Unicode range (0–U+10FFFF)`);
+            }
+            if (cp >= 0xD800 && cp <= 0xDFFF) {
+              err(ErrorCode.INVALID_UNICODE_CODEPOINT, `\\u{${hex}} is a surrogate code point and is not allowed`);
+            }
+            return `\\u{${hex}}`;
+          } else {
+            const hex = eatHex(4);
+            if (!hex) err(ErrorCode.INVALID_PATTERN, 'Malformed \\uHHHH escape');
+            return `\\u${hex}`;
+          }
+
+        case 'x': {
+          const hex = eatHex(2);
+          if (!hex) err(ErrorCode.INVALID_PATTERN, 'Malformed \\xHH escape');
+          return `\\x${hex}`;
+        }
+
+        case 'r': return '\\r';
+        case 'n': return '\\n';
+        case 'f': return '\\f';
+        case 't': return '\\t';
+
+        default:
+          // Power Fx allows escaping any of the regex metacharacters and also
+          // \# and \  (space) for FreeSpacing consistency. The JavaScript u-flag
+          // only permits identity escapes for ECMAScript SyntaxCharacters.
+          // For everything else, strip the backslash so \- → -, \# → #, etc.
+          if ('^$\\.*+?()|{}[]/'.includes(esc)) {
+            return `\\${esc}`; // valid JS u-mode identity escape
+          }
+          // Not a syntax char — drop the backslash, emit literal
+          return esc;
+      }
+    }
+
+    // ── quantifier translator ─────────────────────────────────────────────────
+
+    function translateQuantifier(baseQ) {
+      // baseQ is '?', '*', '+', or a '{n,m}' string already consumed
+      // Check for possessive quantifier (e.g. ?+, *+, ++) which is unsupported
+      // Also check for lazy modifier (??, *?, +?, {n,m}?)
+      let q = baseQ;
+      const next = src[pos];
+
+      if (next === '+') {
+        err(ErrorCode.UNSUPPORTED_QUANTIFIER, `Possessive quantifier '${q}+' is not supported`);
+      }
+
+      if (next === '?') {
+        q += '?';
+        pos++;
+      }
+
+      // Inside lookahead/lookbehind: unlimited quantifiers are forbidden
+      if (lookaheadDepth > 0 && isUnlimitedQuantifier(baseQ)) {
+        err(ErrorCode.LOOKAHEAD_SUBMATCH, 'Unlimited quantifiers (* + {n,}) are not allowed inside lookahead/lookbehind');
+      }
+
+      return q;
+    }
+
+    // ── group opener translator ───────────────────────────────────────────────
+
+    function translateGroupOpen() {
+      // pos is past '(', sitting at the char after it
+      if (peek() !== '?') {
+        // Plain ( — capturing or non-capturing depending on mode
+        if (opts.numberedSubMatches) {
+          hasNumbered = true;
+          if (hasNamed) {
+            err(ErrorCode.MIXED_SUBMATCH_TYPES, 'Named and numbered submatches cannot be mixed in the same pattern');
+          }
+          if (lookaheadDepth > 0) {
+            err(ErrorCode.LOOKAHEAD_SUBMATCH, 'Capture groups are not allowed inside lookahead/lookbehind');
+          }
+          groupStack.push({ type: 'numbered' });
+          return '(';
+        } else {
+          // Default: non-capturing
+          groupStack.push({ type: 'noncapture' });
+          return '(?:';
+        }
+      }
+
+      // (?...) group
+      pos++; // skip '?'
+
+      const next = peek();
+
+      // Non-capture group (?:...)
+      if (next === ':') {
+        pos++;
+        groupStack.push({ type: 'noncapture' });
+        return '(?:';
+      }
+
+      // Named capture (?<name>...)
+      if (next === '<' && src[pos + 1] !== '=' && src[pos + 1] !== '!') {
+        pos++; // <
+        let name = '';
+        while (pos < src.length && src[pos] !== '>') name += src[pos++];
+        if (src[pos] !== '>') err(ErrorCode.INVALID_PATTERN, 'Unclosed group name in (?<name>...)');
+        pos++; // >
+
+        if (!name) err(ErrorCode.INVALID_PATTERN, 'Empty group name in (?<name>...)');
+        if (!/^[\p{L}_][\p{L}_\p{Nd}]*$/u.test(name)) {
+          err(ErrorCode.INVALID_PATTERN, `Invalid group name '${name}': must start with a letter or _ and contain only letters, digits, and _`);
+        }
+        if (name.length > 62) {
+          err(ErrorCode.INVALID_PATTERN, `Group name '${name}' exceeds the 62 character limit`);
+        }
+        if (namedGroups.has(name)) {
+          err(ErrorCode.DUPLICATE_NAMED_GROUP, `Duplicate named capture group '${name}'`);
+        }
+        if (opts.numberedSubMatches) {
+          err(ErrorCode.MIXED_SUBMATCH_TYPES, 'Named capture groups cannot be used when MatchOptions.NumberedSubMatches is enabled');
+        }
+        if (hasNumbered) {
+          err(ErrorCode.MIXED_SUBMATCH_TYPES, 'Named and numbered submatches cannot be mixed in the same pattern');
+        }
+        if (lookaheadDepth > 0) {
+          err(ErrorCode.LOOKAHEAD_SUBMATCH, 'Capture groups are not allowed inside lookahead/lookbehind');
+        }
+
+        namedGroups.add(name);
+        hasNamed = true;
+        groupStack.push({ type: 'named', name });
+        return `(?<${name}>`;
+      }
+
+      // Positive lookahead (?=...)
+      if (next === '=') {
+        pos++;
+        groupStack.push({ type: 'lookahead' });
+        lookaheadDepth++;
+        return '(?=';
+      }
+
+      // Negative lookahead (?!...)
+      if (next === '!') {
+        pos++;
+        groupStack.push({ type: 'lookahead' });
+        lookaheadDepth++;
+        return '(?!';
+      }
+
+      // Lookbehind (?<=...) / (?<!...)
+      if (next === '<') {
+        const sign = src[pos + 1];
+        if (sign === '=' || sign === '!') {
+          pos += 2; // skip < and = or !
+          groupStack.push({ type: 'lookbehind' });
+          lookaheadDepth++;
+          return sign === '=' ? '(?<=' : '(?<!';
+        }
+      }
+
+      // Inline comment (?#...)
+      if (next === '#') {
+        pos++; // skip '#'
+        // Skip until ')'; comment ends with first close paren (no escaping inside comments)
+        while (pos < src.length && src[pos] !== ')') pos++;
+        if (src[pos] === ')') pos++; // consume ')'
+        // Do NOT push to groupStack — the ')' was already consumed above
+        return ''; // strip the comment entirely
+      }
+
+      // Inline options (?im) — only valid at start (already extracted before translatePattern)
+      if (/[imn]/.test(next)) {
+        err(ErrorCode.INLINE_OPTION_NOT_AT_START, 'Inline options (?...) must appear at the very beginning of the pattern');
+      }
+
+      // DotAll (?s) and FreeSpacing (?x) are not available in Power Apps
+      if (next === 's') {
+        err(ErrorCode.UNSUPPORTED_INLINE_OPTION, 'Inline option (?s) / DotAll is not available in Power Apps');
+      }
+      if (next === 'x') {
+        err(ErrorCode.UNSUPPORTED_INLINE_OPTION, 'Inline option (?x) / FreeSpacing is not available in Power Apps');
+      }
+
+      // Any other (?X) group we don't recognise → report
+      err(ErrorCode.INVALID_PATTERN, `Unsupported group syntax (?${next}...)`);
+    }
+
+    // ── main loop ─────────────────────────────────────────────────────────────
+
+    while (pos < src.length) {
+      const ch = src[pos];
+
+      // Character class
+      if (ch === '[') {
+        out += translateCharClass();
+        continue;
+      }
+
+      // Escape sequence
+      if (ch === '\\') {
+        pos++; // skip '\'
+        out += translateEscape();
+        continue;
+      }
+
+      // Group open
+      if (ch === '(') {
+        pos++; // skip '('
+        const opener = translateGroupOpen();
+        out += opener;
+        continue;
+      }
+
+      // Group close
+      if (ch === ')') {
+        if (groupStack.length === 0) {
+          err(ErrorCode.INVALID_PATTERN, 'Unmatched closing )');
+        }
+        const group = groupStack.pop();
+        if (group.type === 'lookahead' || group.type === 'lookbehind') {
+          lookaheadDepth--;
+        }
+        pos++;
+        out += ')';
+
+        // Lookaround must not be followed by a quantifier
+        if (group.type === 'lookahead' || group.type === 'lookbehind') {
+          const q = peekQuantifier();
+          if (q) {
+            err(ErrorCode.LOOKAHEAD_SUBMATCH, 'Lookahead/lookbehind assertions cannot be followed by a quantifier');
+          }
+        }
+        continue;
+      }
+
+      // Quantifiers
+      if (ch === '?' || ch === '*' || ch === '+') {
+        pos++;
+        out += translateQuantifier(ch);
+        continue;
+      }
+
+      if (ch === '{') {
+        const m = /^\{(\d+)(?:,(\d*))?\}/.exec(src.slice(pos));
+        if (m) {
+          pos += m[0].length;
+          out += translateQuantifier(m[0]);
+          continue;
+        }
+        // Bare '{' not forming a valid quantifier: Power Fx requires escaping
+        err(ErrorCode.UNESCAPED_BRACE, 'Unescaped { — use \\{ or form a valid quantifier {n}, {n,}, or {n,m}');
+      }
+
+      // Bare '}' outside quantifier context must be escaped in Power Fx
+      if (ch === '}') {
+        err(ErrorCode.UNESCAPED_BRACE, 'Unescaped } — use \\}');
+      }
+
+      // Dot: translate to Power Fx character exclusion set (unless DotAll)
+      if (ch === '.') {
+        pos++;
+        out += opts.dotAll ? '.' : DOT_CLASS;
+        continue;
+      }
+
+      // Dollar: translate to handle \r line endings
+      if (ch === '$') {
+        pos++;
+        out += opts.multiline ? DOLLAR_MULTILINE : DOLLAR_NONMULTILINE;
+        continue;
+      }
+
+      // Caret: translate to handle \r line endings in multiline mode
+      if (ch === '^') {
+        pos++;
+        out += opts.multiline ? CARET_MULTILINE : '^';
+        continue;
+      }
+
+      // Default: literal character
+      pos++;
+      out += ch;
+    }
+
+    if (groupStack.length > 0) {
+      err(ErrorCode.INVALID_PATTERN, `Unclosed group — ${groupStack.length} group(s) not closed`);
+    }
+
+    return { jsPattern: out, captureNames: [...namedGroups] };
+  }
+
+  // ─── Compile pattern ─────────────────────────────────────────────────────────
+  //
+  // Full pipeline: option parsing → inline option extraction → FreeSpacing →
+  // validate+translate → anchor → flags.
+
+  function compilePattern(pattern, rawOpts, defaultAnchor) {
+    if (typeof pattern !== 'string') {
+      throw new PowerFxRegexError(ErrorCode.INVALID_PATTERN, 'Pattern must be a string');
+    }
+
+    const opts = parseOptions(rawOpts, defaultAnchor);
+
+    // Extract inline options from the very start of the raw pattern
+    const { inlineFlags, body } = extractInlineOptions(pattern);
+
+    if (inlineFlags.includes('i')) opts.ignoreCase   = true;
+    if (inlineFlags.includes('m')) opts.multiline     = true;
+    if (inlineFlags.includes('n')) opts.numberedSubMatches = false;
+
+    // Check for unsupported inline option letters
+    for (const f of inlineFlags) {
+      if (f === 's') {
+        throw new PowerFxRegexError(
+          ErrorCode.UNSUPPORTED_INLINE_OPTION,
+          `Inline option (?s) / DotAll is not available in Power Apps`,
+        );
+      }
+      if (f === 'x') {
+        throw new PowerFxRegexError(
+          ErrorCode.UNSUPPORTED_INLINE_OPTION,
+          `Inline option (?x) / FreeSpacing is not available in Power Apps`,
+        );
+      }
+      if (!'imn'.includes(f)) {
+        throw new PowerFxRegexError(
+          ErrorCode.UNSUPPORTED_INLINE_OPTION,
+          `Unsupported inline option '${f}' in (?${inlineFlags})`,
+        );
+      }
+    }
+
+    // DotAll and FreeSpacing are not available in Power Apps
+    if (opts.dotAll) {
+      throw new PowerFxRegexError(
+        ErrorCode.UNSUPPORTED_INLINE_OPTION,
+        'MatchOptions.DotAll is not available in Power Apps',
+      );
+    }
+    if (opts.freeSpacing) {
+      throw new PowerFxRegexError(
+        ErrorCode.UNSUPPORTED_INLINE_OPTION,
+        'MatchOptions.FreeSpacing is not available in Power Apps',
+      );
+    }
+
+    // FreeSpacing preprocessing (applied to body, after inline options are stripped)
+    const preprocessed = opts.freeSpacing ? preprocessFreeSpacing(body) : body;
+
+    // Validate and translate to JS regex
+    const { jsPattern, captureNames } = translatePattern(preprocessed, opts);
+
+    // Apply anchor mode
+    let anchored;
+    switch (opts.anchorMode) {
+      case 'Complete':   anchored = `^(?:${jsPattern})$`; break;
+      case 'BeginsWith': anchored = `^(?:${jsPattern})`;  break;
+      case 'EndsWith':   anchored = `(?:${jsPattern})$`;  break;
+      default:           anchored = jsPattern;             break; // Contains
+    }
+
+    // Build JS flags: always 'u' + 'd' (indices for StartMatch), plus conditional
+    let flags = 'ud';
+    if (opts.ignoreCase) flags += 'i';
+    if (opts.multiline)  flags += 'm';
+    if (opts.dotAll)     flags += 's';
+
+    // Build the RegExp — let the JS engine do final validation
+    let regex;
+    try {
+      regex = new RegExp(anchored, flags);
+    } catch (e) {
+      throw new PowerFxRegexError(ErrorCode.INVALID_PATTERN, `Invalid pattern: ${e.message}`);
+    }
+
+    return { regex, captureNames, opts };
+  }
+
+  // ─── Result shaping ──────────────────────────────────────────────────────────
+
+  function shapeMatch(match, opts) {
+    if (!match) return null;
+    const result = {
+      FullMatch:  match[0],
+      StartMatch: match.indices[0][0] + 1, // 1-based per Power Fx
+    };
+    if (opts && opts.numberedSubMatches) {
+      // SubMatches: single-column table with column "Value" per Power Fx spec
+      const subMatches = [];
+      for (let i = 1; i < match.length; i++) {
+        subMatches.push({ Value: match[i] !== undefined ? match[i] : '' });
+      }
+      result.SubMatches = subMatches;
+    } else if (match.groups) {
+      // Named captures
+      for (const [name, value] of Object.entries(match.groups)) {
+        result[name] = value !== undefined ? value : '';
+      }
+    }
+    return result;
+  }
+
+  // ─── Public API ──────────────────────────────────────────────────────────────
+
+  /**
+   * Returns true if the pattern matches any part of text (or the whole text,
+   * depending on options). Mirrors Power Fx IsMatch().
+   *
+   * @param {string} text
+   * @param {string} pattern  Power Fx regex pattern (or Match.* constant)
+   * @param {string} [options] MatchOptions value(s) concatenated with &
+   * @returns {boolean}
+   */
+  function IsMatch(text, pattern, options) {
+    const { regex } = compilePattern(pattern, options, 'Complete');
+    return regex.test(String(text));
+  }
+
+  /**
+   * Returns the first match as a Power Fx record, or null if no match.
+   * Mirrors Power Fx Match().
+   *
+   * @param {string} text
+   * @param {string} pattern
+   * @param {string} [options]
+   * @returns {{ FullMatch: string, StartMatch: number, [name: string]: string } | null}
+   */
+  function Match(text, pattern, options) {
+    const { regex, opts } = compilePattern(pattern, options);
+    return shapeMatch(regex.exec(String(text)), opts);
+  }
+
+  /**
+   * Returns all matches as an array of Power Fx records. Empty array if no match.
+   * Mirrors Power Fx MatchAll().
+   *
+   * @param {string} text
+   * @param {string} pattern
+   * @param {string} [options]
+   * @returns {Array<{ FullMatch: string, StartMatch: number, [name: string]: string }>}
+   */
+  function MatchAll(text, pattern, options) {
+    const { regex, opts } = compilePattern(pattern, options);
+    const gRegex = new RegExp(regex.source, regex.flags + 'g');
+    const results = [];
+    let m;
+    while ((m = gRegex.exec(String(text))) !== null) {
+      results.push(shapeMatch(m, opts));
+      if (m[0].length === 0) gRegex.lastIndex++;
+    }
+    return results;
+  }
+
+  // ─── Exports ─────────────────────────────────────────────────────────────────
+  //
+  // Match is both a function (Match(text, pattern)) and an enum namespace
+  // (Match.Email, Match.Digit …).  Attach the enum properties to the function
+  // so both usages work on the same object.
+
+  Object.assign(Match, MatchEnum);
+
+  const PowerFxRegex = {
+    IsMatch,
+    Match,       // function AND enum namespace (Match.Email etc.)
+    MatchAll,
+    MatchOptions,
+    PowerFxRegexError,
+    ErrorCode,
+  };
+
+  // CommonJS (Node.js)
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = PowerFxRegex;
+  }
+
+  // Browser global
+  if (typeof global !== 'undefined') {
+    global.PowerFxRegex = PowerFxRegex;
+  }
+
+}(typeof globalThis !== 'undefined' ? globalThis : typeof window !== 'undefined' ? window : this));
+
+  </script>
+
+  <!-- ── App logic ────────────────────────────────────────────────────────── -->
+  <script>
+  (function () {
+    'use strict';
+
+    // ── DOM refs ──────────────────────────────────────────────────────────
+    const patternInput   = document.getElementById('pattern-input');
+    const testString     = document.getElementById('test-string');
+    const anchorSelect   = document.getElementById('anchor-select');
+    const fnGroup        = document.getElementById('fn-group');
+    const optsGroup      = document.getElementById('opts-group');
+    const outputView     = document.getElementById('output-view');
+    const outputLabel    = document.getElementById('output-label');
+    const detailsView    = document.getElementById('details-view');
+    const errorBar       = document.getElementById('error-bar');
+    const copyFxBtn      = document.getElementById('copy-fx-btn');
+    const copyAllBtn     = document.getElementById('copy-all-btn');
+    const clearBtn       = document.getElementById('clear-btn');
+    const patternLibrary = document.getElementById('pattern-library');
+    const charCount      = document.getElementById('char-count');
+
+    // ── State ─────────────────────────────────────────────────────────────
+    let currentFn       = 'IsMatch';
+    let lastMatchAll    = [];
+
+    // ── Helpers ───────────────────────────────────────────────────────────
+
+    function escapeHtml(s) {
+      return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function updateCharCount() {
+      const len = testString.value.length;
+      charCount.textContent = `${len.toLocaleString()} char${len !== 1 ? 's' : ''}`;
+    }
+
+    function getActiveOpts() {
+      return [...optsGroup.querySelectorAll('.opt-toggle.active')]
+        .map(b => b.dataset.opt);
+    }
+
+    function buildOptionsString() {
+      const anchor = anchorSelect.value;
+      const opts   = getActiveOpts();
+      const parts  = [anchor];
+      parts.push(...opts);
+      return parts.join(' & ');
+    }
+
+    function buildOptionsStringForDisplay() {
+      const anchor = anchorSelect.value;
+      const opts   = getActiveOpts();
+      const parts  = [`MatchOptions.${anchor}`];
+      opts.forEach(o => parts.push(`MatchOptions.${o}`));
+      return parts.join(' & ');
+    }
+
+    function showError(err) {
+      errorBar.classList.add('visible');
+      let msg = '';
+      if (err.code) msg += `<span class="error-code">[${err.code}]</span>`;
+      msg += escapeHtml(err.message || String(err));
+      if (err.position !== undefined) msg += ` <span style="color:var(--color-text-tertiary)">(pos ${err.position})</span>`;
+      errorBar.innerHTML = msg;
+    }
+
+    function clearError() {
+      errorBar.classList.remove('visible');
+      errorBar.innerHTML = '';
+    }
+
+    // ── Highlighting ──────────────────────────────────────────────────────
+    //
+    // Power Fx MatchAll returns { FullMatch, StartMatch (1-based), ...captures }.
+    // We rebuild highlighted HTML using those positions.
+
+    function buildHighlightedHtml(text, results, singleOnly) {
+      const list = singleOnly ? results.slice(0, 1) : results;
+      if (list.length === 0) return escapeHtml(text);
+
+      // Collect capture names/numbers from first result (for coloring)
+      const captureKeys = list[0]
+        ? Object.keys(list[0]).filter(k => k !== 'FullMatch' && k !== 'StartMatch')
+        : [];
+
+      // SubMatches is a table (array of {Value}) — treat its entries as individual captures
+      const isSubMatchMode = captureKeys.length === 1 && captureKeys[0] === 'SubMatches';
+
+      let html = '';
+      let cursor = 0; // 0-based position in text
+
+      for (const m of list) {
+        const start = m.StartMatch - 1; // convert to 0-based
+        const end   = start + m.FullMatch.length;
+
+        // Text before this match
+        if (start > cursor) html += escapeHtml(text.slice(cursor, start));
+
+        // Build inner HTML for match, colorizing up to 3 named/numbered captures
+        let innerHtml = escapeHtml(m.FullMatch);
+
+        // Color capture groups (up to 3) by replacing their text within the match.
+        // We go in reverse capture order to avoid offset issues with simple replacement.
+        const colorVals = isSubMatchMode
+          ? (m.SubMatches || []).slice(0, 3).map(sm => sm.Value || '')
+          : captureKeys.slice(0, 3).map(k => m[k] || '');
+
+        for (let ci = colorVals.length - 1; ci >= 0; ci--) {
+          const val = colorVals[ci];
+          if (val) {
+            const escaped = escapeHtml(val);
+            // Replace only the FIRST occurrence (captures are non-overlapping within a match)
+            const idx = innerHtml.indexOf(escaped);
+            if (idx !== -1) {
+              innerHtml =
+                innerHtml.slice(0, idx) +
+                `<span class="m-g${ci + 1}">${escaped}</span>` +
+                innerHtml.slice(idx + escaped.length);
+            }
+          }
+        }
+
+        html += `<span class="m-full" data-match-idx="${list.indexOf(m)}">${innerHtml}</span>`;
+        cursor = end;
+      }
+
+      // Remaining text after last match
+      if (cursor < text.length) html += escapeHtml(text.slice(cursor));
+
+      return html;
+    }
+
+    // ── Details panel ─────────────────────────────────────────────────────
+
+    function renderDetails(results) {
+      if (!results || results.length === 0) {
+        detailsView.innerHTML = '<div class="empty-state">No matches</div>';
+        return;
+      }
+
+      const captureKeys = Object.keys(results[0])
+        .filter(k => k !== 'FullMatch' && k !== 'StartMatch');
+
+      let html = '';
+
+      results.forEach((m, i) => {
+        html += `<div class="match-card" data-match-idx="${i}">`;
+
+        // Card header: "Match N" + "pos N"
+        html += '<div class="match-card-header">';
+        html += `<span class="match-num">Match ${i + 1}</span>`;
+        html += `<span class="match-pos">pos&nbsp;${m.StartMatch}</span>`;
+        html += '</div>';
+
+        // FullMatch value
+        html += '<div class="match-kv">';
+        html += `<span class="match-key">FullMatch</span><span class="match-val">${escapeHtml(m.FullMatch)}</span>`;
+        html += '</div>';
+
+        // Captures section
+        const isSubMatchMode = captureKeys.length === 1 && captureKeys[0] === 'SubMatches';
+        if (captureKeys.length > 0) {
+          html += '<div class="match-captures"><div class="match-kv">';
+          if (isSubMatchMode) {
+            (m.SubMatches || []).forEach((sm, si) => {
+              const colorClass = si < 3 ? ` capture-g${si + 1}` : '';
+              html += `<span class="match-key">${si + 1}</span>`;
+              html += `<span class="match-val${colorClass}">${escapeHtml(String(sm.Value || ''))}</span>`;
+            });
+          } else {
+            captureKeys.forEach((k, ki) => {
+              const colorClass = ki < 3 ? ` capture-g${ki + 1}` : '';
+              const val = m[k];
+              html += `<span class="match-key">${escapeHtml(String(k))}</span>`;
+              html += `<span class="match-val${colorClass}">${escapeHtml(val !== undefined ? String(val) : '')}</span>`;
+            });
+          }
+          html += '</div></div>';
+        }
+
+        html += '</div>';
+      });
+
+      detailsView.innerHTML = html;
+    }
+
+    // ── Main update ───────────────────────────────────────────────────────
+
+    let debounceTimer = null;
+
+    function scheduleUpdate() {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(update, 80);
+    }
+
+    function update() {
+      const pattern = patternInput.value;
+      const text    = testString.value;
+      const opts    = buildOptionsString();
+      const fn      = currentFn;
+
+      clearError();
+      lastMatchAll = [];
+
+      // Empty pattern — just show raw text
+      if (!pattern) {
+        outputView.innerHTML = escapeHtml(text);
+        outputLabel.textContent = 'Output';
+        detailsView.innerHTML = '<div class="empty-state">Enter a pattern above</div>';
+        return;
+      }
+
+      const pfx = window.PowerFxRegex;
+      if (!pfx) {
+        showError({ message: 'PowerFxRegex evaluator not loaded.' });
+        return;
+      }
+
+      try {
+
+        if (fn === 'IsMatch') {
+          const result = pfx.IsMatch(text, pattern, opts);
+          outputLabel.textContent = 'IsMatch';
+          outputView.innerHTML = `<div class="ismatch-result ismatch-${result}">${result}</div>`;
+
+        } else if (fn === 'Match') {
+          const match = pfx.Match(text, pattern, opts);
+          outputLabel.textContent = 'Match — first match highlighted';
+
+          const results = match ? [match] : [];
+          lastMatchAll = results;
+
+          outputView.innerHTML = buildHighlightedHtml(text, results, false);
+          renderDetails(results);
+
+        } else { // MatchAll
+          const matches = pfx.MatchAll(text, pattern, opts);
+          outputLabel.textContent = `MatchAll — ${matches.length} match${matches.length !== 1 ? 'es' : ''}`;
+
+          lastMatchAll = matches;
+
+          outputView.innerHTML = buildHighlightedHtml(text, matches, false);
+          renderDetails(matches);
+
+        }
+
+      } catch (err) {
+        showError(err);
+        outputView.innerHTML = escapeHtml(text);
+        detailsView.innerHTML = '<div class="empty-state">Fix the error above</div>';
+      }
+    }
+
+    // ── Copy as Power Fx ─────────────────────────────────────────────────
+
+    function buildPowerFxFormula() {
+      const fn      = currentFn;
+      const pattern = patternInput.value;
+      const optsStr = buildOptionsStringForDisplay();
+      const escaped = pattern.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+      let formula   = `${fn}(subject, "${escaped}"`;
+      if (optsStr) formula += `, ${optsStr}`;
+      formula += ')';
+      return formula;
+    }
+
+    // ── Clipboard helper ──────────────────────────────────────────────────
+
+    async function copyText(text, btn, label) {
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch (_) {
+        // Fallback
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.cssText = 'position:fixed;opacity:0;';
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); } catch (_2) {}
+        document.body.removeChild(ta);
+      }
+      const orig = btn.textContent;
+      btn.textContent = 'Copied!';
+      btn.classList.add('success');
+      setTimeout(() => { btn.textContent = orig; btn.classList.remove('success'); }, 1500);
+    }
+
+    // ── Event listeners ───────────────────────────────────────────────────
+
+    patternInput.addEventListener('input', () => { patternLibrary.value = ''; scheduleUpdate(); });
+    testString.addEventListener('input',   () => { patternLibrary.value = ''; updateCharCount(); scheduleUpdate(); });
+    anchorSelect.addEventListener('change', scheduleUpdate);
+
+    // Function selector
+    fnGroup.addEventListener('click', e => {
+      const btn = e.target.closest('.fn-btn');
+      if (!btn) return;
+      fnGroup.querySelectorAll('.fn-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentFn = btn.dataset.fn;
+      // Power Apps: IsMatch defaults to Complete, others to Contains
+      anchorSelect.value = currentFn === 'IsMatch' ? 'Complete' : 'Contains';
+      scheduleUpdate();
+    });
+
+    // MatchOptions toggles
+    optsGroup.addEventListener('click', e => {
+      const btn = e.target.closest('.opt-toggle');
+      if (!btn) return;
+      btn.classList.toggle('active');
+      scheduleUpdate();
+    });
+
+    // Copy as Power Fx
+    copyFxBtn.addEventListener('click', () => {
+      copyText(buildPowerFxFormula(), copyFxBtn, 'Copy as Power Fx');
+    });
+
+    // Clear
+    clearBtn.addEventListener('click', () => {
+      patternInput.value   = '';
+      testString.value     = '';
+      patternLibrary.value = '';
+      updateCharCount();
+      update();
+    });
+
+    // Copy all FullMatch values
+    copyAllBtn.addEventListener('click', () => {
+      if (!lastMatchAll.length) return;
+      const text = lastMatchAll.map(m => m.FullMatch).join('\n');
+      copyText(text, copyAllBtn, 'Copy All');
+    });
+
+    // ── Hover cross-linking between match cards and output highlights ────
+    function clearMatchHover() {
+      document.querySelectorAll('.m-full.hover-active, .match-card.hover-active')
+        .forEach(el => el.classList.remove('hover-active'));
+    }
+
+    function activateMatchHover(idx) {
+      clearMatchHover();
+      document.querySelectorAll(`[data-match-idx="${idx}"]`)
+        .forEach(el => el.classList.add('hover-active'));
+    }
+
+    detailsView.addEventListener('mouseenter', e => {
+      const card = e.target.closest('.match-card[data-match-idx]');
+      if (card) activateMatchHover(card.dataset.matchIdx);
+    }, true);
+
+    detailsView.addEventListener('mouseleave', e => {
+      const card = e.target.closest('.match-card[data-match-idx]');
+      if (card) clearMatchHover();
+    }, true);
+
+    outputView.addEventListener('mouseenter', e => {
+      const span = e.target.closest('.m-full[data-match-idx]');
+      if (span) activateMatchHover(span.dataset.matchIdx);
+    }, true);
+
+    outputView.addEventListener('mouseleave', e => {
+      const span = e.target.closest('.m-full[data-match-idx]');
+      if (span) clearMatchHover();
+    }, true);
+
+    // Pattern library
+    const patterns = [
+      {
+        name: 'ISO date (numbered groups)',
+        pattern: '(\\d{4})-(\\d{2})-(\\d{2})',
+        fn: 'MatchAll',
+        opts: [],
+        anchor: 'Contains',
+        sample: 'Events: 2024-12-25, 2025-01-01, and 2025-07-04',
+      },
+      {
+        name: 'Email address',
+        pattern: '.+@.+\\..+',
+        fn: 'IsMatch',
+        opts: ['Complete'],
+        anchor: 'Complete',
+        sample: 'support@example.com',
+      },
+      {
+        name: 'US phone (numbered groups)',
+        pattern: '(\\d{3})[\\-.\\s](\\d{3})[\\-.\\s](\\d{4})',
+        fn: 'MatchAll',
+        opts: [],
+        anchor: 'Contains',
+        sample: 'Call us: 555-123-4567 or 555.987.6543',
+      },
+      {
+        name: 'Unicode letters word',
+        pattern: '\\p{L}+',
+        fn: 'MatchAll',
+        opts: [],
+        anchor: 'Contains',
+        sample: 'Héllo wörld — café naïve résumé',
+      },
+      {
+        name: 'URL (BeginsWith)',
+        pattern: 'https?://[\\p{L}\\p{N}.\\-]+(?:/[^\\s]*)?',
+        fn: 'Match',
+        opts: [],
+        anchor: 'BeginsWith',
+        sample: 'https://www.example.com/docs/guide',
+      },
+      {
+        name: 'Hex color code',
+        pattern: '#[0-9a-fA-F]{6}',
+        fn: 'MatchAll',
+        opts: ['IgnoreCase'],
+        anchor: 'Contains',
+        sample: 'Colors: #FF5733, #3498db, #2ecc71, #ac87eb',
+      },
+      {
+        name: 'IsMatch — valid ZIP code',
+        pattern: '\\d{5}(-\\d{4})?',
+        fn: 'IsMatch',
+        opts: ['Complete'],
+        anchor: 'Complete',
+        sample: '90210-1234',
+      },
+      {
+        name: 'Unicode word boundary',
+        pattern: '\\b\\p{L}{4}\\b',
+        fn: 'MatchAll',
+        opts: [],
+        anchor: 'Contains',
+        sample: 'Find four-letter words like "this" or "that" but not "hi" or "hello"',
+      },
+      {
+        name: 'IP address (numbered groups)',
+        pattern: '(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})',
+        fn: 'MatchAll',
+        opts: [],
+        anchor: 'Contains',
+        sample: 'Servers: 192.168.1.1, 10.0.0.1, and 172.16.0.1',
+      },
+    ];
+
+    patterns.forEach((p, i) => {
+      const opt = document.createElement('option');
+      opt.value = i;
+      opt.textContent = p.name;
+      patternLibrary.appendChild(opt);
+    });
+
+    patternLibrary.addEventListener('change', e => {
+      const idx = e.target.value;
+      if (idx === '') return;
+      const p = patterns[idx];
+
+      patternInput.value = p.pattern;
+      testString.value   = p.sample;
+      anchorSelect.value = p.anchor;
+
+      // Set function
+      fnGroup.querySelectorAll('.fn-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.fn === p.fn);
+      });
+      currentFn = p.fn;
+
+      // Set options
+      optsGroup.querySelectorAll('.opt-toggle').forEach(b => {
+        b.classList.toggle('active', (p.opts || []).includes(b.dataset.opt));
+      });
+
+      updateCharCount();
+      update();
+    });
+
+    // ── Initial render ────────────────────────────────────────────────────
+    updateCharCount();
+    update();
+
+  }());
+  </script>
+
+</body>
+</html>

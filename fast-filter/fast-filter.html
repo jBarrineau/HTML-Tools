@@ -1,0 +1,2688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:">
+  <title>Fast Filter — Power Automate Query Builder</title>
+  <style>
+    /* ===== RESET & BASE ===== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --indigo:        rgba(99,102,241,0.85);
+      --indigo-light:  rgba(99,102,241,0.12);
+      --indigo-border: rgba(99,102,241,0.38);
+      --pink:          rgba(236,72,153,0.85);
+      --pink-light:    rgba(236,72,153,0.10);
+      --pink-border:   rgba(236,72,153,0.38);
+      --glass-bg:      rgba(255,255,255,0.55);
+      --glass-border:  rgba(255,255,255,0.82);
+      --glass-shadow:  rgba(31,38,135,0.13);
+      --text-primary:  #1e1b4b;
+      --text-secondary:#6b7280;
+      --text-muted:    #a0aec0;
+      --radius:        20px;
+      --radius-sm:     10px;
+      --radius-xs:     6px;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ===== ANIMATED BACKGROUND ===== */
+    .app-bg {
+      min-height: 100vh;
+      background: linear-gradient(135deg, #e0e7ff 0%, #fce4ec 50%, #e8f5e9 100%);
+      background-size: 400% 400%;
+      animation: bg-drift 18s ease infinite;
+      padding: 1.5rem;
+    }
+
+    @keyframes bg-drift {
+      0%   { background-position: 0% 50%; }
+      50%  { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    /* ===== GLASS CARD ===== */
+    .glass-card {
+      background: var(--glass-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius);
+      box-shadow: 0 8px 32px var(--glass-shadow);
+    }
+
+    /* ===== HEADER ===== */
+    .app-header {
+      display: flex;
+      align-items: baseline;
+      gap: 0.75rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .app-header h1 {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 2.2rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, #4f46e5, #ec4899);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: -0.03em;
+      flex-shrink: 0;
+    }
+
+    .app-header p {
+      font-size: 0.88rem;
+      color: var(--text-secondary);
+      font-weight: 300;
+      letter-spacing: 0.02em;
+    }
+
+    /* ===== WORKSPACE ===== */
+    .workspace {
+      display: grid;
+      grid-template-columns: 1fr 2fr 1fr;
+      gap: 1.25rem;
+      align-items: stretch;
+      margin-bottom: 1.25rem;
+    }
+
+    @media (max-width: 1100px) {
+      .workspace { grid-template-columns: 1fr; }
+    }
+
+    /* ===== LEFT PANE ===== */
+    .pane-left {
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    /* ===== RIGHT PANE ===== */
+    .pane-right {
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    /* ===== SECTION TITLES ===== */
+    .section-title {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--text-secondary);
+      margin-bottom: 0.85rem;
+    }
+
+    /* ===== JSON INPUT ===== */
+    #json-input {
+      width: 100%;
+      min-height: 335px;
+      padding: 0.75rem;
+      border: 1px solid rgba(255,255,255,0.6);
+      border-radius: var(--radius-sm);
+      background: rgba(255,255,255,0.38);
+      font-family: 'Cascadia Code', 'Consolas', 'Courier New', monospace;
+      font-size: 0.72rem;
+      color: var(--text-primary);
+      resize: vertical;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      line-height: 1.55;
+    }
+
+    #json-input:focus {
+      border-color: var(--indigo-border);
+      box-shadow: 0 0 0 3px var(--indigo-light);
+    }
+
+    #json-input::placeholder { color: var(--text-muted); }
+
+    .parse-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-top: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+
+    .json-hint {
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      font-style: italic;
+    }
+
+    .error-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      background: rgba(239,68,68,0.1);
+      border: 1px solid rgba(239,68,68,0.28);
+      color: #dc2626;
+      border-radius: 999px;
+      padding: 0.28rem 0.75rem;
+      font-size: 0.7rem;
+      font-weight: 500;
+      max-width: 100%;
+    }
+
+    /* ===== FIELDS LIST ===== */
+    .fields-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+      max-height: 260px;
+      overflow-y: auto;
+    }
+
+    .fields-list::-webkit-scrollbar { width: 6px; }
+    .fields-list::-webkit-scrollbar-track { background: rgba(99,102,241,0.06); border-radius: 3px; }
+    .fields-list::-webkit-scrollbar-thumb { background: rgba(99,102,241,0.45); border-radius: 3px; }
+    .fields-list::-webkit-scrollbar-thumb:hover { background: rgba(99,102,241,0.7); }
+
+    .field-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.42rem 0.7rem;
+      background: rgba(255,255,255,0.38);
+      border-radius: var(--radius-xs);
+      border: 1px solid rgba(255,255,255,0.5);
+      gap: 0.5rem;
+    }
+
+    .field-path {
+      font-family: 'Cascadia Code', 'Consolas', 'Courier New', monospace;
+      font-size: 0.7rem;
+      color: var(--text-primary);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      min-width: 0;
+    }
+
+    .field-type-badge {
+      font-size: 0.6rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      padding: 0.12rem 0.45rem;
+      border-radius: 999px;
+      flex-shrink: 0;
+    }
+
+    .type-string  { background: rgba(16,185,129,0.13);  color: #059669; }
+    .type-number  { background: rgba(59,130,246,0.13);  color: #2563eb; }
+    .type-boolean { background: rgba(168,85,247,0.13);  color: #7c3aed; }
+    .type-array   { background: rgba(245,158,11,0.13);  color: #d97706; }
+    .type-null    { background: rgba(156,163,175,0.13); color: #6b7280; }
+    .type-any     { background: rgba(99,102,241,0.13);  color: #4f46e5; }
+
+    /* ===== BUILDER ===== */
+    .section-builder { padding: 1.5rem; }
+
+    .group-node {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      border-radius: var(--radius-sm);
+      padding: 0.55rem 0.65rem;
+      background: var(--indigo-light);
+      border: 1px solid var(--indigo-border);
+    }
+
+    .group-node.logic-or {
+      background: var(--pink-light);
+      border-color: var(--pink-border);
+    }
+
+    .group-node.group-root {
+      background: transparent;
+      border: none;
+      padding: 0;
+    }
+
+    .group-nested {
+      margin-top: 0;
+      margin-left: 1rem;
+      border-left: 3px solid rgba(99,102,241,0.45);
+      padding-left: 0.65rem;
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    }
+
+    .group-nested.logic-or {
+      border-left-color: rgba(236,72,153,0.45);
+    }
+
+    .group-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      flex-wrap: wrap;
+      margin-bottom: 0.45rem;
+      padding: 0.4rem 0.5rem 0.5rem;
+      background: rgba(99,102,241,0.10);
+      border-radius: var(--radius-xs);
+      border-bottom: 1px solid rgba(99,102,241,0.2);
+    }
+
+    .group-root > .group-toolbar {
+      background: transparent;
+      border-radius: 0;
+      margin-bottom: 0.55rem;
+      padding-bottom: 0.55rem;
+      border-bottom: 1px solid rgba(99,102,241,0.15);
+    }
+
+    .logic-or > .group-toolbar {
+      background: rgba(236,72,153,0.09);
+      border-bottom-color: rgba(236,72,153,0.2);
+    }
+
+    .logic-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+    }
+
+    .logic-toggle {
+      display: inline-flex;
+      border-radius: 999px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.55);
+      background: rgba(255,255,255,0.28);
+    }
+
+    .logic-btn {
+      padding: 0.28rem 0.72rem;
+      border: none;
+      background: transparent;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 0.68rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+      letter-spacing: 0.06em;
+      color: var(--text-secondary);
+    }
+
+    .logic-btn.active-and { background: var(--indigo); color: white; }
+    .logic-btn.active-or  { background: var(--pink);   color: white; }
+
+    .btn-add {
+      padding: 0.28rem 0.7rem;
+      border: 1px solid rgba(255,255,255,0.5);
+      border-radius: 999px;
+      background: rgba(255,255,255,0.28);
+      font-size: 0.7rem;
+      font-weight: 500;
+      cursor: pointer;
+      color: var(--text-secondary);
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+      white-space: nowrap;
+    }
+
+    .btn-add:hover {
+      background: rgba(99,102,241,0.1);
+      color: #4f46e5;
+      border-color: var(--indigo-border);
+    }
+
+    .btn-remove-group {
+      padding: 0.28rem 0.6rem;
+      border: 1px solid rgba(239,68,68,0.22);
+      border-radius: 999px;
+      background: rgba(239,68,68,0.07);
+      font-size: 0.7rem;
+      cursor: pointer;
+      color: #dc2626;
+      transition: background 0.15s;
+      margin-left: auto;
+    }
+
+    .btn-remove-group:hover { background: rgba(239,68,68,0.14); }
+
+    .group-children {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    /* ===== LOGIC CONNECTOR ===== */
+    .logic-connector {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.2rem 0;
+    }
+
+    .logic-connector-line {
+      flex: 1;
+      height: 1.5px;
+      background: rgba(99,102,241,0.25);
+    }
+
+    .logic-or > .group-children > .logic-connector .logic-connector-line {
+      background: rgba(236,72,153,0.25);
+    }
+
+    .logic-connector-badge {
+      font-family: 'Cascadia Code', 'Consolas', 'Courier New', monospace;
+      font-size: 0.72rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 0.18rem 0.65rem;
+      border-radius: 999px;
+      flex-shrink: 0;
+      user-select: none;
+      cursor: default;
+    }
+
+    .logic-connector-badge.badge-and {
+      background: var(--indigo-light);
+      color: #4f46e5;
+      border: 1px solid var(--indigo-border);
+    }
+
+    .logic-connector-badge.badge-or {
+      background: var(--pink-light);
+      color: #db2777;
+      border: 1px solid var(--pink-border);
+    }
+
+    /* ===== DEPTH-AWARE BACKGROUND TINTING ===== */
+    .group-node[data-depth="1"] { --depth-tint: 0.03; }
+    .group-node[data-depth="2"] { --depth-tint: 0.055; }
+    .group-node[data-depth="3"] { --depth-tint: 0.075; }
+
+    .group-node:not(.group-root) {
+      background: rgba(99,102,241, calc(0.12 + var(--depth-tint, 0)));
+    }
+    .group-node.logic-or:not(.group-root) {
+      background: rgba(236,72,153, calc(0.10 + var(--depth-tint, 0)));
+    }
+
+    /* ===== COLLAPSE BUTTON ===== */
+    .btn-collapse {
+      padding: 0.2rem 0.38rem;
+      border: none;
+      background: transparent;
+      font-size: 0.78rem;
+      cursor: pointer;
+      color: var(--text-secondary);
+      line-height: 1;
+      transition: transform 0.18s;
+    }
+    .group-node.is-collapsed .btn-collapse { transform: rotate(-90deg); }
+    .group-node.is-collapsed > .group-children { display: none; }
+
+    /* ===== CONDITION ROW ===== */
+    .condition-node {
+      display: flex;
+      align-items: center;
+      gap: 0.38rem;
+      flex-wrap: wrap;
+      padding: 0.35rem 0.5rem;
+      background: rgba(255,255,255,0.55);
+      border-radius: var(--radius-xs);
+      border: 1px solid rgba(255,255,255,0.7);
+    }
+
+    .cond-select {
+      padding: 0.38rem 0.55rem;
+      border: 1px solid rgba(255,255,255,0.52);
+      border-radius: var(--radius-xs);
+      background: rgba(255,255,255,0.42);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 0.76rem;
+      color: var(--text-primary);
+      outline: none;
+      cursor: pointer;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      max-width: 155px;
+    }
+
+    .cond-select:focus {
+      border-color: var(--indigo-border);
+      box-shadow: 0 0 0 2px var(--indigo-light);
+    }
+
+    .cond-select[data-action="set-field"] {
+      max-width: none;
+    }
+
+    .cond-value-input {
+      flex: 1;
+      min-width: 70px;
+      padding: 0.38rem 0.55rem;
+      border: 1px solid rgba(255,255,255,0.52);
+      border-radius: var(--radius-xs);
+      background: rgba(255,255,255,0.42);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 0.76rem;
+      color: var(--text-primary);
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+
+    .cond-value-input:focus {
+      border-color: var(--indigo-border);
+      box-shadow: 0 0 0 2px var(--indigo-light);
+    }
+
+    .cond-value-input.fx-mode {
+      font-family: 'Cascadia Code', 'Consolas', 'Courier New', monospace;
+      font-size: 0.7rem;
+      background: rgba(251,191,36,0.1);
+      border-color: rgba(251,191,36,0.45);
+      color: #92400e;
+    }
+
+    .cond-value-input.fx-mode:focus {
+      box-shadow: 0 0 0 2px rgba(251,191,36,0.18);
+    }
+
+    .cond-value-select {
+      flex: 1;
+      min-width: 70px;
+      width: 100%;
+      max-width: none;
+    }
+
+    .btn-fx {
+      padding: 0.32rem 0.5rem;
+      border: 1px solid rgba(255,255,255,0.5);
+      border-radius: var(--radius-xs);
+      background: rgba(255,255,255,0.28);
+      font-family: 'Cascadia Code', 'Consolas', 'Courier New', monospace;
+      font-size: 0.66rem;
+      font-weight: 500;
+      cursor: pointer;
+      color: var(--text-muted);
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+      white-space: nowrap;
+    }
+
+    .btn-fx.active {
+      background: rgba(251,191,36,0.18);
+      border-color: rgba(251,191,36,0.45);
+      color: #92400e;
+    }
+
+    .btn-remove-cond {
+      padding: 0.28rem 0.5rem;
+      border: 1px solid rgba(239,68,68,0.18);
+      border-radius: var(--radius-xs);
+      background: transparent;
+      font-size: 0.75rem;
+      cursor: pointer;
+      color: #ef4444;
+      opacity: 0.55;
+      transition: opacity 0.15s, background 0.15s;
+      line-height: 1;
+    }
+
+    .btn-remove-cond:hover { opacity: 1; background: rgba(239,68,68,0.08); }
+
+    /* ===== OUTPUT ===== */
+    .section-output { padding: 1.5rem; }
+
+    .output-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.75rem;
+    }
+
+    #expression-output {
+      width: 100%;
+      background: rgba(15,23,42,0.76);
+      border-radius: var(--radius-sm);
+      padding: 0.9rem 1rem;
+      font-family: 'Cascadia Code', 'Consolas', 'Courier New', monospace;
+      font-size: 0.73rem;
+      color: #a5f3fc;
+      white-space: pre-wrap;
+      word-break: break-word;
+      min-height: 2.8rem;
+      line-height: 1.65;
+      border: 1px solid rgba(165,243,252,0.1);
+    }
+
+    .tok-at     { color: #cbd5e1; }
+    .tok-punct  { color: #cbd5e1; }
+    .tok-and    { color: #818cf8; font-weight: 700; }
+    .tok-or     { color: #f472b6; font-weight: 700; }
+    .tok-fn     { color: #2dd4bf; }
+    .tok-item   { color: #cbd5e1; }
+    .tok-field  { color: #fcd34d; }
+    .tok-str    { color: #a3e635; }
+    .tok-num    { color: #93c5fd; }
+    .tok-bool   { color: #d8b4fe; }
+
+    .expr-placeholder {
+      color: var(--text-muted);
+      font-style: italic;
+      font-size: 0.8rem;
+    }
+    .tok-expr   { color: #fbbf24; font-style: italic; }
+
+    .btn-copy {
+      padding: 0.38rem 1rem;
+      border: 1px solid var(--indigo-border);
+      border-radius: 999px;
+      background: rgba(99,102,241,0.1);
+      color: #4f46e5;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 0.72rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s;
+      white-space: nowrap;
+      letter-spacing: 0.04em;
+    }
+
+    .btn-copy:hover { background: rgba(99,102,241,0.2); }
+
+    .btn-copy.copied {
+      background: rgba(34,197,94,0.13);
+      border-color: rgba(34,197,94,0.38);
+      color: #16a34a;
+      animation: copied-fade 2s forwards;
+    }
+
+    @keyframes copied-fade {
+      0%, 75% { opacity: 1; }
+      100%     { opacity: 0.65; }
+    }
+
+    /* ===== PREVIEW ===== */
+    .section-preview {
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #preview-body {
+      flex: 1;
+      overflow-y: auto;
+      min-height: 0;
+    }
+
+    .preview-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+    }
+
+    .preview-count {
+      font-size: 0.76rem;
+      color: var(--text-secondary);
+      font-weight: 400;
+    }
+
+    .preview-count strong { color: #4f46e5; font-weight: 700; }
+
+    .preview-items {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.55rem;
+    }
+
+    .preview-items::-webkit-scrollbar { width: 3px; }
+    .preview-items::-webkit-scrollbar-thumb { background: rgba(99,102,241,0.25); border-radius: 2px; }
+
+    .preview-item {
+      background: rgba(255,255,255,0.38);
+      border: 1px solid rgba(255,255,255,0.52);
+      border-radius: var(--radius-sm);
+      padding: 0.6rem 0.8rem;
+      font-family: 'Cascadia Code', 'Consolas', 'Courier New', monospace;
+      font-size: 0.68rem;
+      color: var(--text-primary);
+      line-height: 1.55;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .preview-item.match {
+      background: rgba(34,197,94,0.10);
+      border: 1px solid rgba(34,197,94,0.32);
+      border-left: 4px solid rgba(34,197,94,0.72);
+    }
+
+    .preview-item.no-match {
+      background: rgba(239,68,68,0.05);
+      border: 1px solid rgba(239,68,68,0.18);
+      border-left: 4px solid rgba(239,68,68,0.38);
+      opacity: 0.45;
+      filter: grayscale(0.4);
+      cursor: help;
+      transition: opacity 0.15s, filter 0.15s;
+    }
+    .preview-item.no-match:hover {
+      opacity: 0.72;
+      filter: grayscale(0.15);
+    }
+
+    .preview-item[data-tooltip] {
+      position: relative;
+    }
+    .preview-item[data-tooltip]:hover::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      bottom: calc(100% + 6px);
+      right: 0;
+      z-index: 200;
+      background: rgba(15,23,42,0.93);
+      color: #e2e8f0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 0.72rem;
+      line-height: 1.5;
+      padding: 0.5rem 0.75rem;
+      border-radius: var(--radius-xs);
+      white-space: pre-line;
+      max-width: 340px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.35);
+      pointer-events: none;
+    }
+
+    .preview-empty {
+      text-align: center;
+      padding: 1.75rem 1rem;
+      color: var(--text-muted);
+      font-size: 0.83rem;
+      font-style: italic;
+    }
+
+    .preview-more {
+      margin-top: 0.6rem;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-align: center;
+      font-style: italic;
+    }
+
+    /* ===== UTILITY ===== */
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="app-bg">
+
+    <header class="app-header">
+      <h1>Fast Filter</h1>
+      <p>Power Automate · Filter Array Query Builder</p>
+    </header>
+
+    <main class="workspace">
+      <!-- LEFT PANE -->
+      <aside class="pane-left glass-card">
+
+        <section class="section-json-input">
+          <div class="section-title">JSON Input</div>
+          <textarea id="json-input" spellcheck="false"
+            placeholder='Paste a JSON array here&#10;e.g. [{"name":"Alice","age":30,"active":true}]'></textarea>
+          <div class="parse-row">
+            <span id="parse-error" class="error-badge" hidden role="alert"></span>
+            <span id="json-hint" class="json-hint">Parses automatically | Ctrl+Enter to re-parse</span>
+          </div>
+        </section>
+
+        <section class="section-fields" id="section-fields" hidden>
+          <div class="section-title">Discovered Fields</div>
+          <div class="fields-list" id="fields-list"></div>
+        </section>
+
+      </aside>
+
+      <!-- RIGHT PANE -->
+      <div class="pane-right">
+
+        <div class="glass-card section-builder">
+          <div class="section-title">Query Builder</div>
+          <div id="root-group"></div>
+        </div>
+
+        <div class="glass-card section-output">
+          <div class="output-header">
+            <div class="section-title" style="margin-bottom:0">Expression</div>
+            <button class="btn-copy" id="btn-copy">Copy</button>
+          </div>
+          <pre id="expression-output"></pre>
+        </div>
+
+      </div>
+
+      <!-- PREVIEW PANE -->
+      <section class="glass-card section-preview" id="section-preview">
+        <div class="preview-header">
+          <div class="section-title" style="margin-bottom:0">Filtered Preview</div>
+          <span class="preview-count" id="preview-count"></span>
+        </div>
+        <div id="preview-body">
+          <div class="preview-empty">Parse a JSON array and build conditions to see filtered results</div>
+        </div>
+      </section>
+
+    </main>
+
+  </div><!-- /.app-bg -->
+
+  <script>
+'use strict';
+
+// =============================================================================
+// Section 0: Optional Node.js dependencies (xpath / xmldom)
+// =============================================================================
+
+let _xpath = null;
+let _DOMParser = null;
+let _XMLSerializer = null;
+
+try {
+  _xpath = require('xpath');
+  const xmldom = require('@xmldom/xmldom');
+  _DOMParser = xmldom.DOMParser;
+  _XMLSerializer = xmldom.XMLSerializer;
+} catch (_) { /* browser or packages not installed — xpath() will throw */ }
+
+// =============================================================================
+// Section 1: Decimal precision helper
+// =============================================================================
+
+function isDecimal(v) {
+  return v !== null && typeof v === 'object' && v._decimal === true;
+}
+
+function decimal(str) {
+  return { _decimal: true, str: String(str) };
+}
+
+function addDecimals(a, b) {
+  const aStr = a.str;
+  const bStr = b.str;
+  const aDot = aStr.indexOf('.');
+  const bDot = bStr.indexOf('.');
+  const aDP = aDot === -1 ? 0 : aStr.length - aDot - 1;
+  const bDP = bDot === -1 ? 0 : bStr.length - bDot - 1;
+  const maxDP = Math.max(aDP, bDP);
+
+  function toScaled(s, dp, targetDP) {
+    let intPart, fracPart;
+    const dot = s.indexOf('.');
+    if (dot === -1) {
+      intPart = s;
+      fracPart = '';
+    } else {
+      intPart = s.slice(0, dot);
+      fracPart = s.slice(dot + 1);
+    }
+    fracPart = fracPart.padEnd(targetDP, '0');
+    return BigInt(intPart + fracPart);
+  }
+
+  const aScaled = toScaled(aStr, aDP, maxDP);
+  const bScaled = toScaled(bStr, bDP, maxDP);
+  const sum = aScaled + bScaled;
+  const sumStr = sum.toString();
+
+  if (maxDP === 0) return { _decimal: true, str: sumStr };
+
+  const padded = sumStr.padStart(maxDP + 1, '0');
+  const intPart = padded.slice(0, padded.length - maxDP);
+  const fracPart = padded.slice(padded.length - maxDP);
+  return { _decimal: true, str: intPart + '.' + fracPart };
+}
+
+function addValues(a, b) {
+  if (isDecimal(a) || isDecimal(b)) {
+    const da = isDecimal(a) ? a : decimal(String(a));
+    const db = isDecimal(b) ? b : decimal(String(b));
+    return addDecimals(da, db);
+  }
+  return a + b;
+}
+
+// =============================================================================
+// Section 2: Tokenizer
+// =============================================================================
+
+const TT = { STRING: 'STRING', NUMBER: 'NUMBER', BOOL: 'BOOL', NULL: 'NULL',
+              IDENT: 'IDENT', LPAREN: 'LPAREN', RPAREN: 'RPAREN', COMMA: 'COMMA',
+              LBRACKET: 'LBRACKET', RBRACKET: 'RBRACKET', QUESTION: 'QUESTION' };
+
+function tokenize(src) {
+  const tokens = [];
+  let i = 0;
+
+  function peek() { return src[i]; }
+  function next() { return src[i++]; }
+
+  while (i < src.length) {
+    const ch = peek();
+
+    // whitespace
+    if (/\s/.test(ch)) { i++; continue; }
+
+    // string literal
+    if (ch === "'" || ch === '"') {
+      const q = next();
+      let s = '';
+      while (i < src.length && peek() !== q) {
+        if (peek() === '\\') { next(); }
+        s += next();
+      }
+      next(); // closing quote
+      tokens.push({ type: TT.STRING, value: s });
+      continue;
+    }
+
+    // number (including leading dot like .3)
+    // negative number only if preceded by LPAREN, COMMA, or start
+    const prevTT = tokens.length ? tokens[tokens.length - 1].type : null;
+    const canBeNeg = prevTT === null || prevTT === TT.LPAREN || prevTT === TT.COMMA;
+
+    if (/\d/.test(ch) || ch === '.' || (ch === '-' && canBeNeg && i + 1 < src.length && /[\d.]/.test(src[i + 1]))) {
+      let numStr = '';
+      if (ch === '-') numStr += next();
+      while (i < src.length && /\d/.test(peek())) numStr += next();
+      let isInt = true;
+      if (i < src.length && peek() === '.') {
+        isInt = false;
+        numStr += next(); // the dot
+        while (i < src.length && /\d/.test(peek())) numStr += next();
+      }
+      tokens.push({ type: TT.NUMBER, value: parseFloat(numStr), isInt });
+      continue;
+    }
+
+    if (ch === '(') { tokens.push({ type: TT.LPAREN }); i++; continue; }
+    if (ch === ')') { tokens.push({ type: TT.RPAREN }); i++; continue; }
+    if (ch === ',') { tokens.push({ type: TT.COMMA }); i++; continue; }
+    if (ch === '[') { tokens.push({ type: TT.LBRACKET }); i++; continue; }
+    if (ch === ']') { tokens.push({ type: TT.RBRACKET }); i++; continue; }
+    if (ch === '?') { tokens.push({ type: TT.QUESTION }); i++; continue; }
+
+    // identifier or keyword
+    if (/[a-zA-Z_$]/.test(ch)) {
+      let id = '';
+      while (i < src.length && /[a-zA-Z0-9_$]/.test(peek())) id += next();
+      if (id === 'true') tokens.push({ type: TT.BOOL, value: true });
+      else if (id === 'false') tokens.push({ type: TT.BOOL, value: false });
+      else if (id === 'null') tokens.push({ type: TT.NULL, value: null });
+      else tokens.push({ type: TT.IDENT, value: id });
+      continue;
+    }
+
+    throw new Error(`Unexpected character: ${ch}`);
+  }
+  return tokens;
+}
+
+// =============================================================================
+// Section 3: Parser
+// =============================================================================
+
+function parse(tokens) {
+  let pos = 0;
+  function peek() { return tokens[pos]; }
+  function consume(type) {
+    const t = tokens[pos];
+    if (type && t.type !== type) throw new Error(`Expected ${type}, got ${t ? t.type : 'EOF'}`);
+    pos++;
+    return t;
+  }
+
+  function parseExpr() {
+    let expr = parsePrimary();
+    // Handle postfix property access: ?['key'] or ?[index]
+    while (peek() && peek().type === TT.QUESTION) {
+      consume(TT.QUESTION);
+      if (peek() && peek().type === TT.LBRACKET) {
+        consume(TT.LBRACKET);
+        const key = parseExpr();
+        consume(TT.RBRACKET);
+        expr = { type: 'PropertyAccess', obj: expr, key };
+      } else {
+        throw new Error('Expected [ after ?');
+      }
+    }
+    return expr;
+  }
+
+  function parsePrimary() {
+    const t = peek();
+    if (!t) throw new Error('Unexpected end of input');
+
+    if (t.type === TT.IDENT) {
+      // look ahead for LPAREN → function call
+      if (tokens[pos + 1] && tokens[pos + 1].type === TT.LPAREN) {
+        const name = consume(TT.IDENT).value;
+        consume(TT.LPAREN);
+        const args = [];
+        if (peek() && peek().type !== TT.RPAREN) {
+          args.push(parseExpr());
+          while (peek() && peek().type === TT.COMMA) {
+            consume(TT.COMMA);
+            args.push(parseExpr());
+          }
+        }
+        consume(TT.RPAREN);
+        return { type: 'Call', name, args };
+      }
+      // bare identifier (shouldn't normally appear but handle it)
+      return { type: 'Literal', value: consume(TT.IDENT).value };
+    }
+
+    if (t.type === TT.STRING) return { type: 'Literal', value: consume(TT.STRING).value };
+    if (t.type === TT.NUMBER) {
+      const tok = consume(TT.NUMBER);
+      return { type: 'Literal', value: tok.value, isInt: tok.isInt };
+    }
+    if (t.type === TT.BOOL) return { type: 'Literal', value: consume(TT.BOOL).value };
+    if (t.type === TT.NULL) return { type: 'Literal', value: consume(TT.NULL).value };
+
+    throw new Error(`Unexpected token type: ${t.type}`);
+  }
+
+  const ast = parseExpr();
+  return ast;
+}
+
+// =============================================================================
+// Section 4: DateTime helpers
+// =============================================================================
+
+function parseInputDate(str) {
+  if (!str) throw new Error('Empty date string');
+
+  // MM/DD/YYYY [HH:mm:ss]
+  const slashMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2}):(\d{2}))?/);
+  if (slashMatch) {
+    const [, mo, da, yr, hh = '0', mm = '0', ss = '0'] = slashMatch;
+    const date = new Date(Date.UTC(+yr, +mo - 1, +da, +hh, +mm, +ss));
+    return { date, isUTC: false };
+  }
+
+  // ISO-like with Z or offset → UTC
+  const hasUTC = /Z$|[+-]\d{2}:?\d{2}$/.test(str.trim());
+  const date = new Date(str);
+  if (isNaN(date)) throw new Error(`Cannot parse date: ${str}`);
+  return { date, isUTC: hasUTC };
+}
+
+function pad(n, w) { return String(n).padStart(w, '0'); }
+
+function toIso7(date, isUTC) {
+  const y = pad(date.getUTCFullYear(), 4);
+  const mo = pad(date.getUTCMonth() + 1, 2);
+  const da = pad(date.getUTCDate(), 2);
+  const hh = pad(date.getUTCHours(), 2);
+  const mm = pad(date.getUTCMinutes(), 2);
+  const ss = pad(date.getUTCSeconds(), 2);
+  const ms = pad(date.getUTCMilliseconds(), 3);
+  const frac = ms + '0000';
+  const suffix = isUTC ? 'Z' : '';
+  return `${y}-${mo}-${da}T${hh}:${mm}:${ss}.${frac}${suffix}`;
+}
+
+const LOCALE_CACHE = {};
+function getLocaleNames(locale, timeZone) {
+  const key = `${locale}|${timeZone}`;
+  if (LOCALE_CACHE[key]) return LOCALE_CACHE[key];
+  const months = Array.from({length: 12}, (_, i) => {
+    return new Intl.DateTimeFormat(locale, { month: 'long', timeZone }).format(new Date(Date.UTC(2000, i, 1)));
+  });
+  const days = Array.from({length: 7}, (_, i) => {
+    // 2000-01-02 is a Sunday
+    return new Intl.DateTimeFormat(locale, { weekday: 'long', timeZone }).format(new Date(Date.UTC(2000, 0, 2 + i)));
+  });
+  LOCALE_CACHE[key] = { months, days };
+  return LOCALE_CACHE[key];
+}
+
+const FORMAT_TOKENS = ['fffffff','yyyy','MMMM','dddd','MM','dd','HH','mm','ss','K','M','d','yy','h'];
+
+function formatWithPattern(date, pattern, locale, isUTC) {
+  if (!pattern || pattern === 'o') return toIso7(date, isUTC);
+
+  // Expand 'D' pattern
+  if (pattern === 'D') pattern = 'dddd, MMMM d, yyyy';
+
+  const tz = 'UTC';
+  const names = getLocaleNames(locale || 'en-US', tz);
+
+  const y = date.getUTCFullYear();
+  const mo = date.getUTCMonth(); // 0-based
+  const da = date.getUTCDate();
+  const hh = date.getUTCHours();
+  const mi = date.getUTCMinutes();
+  const ss = date.getUTCSeconds();
+  const ms = date.getUTCMilliseconds();
+  const dow = date.getUTCDay(); // 0=Sunday
+
+  const replacements = {
+    'fffffff': pad(ms, 3) + '0000',
+    'yyyy': pad(y, 4),
+    'yy': String(y).slice(-2),
+    'MMMM': names.months[mo],
+    'MM': pad(mo + 1, 2),
+    'M': String(mo + 1),
+    'dddd': names.days[dow],
+    'dd': pad(da, 2),
+    'd': String(da),
+    'HH': pad(hh, 2),
+    'h': String(hh % 12 || 12),
+    'mm': pad(mi, 2),
+    'ss': pad(ss, 2),
+    'K': isUTC ? 'Z' : '',
+  };
+
+  let result = '';
+  let i = 0;
+  while (i < pattern.length) {
+    let matched = false;
+    for (const tok of FORMAT_TOKENS) {
+      if (pattern.startsWith(tok, i)) {
+        result += replacements[tok] !== undefined ? replacements[tok] : tok;
+        i += tok.length;
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) {
+      result += pattern[i++];
+    }
+  }
+  return result;
+}
+
+function parseDateWithFormat(str, format) {
+  // Greedy parse: match format tokens against str
+  let year = 0, month = 1, day = 1, hour = 0, min = 0, sec = 0;
+  let fi = 0, si = 0;
+
+  const fmtTokens = [
+    { tok: 'yyyy', len: 4, set: v => { year = v; } },
+    { tok: 'MM', len: 2, set: v => { month = v; } },
+    { tok: 'dd', len: 2, set: v => { day = v; } },
+    { tok: 'HH', len: 2, set: v => { hour = v; } },
+    { tok: 'mm', len: 2, set: v => { min = v; } },
+    { tok: 'ss', len: 2, set: v => { sec = v; } },
+  ];
+
+  while (fi < format.length) {
+    let matched = false;
+    for (const { tok, len, set } of fmtTokens) {
+      if (format.startsWith(tok, fi)) {
+        const val = parseInt(str.slice(si, si + len), 10);
+        set(val);
+        fi += tok.length;
+        si += len;
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) {
+      // literal char — skip both
+      fi++;
+      si++;
+    }
+  }
+
+  return new Date(Date.UTC(year, month - 1, day, hour, min, sec));
+}
+
+function applyTimeUnit(date, n, unit) {
+  const ms = date.getTime();
+  switch (unit) {
+    case 'Second': return new Date(ms + n * 1000);
+    case 'Minute': return new Date(ms + n * 60000);
+    case 'Hour':   return new Date(ms + n * 3600000);
+    case 'Day':    return new Date(ms + n * 86400000);
+    case 'Week':   return new Date(ms + n * 7 * 86400000);
+    case 'Month': {
+      const d = new Date(date);
+      d.setUTCMonth(d.getUTCMonth() + n);
+      return d;
+    }
+    case 'Year': {
+      const d = new Date(date);
+      d.setUTCFullYear(d.getUTCFullYear() + n);
+      return d;
+    }
+    default: throw new Error(`Unknown time unit: ${unit}`);
+  }
+}
+
+const TZ_OFFSETS = {
+  'UTC': 0,
+  'Pacific Standard Time': -480,
+  'Pacific Daylight Time': -420,
+  'Mountain Standard Time': -420,
+  'Mountain Daylight Time': -360,
+  'Central Standard Time': -360,
+  'Central Daylight Time': -300,
+  'Eastern Standard Time': -300,
+  'Eastern Daylight Time': -240,
+  'Atlantic Standard Time': -240,
+  'GMT Standard Time': 0,
+  'W. Europe Standard Time': 60,
+  'Central Europe Standard Time': 60,
+  'Romance Standard Time': 60,
+  'E. Europe Standard Time': 120,
+  'GTB Standard Time': 120,
+  'Middle East Standard Time': 120,
+  'Egypt Standard Time': 120,
+  'South Africa Standard Time': 120,
+  'Russia Time Zone 3': 240,
+  'Arabian Standard Time': 240,
+  'India Standard Time': 330,
+  'SE Asia Standard Time': 420,
+  'China Standard Time': 480,
+  'Tokyo Standard Time': 540,
+  'AUS Eastern Standard Time': 600,
+  'New Zealand Standard Time': 720,
+};
+
+function getTzOffset(tzName) {
+  if (tzName in TZ_OFFSETS) return TZ_OFFSETS[tzName];
+  throw new Error(`Unknown timezone: ${tzName}`);
+}
+
+const DOTNET_EPOCH_TICKS = 621355968000000000n;
+
+function ticksFromDate(date) {
+  const result = DOTNET_EPOCH_TICKS + BigInt(date.getTime()) * 10000n;
+  return Number(result);
+}
+
+// =============================================================================
+// Section 5: XML helpers
+// =============================================================================
+
+function xmlEscapeText(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function xmlEscapeAttr(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+}
+
+function xmlSerializeNode(tag, value) {
+  if (Array.isArray(value)) {
+    return value.map(item => xmlSerializeNode(tag, item)).join('');
+  }
+  if (value === null || value === undefined) {
+    return `<${tag}/>`;
+  }
+  if (typeof value === 'object') {
+    // Collect @-prefixed keys as attributes, others as child elements
+    const attrs = [];
+    const children = [];
+    let textContent = null;
+    for (const [k, v] of Object.entries(value)) {
+      if (k === '#text') {
+        textContent = v;
+      } else if (k.startsWith('@')) {
+        attrs.push(`${k.slice(1)}="${xmlEscapeAttr(String(v))}"`);
+      } else {
+        children.push(xmlSerializeNode(k, v));
+      }
+    }
+    const attrStr = attrs.length ? ' ' + attrs.join(' ') : '';
+    if (textContent !== null) {
+      return `<${tag}${attrStr}>${xmlEscapeText(textContent)}</${tag}>`;
+    }
+    if (children.length === 0) return `<${tag}${attrStr}/>`;
+    return `<${tag}${attrStr}>${children.join('')}</${tag}>`;
+  }
+  return `<${tag}>${xmlEscapeText(value)}</${tag}>`;
+}
+
+// XML → JSON helpers (used by json() when receiving XML input)
+
+function _xmlMergeKey(obj, key, val) {
+  if (Object.prototype.hasOwnProperty.call(obj, key)) {
+    if (!Array.isArray(obj[key])) obj[key] = [obj[key]];
+    obj[key].push(val);
+  } else {
+    obj[key] = val;
+  }
+}
+
+function _xmlElementToJson(el) {
+  const obj = {};
+  if (el.attributes) {
+    for (let i = 0; i < el.attributes.length; i++) {
+      const a = el.attributes[i];
+      obj['@' + a.name] = a.value;
+    }
+  }
+  let hasElementChild = false;
+  for (let c = el.firstChild; c; c = c.nextSibling) {
+    if (c.nodeType === 1) { hasElementChild = true; break; }
+  }
+  if (hasElementChild) {
+    for (let c = el.firstChild; c; c = c.nextSibling) {
+      if (c.nodeType === 1) _xmlMergeKey(obj, c.nodeName, _xmlElementToJson(c));
+    }
+  } else {
+    const text = el.textContent !== undefined ? el.textContent : '';
+    if (Object.keys(obj).length === 0) return text;
+    if (text) obj['#text'] = text;
+  }
+  return obj;
+}
+
+function _xmlDocToJson(doc) {
+  const result = {};
+  for (let c = doc.firstChild; c; c = c.nextSibling) {
+    if (c.nodeType === 7) { // Processing instruction
+      const piAttrs = {};
+      const re = /([\w.-]+)\s*=\s*"([^"]*)"/g;
+      let m;
+      while ((m = re.exec(c.data || '')) !== null) piAttrs['@' + m[1]] = m[2];
+      _xmlMergeKey(result, '?' + c.nodeName, piAttrs);
+    } else if (c.nodeType === 1) { // Element
+      _xmlMergeKey(result, c.nodeName, _xmlElementToJson(c));
+    }
+  }
+  return result;
+}
+
+// =============================================================================
+// Section 6: Built-in functions
+// =============================================================================
+
+const BUILTINS = {
+  // Context
+  item() { return _evalContext ?? {}; },
+
+  // String
+  concat(...args) { return args.map(a => isDecimal(a) ? a.str : String(a)).join(''); },
+  replace(str, from, to) { return String(str).split(from).join(to); },
+  toLower(s) { return String(s).toLowerCase(); },
+  toUpper(s) { return String(s).toUpperCase(); },
+  split(str, sep) { return String(str).split(sep); },
+  trim(s) { return String(s).trim(); },
+  startsWith(s, prefix) { return String(s).startsWith(prefix); },
+  endsWith(s, suffix) { return String(s).endsWith(suffix); },
+  indexOf(s, sub) { return String(s).indexOf(sub); },
+  lastIndexOf(s, sub) { return String(s).lastIndexOf(sub); },
+  substring(s, start, len) { return String(s).substr(start, len); },
+  slice(s, start, end) {
+    if (end === undefined) return String(s).slice(start);
+    return String(s).slice(start, end);
+  },
+  chunk(input, size) {
+    const result = [];
+    if (typeof input === 'string') {
+      for (let i = 0; i < input.length; i += size) result.push(input.slice(i, i + size));
+    } else {
+      for (let i = 0; i < input.length; i += size) result.push(input.slice(i, i + size));
+    }
+    return result;
+  },
+  nthIndexOf(str, sub, n) {
+    let idx = -1;
+    for (let i = 0; i < n; i++) {
+      idx = str.indexOf(sub, idx + 1);
+      if (idx === -1) return -1;
+    }
+    return idx;
+  },
+  isFloat(s) {
+    const cleaned = String(s).replace(/,/g, '').replace(/\s/g, '');
+    return !isNaN(parseFloat(cleaned)) && isFinite(parseFloat(cleaned));
+  },
+  isInt(s) { return /^-?\d+$/.test(String(s).trim()); },
+  formatNumber(n, fmt, locale) {
+    locale = locale || 'en-US';
+    // Parse format like #,##0.00
+    const hasSep = fmt.includes(',');
+    const dotIdx = fmt.indexOf('.');
+    const minFrac = dotIdx === -1 ? 0 : fmt.length - dotIdx - 1;
+    const maxFrac = minFrac;
+    try {
+      return new Intl.NumberFormat(locale, {
+        minimumFractionDigits: minFrac,
+        maximumFractionDigits: maxFrac,
+        useGrouping: hasSep,
+      }).format(n);
+    } catch (e) {
+      throw new Error(`formatNumber: invalid locale '${locale}': ${e.message}`);
+    }
+  },
+  guid() {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+    // Manual uuid4
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+      const r = Math.random() * 16 | 0;
+      return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+    });
+  },
+
+  // Collection
+  first(col) { return col[0]; },
+  last(col) { return col[col.length - 1]; },
+  length(col) { return col.length; },
+  join(arr, sep) { return arr.map(x => String(x)).join(sep); },
+  contains(col, item) {
+    if (typeof col === 'string') return col.includes(String(item));
+    return col.some(x => x === item || JSON.stringify(x) === JSON.stringify(item));
+  },
+  empty(col) {
+    if (col == null) return true;
+    if (typeof col === 'object' && !Array.isArray(col)) return Object.keys(col).length === 0;
+    return col.length === 0;
+  },
+  reverse(arr) { return [...arr].reverse(); },
+  skip(arr, n) { return arr.slice(n); },
+  take(col, n) { return col.slice(0, n); },
+  sort(arr) { return [...arr].sort((a, b) => a < b ? -1 : a > b ? 1 : 0); },
+  intersection(...arrays) {
+    if (arrays.length === 0) return [];
+    return arrays[0].filter(item => arrays.slice(1).every(arr => arr.some(x => x == item)));
+  },
+  union(...arrays) {
+    const seen = [];
+    for (const arr of arrays) {
+      for (const item of arr) {
+        if (!seen.some(x => x == item)) seen.push(item);
+      }
+    }
+    return seen;
+  },
+  createArray(...args) { return args; },
+  range(start, count) {
+    if (count > 100000) throw new Error('range: count exceeds maximum (100000)');
+    return Array.from({ length: count }, (_, i) => start + i);
+  },
+  coalesce(...args) { return args.find(v => v !== null && v !== undefined) ?? null; },
+
+  // Logical
+  equals(a, b) { return a == b; },
+  greater(a, b) { return a > b; },
+  greaterOrEquals(a, b) { return a >= b; },
+  less(a, b) { return a < b; },
+  lessOrEquals(a, b) { return a <= b; },
+  and(...args) { return args.every(Boolean); },
+  or(...args) { return args.some(Boolean); },
+  not(v) { return !v; },
+  if(cond, t, f) { return cond ? t : f; },
+
+  // Conversion
+  int(v) { return parseInt(String(v), 10); },
+  float(v, locale) {
+    let s = String(v);
+    if (locale && locale.toLowerCase().startsWith('de')) {
+      // de-DE: 10.000,333 → 10000.333
+      s = s.replace(/\./g, '').replace(',', '.');
+    } else {
+      // en-US: remove commas
+      s = s.replace(/,/g, '');
+    }
+    return parseFloat(s);
+  },
+  string(v) {
+    if (isDecimal(v)) return v.str;
+    return String(v);
+  },
+  bool(v) {
+    if (typeof v === 'string') {
+      if (v.toLowerCase() === 'true') return true;
+      if (v.toLowerCase() === 'false') return false;
+    }
+    return Boolean(v);
+  },
+  array(v) { return [v]; },
+  decimal(str) { return decimal(String(str)); },
+  base64(str) {
+    if (typeof Buffer !== 'undefined') return Buffer.from(str, 'binary').toString('base64');
+    return btoa(str);
+  },
+  base64ToString(str) {
+    if (typeof Buffer !== 'undefined') return Buffer.from(str, 'base64').toString('binary');
+    return atob(str);
+  },
+  dataUri(str) {
+    const b64 = BUILTINS.base64(str);
+    return `data:text/plain;charset=utf-8;base64,${b64}`;
+  },
+  dataUriToString(uri) {
+    const b64 = uri.split(',')[1];
+    return BUILTINS.base64ToString(b64);
+  },
+  decodeUriComponent(s) {
+    try { return decodeURIComponent(s); }
+    catch (e) { throw new Error(`decodeUriComponent: malformed URI sequence: ${e.message}`); }
+  },
+  encodeUriComponent(s) { return encodeURIComponent(s); },
+  uriComponent(s) { return encodeURIComponent(s); },
+  uriComponentToString(s) {
+    try { return decodeURIComponent(s); }
+    catch (e) { throw new Error(`uriComponentToString: malformed URI sequence: ${e.message}`); }
+  },
+  json(s) {
+    if (s === null || s === undefined) return {};
+    const str = String(s).trim();
+    if (str.startsWith('<')) {
+      if (!_DOMParser) throw new Error('json: XML conversion requires @xmldom/xmldom package');
+      const doc = new _DOMParser().parseFromString(str, 'text/xml');
+      const errs = doc.getElementsByTagName('parsererror');
+      if (errs.length > 0) throw new Error('json: XML parse error');
+      return _xmlDocToJson(doc);
+    }
+    try { return JSON.parse(str); }
+    catch (e) { throw new Error(`json: invalid JSON: ${e.message}`); }
+  },
+  xml(value) {
+    // If given a string that looks like XML, return it as-is
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (trimmed.startsWith('<')) return trimmed;
+      // Otherwise try to parse as JSON
+      try { value = JSON.parse(trimmed); }
+      catch (e) { throw new Error(`xml: input string is neither valid XML nor valid JSON`); }
+    }
+    if (Array.isArray(value)) throw new Error('xml: input cannot be a raw array');
+    if (typeof value !== 'object' || value === null) throw new Error('xml: input must be a JSON object or XML string');
+    const keys = Object.keys(value);
+    if (keys.length !== 1) throw new Error('xml: JSON object must have exactly one root property');
+    return xmlSerializeNode(keys[0], value[keys[0]]);
+  },
+  xpath(xmlStr, query) {
+    if (!_xpath || !_DOMParser || !_XMLSerializer) {
+      throw new Error('xpath: requires the xpath and @xmldom/xmldom packages');
+    }
+    const doc = new _DOMParser().parseFromString(String(xmlStr), 'text/xml');
+    // @xmldom/xmldom surfaces parse errors as a <parsererror> element
+    const errs = doc.getElementsByTagName('parsererror');
+    if (errs.length > 0) throw new Error(`xpath: XML parse error: ${errs[0].textContent.slice(0, 120)}`);
+
+    const result = _xpath.evaluate(String(query), doc, null, _xpath.XPathResult.ANY_TYPE, null);
+
+    switch (result.resultType) {
+      case _xpath.XPathResult.NUMBER_TYPE:  return result.numberValue;
+      case _xpath.XPathResult.STRING_TYPE:  return result.stringValue;
+      case _xpath.XPathResult.BOOLEAN_TYPE: return result.booleanValue;
+      default: {
+        // Node-set — collect all matching nodes
+        const ser = new _XMLSerializer();
+        const values = [];
+        let node;
+        while ((node = result.iterateNext())) {
+          if (node.nodeType === 2 /* ATTR */ || node.nodeType === 3 /* TEXT */) {
+            values.push(node.nodeValue);
+          } else {
+            values.push(ser.serializeToString(node));
+          }
+        }
+        if (values.length === 0) return null;
+        return values.length === 1 ? values[0] : values;
+      }
+    }
+  },
+
+  // Math
+  add(a, b) { return addValues(a, b); },
+  sub(a, b) { return a - b; },
+  mul(a, b) { return a * b; },
+  // div handled specially in evalCall
+  div(a, b) { return a / b; },
+  max(...args) {
+    const flat = args.length === 1 && Array.isArray(args[0]) ? args[0] : args;
+    return Math.max(...flat);
+  },
+  min(...args) {
+    const flat = args.length === 1 && Array.isArray(args[0]) ? args[0] : args;
+    return Math.min(...flat);
+  },
+  mod(a, b) { return a % b; },
+  rand(min, max) {
+    const range = max - min;
+    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+      const arr = new Uint32Array(1);
+      crypto.getRandomValues(arr);
+      return min + Math.floor(arr[0] / (0x100000000 / range));
+    }
+    return Math.floor(Math.random() * range) + min;
+  },
+
+  // DateTime
+  utcNow(fmt) {
+    const now = new Date();
+    return formatWithPattern(now, fmt || 'o', 'en-US', true);
+  },
+  addDays(str, n, fmt) {
+    const { date, isUTC } = parseInputDate(str);
+    const result = applyTimeUnit(date, n, 'Day');
+    return formatWithPattern(result, fmt || 'o', 'en-US', isUTC);
+  },
+  addHours(str, n, fmt) {
+    const { date, isUTC } = parseInputDate(str);
+    const result = applyTimeUnit(date, n, 'Hour');
+    return formatWithPattern(result, fmt || 'o', 'en-US', isUTC);
+  },
+  addMinutes(str, n, fmt) {
+    const { date, isUTC } = parseInputDate(str);
+    const result = applyTimeUnit(date, n, 'Minute');
+    return formatWithPattern(result, fmt || 'o', 'en-US', isUTC);
+  },
+  addSeconds(str, n, fmt) {
+    const { date, isUTC } = parseInputDate(str);
+    const result = applyTimeUnit(date, n, 'Second');
+    return formatWithPattern(result, fmt || 'o', 'en-US', isUTC);
+  },
+  addToTime(str, n, unit, fmt) {
+    const { date, isUTC } = parseInputDate(str);
+    const result = applyTimeUnit(date, n, unit);
+    return formatWithPattern(result, fmt || 'o', 'en-US', isUTC);
+  },
+  subtractFromTime(str, n, unit, fmt) {
+    const { date, isUTC } = parseInputDate(str);
+    const result = applyTimeUnit(date, -n, unit);
+    return formatWithPattern(result, fmt || 'o', 'en-US', isUTC);
+  },
+  formatDateTime(str, fmt, locale) {
+    const { date, isUTC } = parseInputDate(str);
+    return formatWithPattern(date, fmt || 'o', locale || 'en-US', isUTC);
+  },
+  parseDateTime(str, locale, fmt) {
+    const date = parseDateWithFormat(str, fmt);
+    return formatWithPattern(date, 'o', locale || 'en-US', false);
+  },
+  dayOfMonth(str) {
+    const { date } = parseInputDate(str);
+    return date.getUTCDate();
+  },
+  dayOfWeek(str) {
+    const { date } = parseInputDate(str);
+    return date.getUTCDay();
+  },
+  dayOfYear(str) {
+    const { date } = parseInputDate(str);
+    const year = date.getUTCFullYear();
+    const startOfYear = new Date(Date.UTC(year, 0, 0)); // Dec 31 of prev year
+    return Math.floor((date - startOfYear) / 86400000);
+  },
+  startOfDay(str, fmt) {
+    const { date, isUTC } = parseInputDate(str);
+    const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+    return formatWithPattern(d, fmt || 'o', 'en-US', isUTC);
+  },
+  startOfHour(str, fmt) {
+    const { date, isUTC } = parseInputDate(str);
+    const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), date.getUTCHours()));
+    return formatWithPattern(d, fmt || 'o', 'en-US', isUTC);
+  },
+  startOfMonth(str, fmt) {
+    const { date, isUTC } = parseInputDate(str);
+    const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
+    return formatWithPattern(d, fmt || 'o', 'en-US', isUTC);
+  },
+  dateDifference(s1, s2) {
+    const d1 = parseInputDate(s1).date;
+    const d2 = parseInputDate(s2).date;
+    const diffMs = Math.abs(d2 - d1);
+    const days = Math.floor(diffMs / 86400000);
+    const rem = diffMs - days * 86400000;
+    const hh = pad(Math.floor(rem / 3600000), 2);
+    const mm = pad(Math.floor((rem % 3600000) / 60000), 2);
+    const ss = pad(Math.floor((rem % 60000) / 1000), 2);
+    return `${days}.${hh}:${mm}:${ss}`;
+  },
+  convertFromUtc(str, tzName, fmt) {
+    const { date } = parseInputDate(str);
+    const offsetMin = getTzOffset(tzName);
+    const localMs = date.getTime() + offsetMin * 60000;
+    const localDate = new Date(localMs);
+    return formatWithPattern(localDate, fmt || 'o', 'en-US', false);
+  },
+  convertToUtc(str, tzName, fmt) {
+    const { date } = parseInputDate(str);
+    const offsetMin = getTzOffset(tzName);
+    const utcMs = date.getTime() - offsetMin * 60000;
+    const utcDate = new Date(utcMs);
+    return formatWithPattern(utcDate, fmt || 'o', 'en-US', true);
+  },
+  convertTimeZone(str, fromTz, toTz, fmt) {
+    const { date } = parseInputDate(str);
+    // date is already stored as UTC internally; fromTz offset used to find true UTC if input was local
+    const fromOffset = getTzOffset(fromTz);
+    const toOffset = getTzOffset(toTz);
+    // str is provided in fromTz local time; we need to convert to UTC first
+    // If str has Z or offset, parseInputDate already gives UTC-based date
+    // For this function: treat the timestamp as-is in UTC representation, then shift
+    const utcMs = date.getTime() - fromOffset * 60000;
+    const localMs = utcMs + toOffset * 60000;
+    const result = new Date(localMs);
+    const isUTC = toTz === 'UTC';
+    return formatWithPattern(result, fmt || 'o', 'en-US', isUTC);
+  },
+  ticks(str) {
+    const { date } = parseInputDate(str);
+    return ticksFromDate(date);
+  },
+  getFutureTime(n, unit, fmt) {
+    const now = new Date();
+    const result = applyTimeUnit(now, n, unit);
+    return formatWithPattern(result, fmt || 'o', 'en-US', true);
+  },
+  getPastTime(n, unit, fmt) {
+    const now = new Date();
+    const result = applyTimeUnit(now, -n, unit);
+    return formatWithPattern(result, fmt || 'o', 'en-US', true);
+  },
+};
+
+// =============================================================================
+// Section 7: Evaluator
+// =============================================================================
+
+function evalNode(node) {
+  if (node.type === 'Literal') return node.value;
+  if (node.type === 'Call') return evalCall(node);
+  if (node.type === 'PropertyAccess') return evalPropertyAccess(node);
+  throw new Error(`Unknown AST node type: ${node.type}`);
+}
+
+function evalPropertyAccess(node) {
+  const obj = evalNode(node.obj);
+  // Safe navigation: if obj is null/undefined, return null
+  if (obj == null) return null;
+  const key = evalNode(node.key);
+  return obj[key] ?? null;
+}
+
+function evalCall(node) {
+  // Special case: div needs to inspect AST arg nodes for isInt flag
+  if (node.name === 'div') {
+    const a = evalNode(node.args[0]);
+    const b = evalNode(node.args[1]);
+    const aIsInt = node.args[0].type === 'Literal' && node.args[0].isInt === true;
+    const bIsInt = node.args[1].type === 'Literal' && node.args[1].isInt === true;
+    return (aIsInt && bIsInt) ? Math.trunc(a / b) : a / b;
+  }
+
+  if (!Object.prototype.hasOwnProperty.call(BUILTINS, node.name)) {
+    throw new Error(`Unknown function: ${node.name}`);
+  }
+  const fn = BUILTINS[node.name];
+
+  // For slice, pass undefined for missing optional args
+  if (node.name === 'slice') {
+    const args = node.args.map(evalNode);
+    return BUILTINS.slice(args[0], args[1], args[2]);
+  }
+
+  const args = node.args.map(evalNode);
+  return fn(...args);
+}
+
+let _evalContext = null;
+
+function evaluate(expressionStr, context) {
+  const prevContext = _evalContext;
+  _evalContext = context || null;
+  try {
+    const tokens = tokenize(expressionStr);
+    const ast = parse(tokens);
+    return evalNode(ast);
+  } finally {
+    _evalContext = prevContext;
+  }
+}
+
+// =============================================================================
+// Section 8: Export
+// =============================================================================
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { evaluate };
+} else if (typeof window !== 'undefined') {
+  window.evaluate = evaluate;
+}
+  </script>
+  <script>
+  (function () {
+    'use strict';
+
+    // =========================================================================
+    // STATE
+    // =========================================================================
+    const state = {
+      rawJson: '',
+      items:   [],
+      fields:  [],      // [{path, type}]
+      queryTree: null,  // root group node
+      groupCounter: 0,
+      condCounter:  0,
+    };
+
+    // =========================================================================
+    // OPERATORS
+    // =========================================================================
+    const OPERATORS_BY_TYPE = {
+      string:  ['equals','notEquals','contains','notContains','startsWith','endsWith','empty','notEmpty'],
+      number:  ['equals','notEquals','greater','greaterOrEquals','less','lessOrEquals','empty','notEmpty'],
+      boolean: ['equals'],
+      array:   ['contains','empty','notEmpty'],
+      null:    ['empty','notEmpty'],
+      any:     ['equals','notEquals','empty','notEmpty'],
+    };
+
+    const OPERATOR_LABELS = {
+      equals:          'equals',
+      notEquals:       'not equals',
+      contains:        'contains',
+      notContains:     'not contains',
+      startsWith:      'starts with',
+      endsWith:        'ends with',
+      greater:         'greater than',
+      greaterOrEquals: 'greater or equal',
+      less:            'less than',
+      lessOrEquals:    'less or equal',
+      empty:           'is empty',
+      notEmpty:        'is not empty',
+    };
+
+    const NO_VALUE_OPS = new Set(['empty', 'notEmpty']);
+
+    // =========================================================================
+    // FIELD EXTRACTION
+    // =========================================================================
+    function classifyType(val) {
+      if (val === null)             return 'null';
+      if (typeof val === 'boolean') return 'boolean';
+      if (typeof val === 'number')  return 'number';
+      if (typeof val === 'string')  return 'string';
+      if (Array.isArray(val))       return 'array';
+      return 'any';
+    }
+
+    function extractFields(items) {
+      const map = new Map(); // path -> {type, segments: string[]}
+
+      function walk(obj, prefix, segments) {
+        if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return;
+        for (const key of Object.keys(obj)) {
+          const path = prefix ? prefix + '.' + key : key;
+          const segs = segments.concat(key);
+          const val  = obj[key];
+          const type = classifyType(val);
+
+          if (map.has(path)) {
+            const existing = map.get(path).type;
+            if (existing !== type) {
+              // null mixed with a concrete type keeps the concrete type
+              if (type === 'null') { /* keep existing */ }
+              else if (existing === 'null') map.get(path).type = type;
+              else map.get(path).type = 'any';
+            }
+          } else {
+            map.set(path, { type, segments: segs });
+          }
+
+          if (map.size >= 200) return; // cap paths
+
+          // Recurse into plain objects only (not arrays)
+          if (val && typeof val === 'object' && !Array.isArray(val)) {
+            walk(val, path, segs);
+          }
+        }
+      }
+
+      let scanned = 0;
+      for (const item of items) {
+        if (scanned++ >= 200) break;
+        if (item && typeof item === 'object' && !Array.isArray(item)) {
+          walk(item, '', []);
+        }
+      }
+
+      return Array.from(map.entries())
+        .map(([path, info]) => ({ path, type: info.type, segments: info.segments }))
+        .sort((a, b) => a.path.localeCompare(b.path))
+        .slice(0, 200);
+    }
+
+    // =========================================================================
+    // CONDITION TREE
+    // =========================================================================
+    function makeGroup() {
+      return { id: 'g' + (++state.groupCounter), type: 'group', logic: 'AND', children: [] };
+    }
+
+    function makeCondition() {
+      return { id: 'c' + (++state.condCounter), type: 'condition',
+               field: '', operator: 'equals', value: '', valueIsExpression: false };
+    }
+
+    function initQueryTree() {
+      state.groupCounter = 0;
+      state.condCounter  = 0;
+      state.queryTree = makeGroup();
+      state.queryTree.children.push(makeCondition());
+    }
+
+    function findNode(group, id) {
+      if (group.id === id) return { node: group, parent: null };
+      for (const child of group.children) {
+        if (child.id === id) return { node: child, parent: group };
+        if (child.type === 'group') {
+          const r = findNode(child, id);
+          if (r) return r;
+        }
+      }
+      return null;
+    }
+
+    function setGroupLogic(groupId, logic) {
+      const r = findNode(state.queryTree, groupId);
+      if (r) r.node.logic = logic;
+    }
+
+    function addCondition(groupId) {
+      const r = findNode(state.queryTree, groupId);
+      if (r) r.node.children.push(makeCondition());
+    }
+
+    function addSubgroup(groupId) {
+      const r = findNode(state.queryTree, groupId);
+      if (r) {
+        const g = makeGroup();
+        g.children.push(makeCondition());
+        r.node.children.push(g);
+      }
+    }
+
+    function removeNode(nodeId) {
+      const r = findNode(state.queryTree, nodeId);
+      if (r && r.parent) {
+        r.parent.children = r.parent.children.filter(c => c.id !== nodeId);
+      }
+    }
+
+    function setField(condId, field) {
+      const r = findNode(state.queryTree, condId);
+      if (!r) return;
+      const cond = r.node;
+      cond.field = field;
+      cond.value = '';
+      const fi   = state.fields.find(f => f.path === field);
+      const type = fi ? fi.type : 'any';
+      const ops  = OPERATORS_BY_TYPE[type] || OPERATORS_BY_TYPE.any;
+      if (!ops.includes(cond.operator)) cond.operator = ops[0];
+      // Initialize boolean value to 'true' if empty
+      if (type === 'boolean') cond.value = 'true';
+    }
+
+    function setOp(condId, op) {
+      const r = findNode(state.queryTree, condId);
+      if (r) r.node.operator = op;
+    }
+
+    function setValue(condId, value) {
+      const r = findNode(state.queryTree, condId);
+      if (r) r.node.value = value;
+    }
+
+    function toggleFx(condId) {
+      const r = findNode(state.queryTree, condId);
+      if (r) r.node.valueIsExpression = !r.node.valueIsExpression;
+    }
+
+    // =========================================================================
+    // EXPRESSION GENERATION
+    // =========================================================================
+
+    // Shared operator dispatch: returns { fn, innerFn } for the operator
+    // Prevents divergence between HTML and plain-text expression builders
+    function getOperatorFunctions(op) {
+      const mapping = {
+        'equals':          { fn: 'equals', innerFn: null },
+        'notEquals':       { fn: 'equals', innerFn: 'not' },
+        'contains':        { fn: 'contains', innerFn: null },
+        'notContains':     { fn: 'contains', innerFn: 'not' },
+        'startsWith':      { fn: 'startsWith', innerFn: null },
+        'endsWith':        { fn: 'endsWith', innerFn: null },
+        'greater':         { fn: 'greater', innerFn: null },
+        'greaterOrEquals': { fn: 'greaterOrEquals', innerFn: null },
+        'less':            { fn: 'less', innerFn: null },
+        'lessOrEquals':    { fn: 'lessOrEquals', innerFn: null }
+      };
+      return mapping[op] || null;
+    }
+
+    function fieldToPath(path) {
+      const fi = state.fields.find(f => f.path === path);
+      const segments = fi ? fi.segments : [path];
+      return 'item()?' + segments.map(p => `['${p}']`).join('?');
+    }
+
+    function buildFieldPathHtml(cond) {
+      if (!cond.field) return null;
+      const fi = state.fields.find(f => f.path === cond.field);
+      const segments = fi ? fi.segments : [cond.field];
+      let html = '<span class="tok-item">item()</span><span class="tok-punct">?</span>';
+      for (const seg of segments) {
+        html += '<span class="tok-punct">[</span><span class="tok-punct">\'</span>'
+             + '<span class="tok-field">' + esc(seg) + '</span>'
+             + '<span class="tok-punct">\'</span><span class="tok-punct">]</span>'
+             + '<span class="tok-punct">?</span>';
+      }
+      return html;
+    }
+
+    function serializeValueHtml(cond, type) {
+      const isExpr = cond.valueIsExpression;
+      const v = cond.value;
+      let html;
+      if (isExpr) {
+        html = '<span class="tok-expr">' + esc(v) + '</span>';
+      } else if (type === 'number') {
+        const n = Number(v);
+        if (isNaN(n)) {
+          // Invalid number, treat as string without quote escaping
+          html = '<span class="tok-str">\'</span><span class="tok-str">' + esc(v) + '</span><span class="tok-str">\'</span>';
+        } else {
+          html = '<span class="tok-num">' + String(n) + '</span>';
+        }
+      } else if (type === 'boolean') {
+        const val = (v === 'true' || v === true) ? 'true' : 'false';
+        html = '<span class="tok-bool">' + val + '</span>';
+      } else {
+        // String type, escape single quotes PA style
+        html = '<span class="tok-str">\'</span><span class="tok-str">' + esc(String(v).replace(/'/g, "''")) + '</span><span class="tok-str">\'</span>';
+      }
+      return html;
+    }
+
+    function conditionToExprHtml(cond) {
+      if (!cond.field) return null;
+      const fi   = state.fields.find(f => f.path === cond.field);
+      const type = fi ? fi.type : 'any';
+      const fpHtml = buildFieldPathHtml(cond);
+      if (!fpHtml) return null;
+
+      if (NO_VALUE_OPS.has(cond.operator)) {
+        if (cond.operator === 'empty') {
+          return '<span class="tok-fn">empty</span><span class="tok-punct">(</span>' + fpHtml + '<span class="tok-punct">)</span>';
+        } else {
+          return '<span class="tok-fn">not</span><span class="tok-punct">(</span><span class="tok-fn">empty</span><span class="tok-punct">(</span>' + fpHtml + '<span class="tok-punct">)</span><span class="tok-punct">)</span>';
+        }
+      }
+
+      const valHtml = serializeValueHtml(cond, type);
+      if (!valHtml) return null;
+
+      const opFns = getOperatorFunctions(cond.operator);
+      if (!opFns) return null;
+
+      const innerHtml = '<span class="tok-fn">' + opFns.fn + '</span><span class="tok-punct">(</span>' + fpHtml + '<span class="tok-punct">,</span> ' + valHtml + '<span class="tok-punct">)</span>';
+      if (!opFns.innerFn) return innerHtml;
+      return '<span class="tok-fn">' + opFns.innerFn + '</span><span class="tok-punct">(</span>' + innerHtml + '<span class="tok-punct">)</span>';
+    }
+
+    function groupToExprHtml(group, indent = '') {
+      const childHtmls = [];
+      for (const child of group.children) {
+        const h = child.type === 'condition' ? conditionToExprHtml(child)
+                : child.type === 'group'     ? groupToExprHtml(child, indent + '  ')
+                : null;
+        if (h) childHtmls.push(h);
+      }
+      if (childHtmls.length === 0) return null;
+      if (childHtmls.length === 1) return childHtmls[0];
+
+      const fn = group.logic === 'OR' ? 'or' : 'and';
+      const fnCls = group.logic === 'OR' ? 'tok-or' : 'tok-and';
+      const childIndent = indent + '  ';
+      const childJoined = childHtmls.join('<span class="tok-punct">,</span>\n' + childIndent);
+      return '<span class="' + fnCls + '">' + fn + '</span><span class="tok-punct">(</span>\n' + childIndent + childJoined + '\n' + indent + '<span class="tok-punct">)</span>';
+    }
+
+    function buildFullExpressionHtml() {
+      if (!state.queryTree) return '';
+      const html = groupToExprHtml(state.queryTree, '');
+      return html ? '<span class="tok-at">@</span>' + html : '';
+    }
+
+    function serializeValue(cond, type) {
+      if (cond.valueIsExpression) return cond.value;
+      const v = cond.value;
+      if (type === 'number') {
+        const n = Number(v);
+        return isNaN(n) ? `'${v}'` : String(n);
+      }
+      if (type === 'boolean') {
+        return (v === 'true' || v === true) ? 'true' : 'false';
+      }
+      // string — escape single-quotes PA style
+      return `'${String(v).replace(/'/g, "''")}'`;
+    }
+
+    function conditionToExpr(cond) {
+      if (!cond.field) return null;
+      const fi   = state.fields.find(f => f.path === cond.field);
+      const type = fi ? fi.type : 'any';
+      const fp   = fieldToPath(cond.field);
+
+      if (NO_VALUE_OPS.has(cond.operator)) {
+        return cond.operator === 'empty' ? `empty(${fp})` : `not(empty(${fp}))`;
+      }
+
+      const val = serializeValue(cond, type);
+      const opFns = getOperatorFunctions(cond.operator);
+      if (!opFns) return null;
+
+      const innerExpr = `${opFns.fn}(${fp}, ${val})`;
+      return opFns.innerFn ? `${opFns.innerFn}(${innerExpr})` : innerExpr;
+    }
+
+    function groupToExpr(group) {
+      const exprs = [];
+      for (const child of group.children) {
+        const e = child.type === 'condition' ? conditionToExpr(child)
+                : child.type === 'group'     ? groupToExpr(child)
+                : null;
+        if (e) exprs.push(e);
+      }
+      if (exprs.length === 0) return null;
+      if (exprs.length === 1) return exprs[0];
+      const fn = group.logic === 'OR' ? 'or' : 'and';
+      return `${fn}(${exprs.join(', ')})`;
+    }
+
+    function buildFullExpression() {
+      if (!state.queryTree) return '';
+      const e = groupToExpr(state.queryTree);
+      return e ? '@' + e : '';
+    }
+
+    // =========================================================================
+    // PREVIEW EVALUATION
+    // =========================================================================
+    function getFieldValue(item, path) {
+      const fi = state.fields.find(f => f.path === path);
+      const segments = fi ? fi.segments : [path];
+      return segments.reduce((cur, k) => (cur == null ? undefined : cur[k]), item);
+    }
+
+    function evalCondition(cond, item) {
+      if (!cond.field) return false;
+      const fieldVal = getFieldValue(item, cond.field);
+
+      if (NO_VALUE_OPS.has(cond.operator)) {
+        const isEmpty = fieldVal == null || fieldVal === ''
+                     || (Array.isArray(fieldVal) && fieldVal.length === 0);
+        return cond.operator === 'empty' ? isEmpty : !isEmpty;
+      }
+
+      let cmpVal = cond.value;
+      if (cond.valueIsExpression) {
+        try { if (window.evaluate) cmpVal = window.evaluate(cond.value, item); } catch (_) {}
+      } else {
+        const fi = state.fields.find(f => f.path === cond.field);
+        const type = fi ? fi.type : 'any';
+        if (type === 'number')  cmpVal = Number(cond.value);
+        else if (type === 'boolean') cmpVal = (cond.value === 'true' || cond.value === true);
+      }
+
+      switch (cond.operator) {
+        case 'equals':          return fieldVal === cmpVal;
+        case 'notEquals':       return fieldVal !== cmpVal;
+        case 'contains':
+          if (typeof fieldVal === 'string') return fieldVal.includes(String(cmpVal));
+          if (Array.isArray(fieldVal))      return fieldVal.some(x => x == cmpVal);
+          return false;
+        case 'notContains':
+          if (typeof fieldVal === 'string') return !fieldVal.includes(String(cmpVal));
+          if (Array.isArray(fieldVal))      return !fieldVal.some(x => x == cmpVal);
+          return true;
+        case 'startsWith':      return typeof fieldVal === 'string' && fieldVal.startsWith(String(cmpVal));
+        case 'endsWith':        return typeof fieldVal === 'string' && fieldVal.endsWith(String(cmpVal));
+        case 'greater':         return fieldVal > cmpVal;
+        case 'greaterOrEquals': return fieldVal >= cmpVal;
+        case 'less':            return fieldVal < cmpVal;
+        case 'lessOrEquals':    return fieldVal <= cmpVal;
+        default: return true;
+      }
+    }
+
+    function evalGroup(group, item) {
+      if (group.children.length === 0) return true;
+      const test = child =>
+        child.type === 'condition' ? evalCondition(child, item)
+      : child.type === 'group'     ? evalGroup(child, item)
+      : true;
+      return group.logic === 'OR'
+        ? group.children.some(test)
+        : group.children.every(test);
+    }
+
+    function hasActiveConditions(group) {
+      for (const child of group.children) {
+        if (child.type === 'condition' && child.field) {
+          if (NO_VALUE_OPS.has(child.operator)) return true;
+          if (child.value !== '') return true;
+        }
+        if (child.type === 'group' && hasActiveConditions(child)) return true;
+      }
+      return false;
+    }
+
+    function evalConditionWithReason(cond, item) {
+      if (!cond.field) return { pass: true, reason: '' };
+      if (!NO_VALUE_OPS.has(cond.operator) && cond.value === '') return { pass: true, reason: '' };
+
+      const fieldVal = getFieldValue(item, cond.field);
+      const fLabel = cond.field;
+
+      if (NO_VALUE_OPS.has(cond.operator)) {
+        const isEmpty = fieldVal == null || fieldVal === ''
+                     || (Array.isArray(fieldVal) && fieldVal.length === 0);
+        const pass = cond.operator === 'empty' ? isEmpty : !isEmpty;
+        const reason = pass ? '' : (cond.operator === 'empty' ? `${fLabel} was not empty` : `${fLabel} was empty`);
+        return { pass, reason };
+      }
+
+      let cmpVal = cond.value;
+      if (cond.valueIsExpression) {
+        try { if (window.evaluate) cmpVal = window.evaluate(cond.value, item); } catch (_) {}
+      } else {
+        const fi = state.fields.find(f => f.path === cond.field);
+        const type = fi ? fi.type : 'any';
+        if (type === 'number')  cmpVal = Number(cond.value);
+        else if (type === 'boolean') cmpVal = (cond.value === 'true' || cond.value === true);
+      }
+
+      let pass;
+      let reason = '';
+      const av = JSON.stringify(fieldVal);
+      const ev = JSON.stringify(cmpVal);
+      switch (cond.operator) {
+        case 'equals':
+          pass = fieldVal === cmpVal;
+          if (!pass) reason = `${fLabel}: ${av} (expected = ${ev})`;
+          break;
+        case 'notEquals':
+          pass = fieldVal !== cmpVal;
+          if (!pass) reason = `${fLabel}: ${av} (expected ≠ ${ev})`;
+          break;
+        case 'contains':
+          if (typeof fieldVal === 'string') pass = fieldVal.includes(String(cmpVal));
+          else if (Array.isArray(fieldVal)) pass = fieldVal.some(x => x == cmpVal);
+          else pass = false;
+          if (!pass) reason = `${fLabel} did not contain ${ev}`;
+          break;
+        case 'notContains':
+          if (typeof fieldVal === 'string') pass = !fieldVal.includes(String(cmpVal));
+          else if (Array.isArray(fieldVal)) pass = !fieldVal.some(x => x == cmpVal);
+          else pass = true;
+          if (!pass) reason = `${fLabel} contained ${ev}`;
+          break;
+        case 'startsWith':
+          pass = typeof fieldVal === 'string' && fieldVal.startsWith(String(cmpVal));
+          if (!pass) reason = `${fLabel} did not start with ${ev}`;
+          break;
+        case 'endsWith':
+          pass = typeof fieldVal === 'string' && fieldVal.endsWith(String(cmpVal));
+          if (!pass) reason = `${fLabel} did not end with ${ev}`;
+          break;
+        case 'greater':
+          pass = fieldVal > cmpVal;
+          if (!pass) reason = `${fLabel}: ${av} (expected > ${ev})`;
+          break;
+        case 'greaterOrEquals':
+          pass = fieldVal >= cmpVal;
+          if (!pass) reason = `${fLabel}: ${av} (expected ≥ ${ev})`;
+          break;
+        case 'less':
+          pass = fieldVal < cmpVal;
+          if (!pass) reason = `${fLabel}: ${av} (expected < ${ev})`;
+          break;
+        case 'lessOrEquals':
+          pass = fieldVal <= cmpVal;
+          if (!pass) reason = `${fLabel}: ${av} (expected ≤ ${ev})`;
+          break;
+        default:
+          pass = true;
+      }
+      return { pass, reason };
+    }
+
+    function evalGroupDetailed(group, item) {
+      if (group.children.length === 0) return { pass: true, reasons: [] };
+
+      const results = group.children.map(child => {
+        if (child.type === 'condition') return evalConditionWithReason(child, item);
+        if (child.type === 'group')     return evalGroupDetailed(child, item);
+        return { pass: true, reasons: [] };
+      });
+
+      if (group.logic === 'OR') {
+        const anyPass = results.some(r => r.pass);
+        if (anyPass) return { pass: true, reasons: [] };
+        const reasons = results.flatMap(r => r.reason ? [r.reason] : (r.reasons || []));
+        return { pass: false, reasons };
+      } else {
+        const reasons = results.flatMap(r => r.pass ? [] : (r.reason ? [r.reason] : (r.reasons || [])));
+        return { pass: reasons.length === 0, reasons };
+      }
+    }
+
+    // =========================================================================
+    // HTML HELPERS
+    // =========================================================================
+    function esc(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+
+    function buildFieldOptions(selected) {
+      if (!state.fields.length) return '<option value="">— no fields parsed —</option>';
+      let html = '<option value="">— select field —</option>';
+      for (const f of state.fields)
+        html += `<option value="${esc(f.path)}"${f.path===selected?' selected':''}>${esc(f.path)}</option>`;
+      return html;
+    }
+
+    function buildOpOptions(field, selected) {
+      const fi   = state.fields.find(f => f.path === field);
+      const type = fi ? fi.type : 'any';
+      const ops  = OPERATORS_BY_TYPE[type] || OPERATORS_BY_TYPE.any;
+      return ops.map(op =>
+        `<option value="${op}"${op===selected?' selected':''}>${OPERATOR_LABELS[op]||op}</option>`
+      ).join('');
+    }
+
+    function buildValueArea(cond) {
+      if (NO_VALUE_OPS.has(cond.operator)) return '';
+      const fi   = state.fields.find(f => f.path === cond.field);
+      const type = fi ? fi.type : 'any';
+      const fx   = cond.valueIsExpression;
+
+      const fxBtn = `<button class="btn-fx${fx?' active':''}" data-cond="${cond.id}" data-action="toggle-fx" title="Toggle expression mode">fx</button>`;
+
+      if (type === 'boolean' && !fx) {
+        const isFalseSelected = (cond.value === 'false' || cond.value === false);
+        const trueSelected  = (!isFalseSelected) ? ' selected' : '';
+        const falseSelected = isFalseSelected ? ' selected' : '';
+        return `
+          <select class="cond-select cond-value-select" data-cond="${cond.id}" data-action="set-value">
+            <option value="true"${trueSelected}>true</option>
+            <option value="false"${falseSelected}>false</option>
+          </select>
+          ${fxBtn}`;
+      }
+
+      const cls = 'cond-value-input' + (fx ? ' fx-mode' : '');
+      const ph  = fx ? 'e.g. utcNow()' : (type==='number' ? '0' : 'value');
+      return `
+        <input class="${cls}" type="text"
+               value="${esc(String(cond.value))}"
+               placeholder="${esc(ph)}"
+               data-cond="${cond.id}" data-action="set-value">
+        ${fxBtn}`;
+    }
+
+    function renderCondition(cond) {
+      return `<div class="condition-node" data-id="${cond.id}">
+        <select class="cond-select" data-cond="${cond.id}" data-action="set-field">
+          ${buildFieldOptions(cond.field)}
+        </select>
+        <select class="cond-select" data-cond="${cond.id}" data-action="set-op">
+          ${buildOpOptions(cond.field, cond.operator)}
+        </select>
+        ${buildValueArea(cond)}
+        <button class="btn-remove-cond" data-node="${cond.id}" data-action="remove" title="Remove" aria-label="Remove condition">✕</button>
+      </div>`;
+    }
+
+    function renderGroup(group, isRoot, depth = 0) {
+      const logicCls = group.logic === 'OR' ? ' logic-or' : '';
+      const rootCls  = isRoot ? ' group-root' : ' group-nested';
+      const andAct   = group.logic === 'AND' ? ' active-and' : '';
+      const orAct    = group.logic === 'OR'  ? ' active-or'  : '';
+      const rmBtn    = isRoot ? '' :
+        `<button class="btn-remove-group" data-node="${group.id}" data-action="remove" aria-label="Remove group">✕ Group</button>`;
+      const collapseBtn = isRoot ? '' :
+        `<button class="btn-collapse" data-node="${group.id}" data-action="toggle-collapse" title="Collapse">▾</button>`;
+
+      const logicLower = group.logic.toLowerCase();
+      const badgeCls   = group.logic === 'OR' ? 'badge-or' : 'badge-and';
+      const connector  = `<div class="logic-connector">
+        <div class="logic-connector-line"></div>
+        <span class="logic-connector-badge ${badgeCls}">${logicLower}</span>
+        <div class="logic-connector-line"></div>
+      </div>`;
+
+      const rendered = group.children.map(c =>
+        c.type === 'condition' ? renderCondition(c) :
+        c.type === 'group'     ? renderGroup(c, false, depth + 1) : ''
+      );
+      const children = rendered.join(connector);
+
+      return `<div class="group-node${rootCls}${logicCls}" data-id="${group.id}" data-depth="${depth}">
+        <div class="group-toolbar">
+          ${collapseBtn}
+          <span class="logic-label">Where</span>
+          <div class="logic-toggle">
+            <button class="logic-btn${andAct}" data-group="${group.id}" data-action="set-and">AND</button>
+            <button class="logic-btn${orAct}"  data-group="${group.id}" data-action="set-or">OR</button>
+          </div>
+          <button class="btn-add" data-group="${group.id}" data-action="add-condition">+ Condition</button>
+          <button class="btn-add" data-group="${group.id}" data-action="add-group">+ Group</button>
+          ${rmBtn}
+        </div>
+        <div class="group-children">${children}</div>
+      </div>`;
+    }
+
+    // =========================================================================
+    // AUTO-SIZE FIELD SELECTOR
+    // =========================================================================
+    function measureTextWidth(text, font) {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      ctx.font = font;
+      return ctx.measureText(text).width;
+    }
+
+    function autoSizeFieldSelectors() {
+      if (!state.fields.length) return;
+      const selectEl = document.querySelector('.cond-select[data-action="set-field"]');
+      if (!selectEl) return;
+
+      const style = window.getComputedStyle(selectEl);
+      const font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+
+      let maxWidth = 0;
+      for (const field of state.fields) {
+        const width = measureTextWidth(field.path, font);
+        maxWidth = Math.max(maxWidth, width);
+      }
+
+      // Get actual padding from computed style
+      const paddingLeft = parseFloat(style.paddingLeft);
+      const paddingRight = parseFloat(style.paddingRight);
+      // Add extra space for dropdown arrow and margin (approximately 24px for arrow + 4px margin)
+      const finalWidth = maxWidth + paddingLeft + paddingRight + 28;
+
+      document.querySelectorAll('.cond-select[data-action="set-field"]').forEach(el => {
+        el.style.width = finalWidth + 'px';
+      });
+    }
+
+    // =========================================================================
+    // RENDER FUNCTIONS
+    // =========================================================================
+    function renderFieldList() {
+      const sec = document.getElementById('section-fields');
+      const el  = document.getElementById('fields-list');
+      if (!state.fields.length) { sec.hidden = true; return; }
+      sec.hidden = false;
+      el.innerHTML = state.fields.map(f =>
+        `<div class="field-item">
+           <span class="field-path">${esc(f.path)}</span>
+           <span class="field-type-badge type-${f.type}">${f.type}</span>
+         </div>`
+      ).join('');
+    }
+
+    function renderBuilder() {
+      const el = document.getElementById('root-group');
+      if (!state.queryTree) {
+        el.innerHTML = '<div style="color:var(--text-muted);font-size:0.8rem;padding:0.5rem 0">Parse a JSON array to start building</div>';
+        return;
+      }
+      el.innerHTML = renderGroup(state.queryTree, true);
+      autoSizeFieldSelectors();
+    }
+
+    function renderExpression() {
+      const html = buildFullExpressionHtml();
+      const out = document.getElementById('expression-output');
+      if (html) {
+        out.innerHTML = html;
+      } else {
+        out.innerHTML = '<span class="expr-placeholder">Build conditions to generate expression</span>';
+      }
+    }
+
+    function renderPreview() {
+      const body    = document.getElementById('preview-body');
+      const countEl = document.getElementById('preview-count');
+
+      if (!state.queryTree || !state.items.length) {
+        body.innerHTML = '<div class="preview-empty">Parse a JSON array and build conditions to see filtered results</div>';
+        countEl.innerHTML = '';
+        return;
+      }
+
+      if (!hasActiveConditions(state.queryTree)) {
+        body.innerHTML = '<div class="preview-empty">Add at least one condition to see results</div>';
+        countEl.innerHTML = '';
+        return;
+      }
+
+      const matchCount = state.items.filter(item => evalGroup(state.queryTree, item)).length;
+      countEl.innerHTML = `<strong>${matchCount}</strong> of ${state.items.length} items match`;
+
+      const display = state.items.slice(0, 100);
+      const cards = display.map(item => {
+        const s = JSON.stringify(item, null, 1);
+        const { pass, reasons } = evalGroupDetailed(state.queryTree, item);
+        if (pass) {
+          return `<div class="preview-item match">${esc(s)}</div>`;
+        } else {
+          const tooltip = esc(reasons.join('\n'));
+          return `<div class="preview-item no-match" data-tooltip="${tooltip}">${esc(s)}</div>`;
+        }
+      }).join('');
+
+      const more = state.items.length > 100
+        ? `<div class="preview-more">…showing first 100 of ${state.items.length}</div>` : '';
+
+      body.innerHTML = `<div class="preview-items">${cards}</div>${more}`;
+    }
+
+    function render() {
+      renderBuilder();
+      renderExpression();
+      renderPreview();
+    }
+
+    // =========================================================================
+    // DEBOUNCE (for value input events)
+    // =========================================================================
+    let debTimer = null;
+    function debounceUpdate() {
+      clearTimeout(debTimer);
+      debTimer = setTimeout(() => { renderExpression(); renderPreview(); }, 100);
+    }
+
+    // =========================================================================
+    // CLEAR JSON STATE
+    // =========================================================================
+    function clearJsonState() {
+      state.items = [];
+      state.fields = [];
+      state.queryTree = null;
+      document.getElementById('section-fields').hidden = true;
+      document.getElementById('json-hint').hidden = false;
+      renderBuilder();
+      renderExpression();
+      renderPreview();
+    }
+
+    // =========================================================================
+    // PARSE JSON
+    // =========================================================================
+    function showError(msg) {
+      const el = document.getElementById('parse-error');
+      el.textContent = msg;
+      el.hidden = false;
+    }
+
+    function parseJson() {
+      const raw = document.getElementById('json-input').value.trim();
+      const errEl = document.getElementById('parse-error');
+      errEl.hidden = true;
+
+      if (!raw) { showError('Please paste a JSON array'); return; }
+
+      let parsed;
+      try { parsed = JSON.parse(raw); }
+      catch (e) { showError('Invalid JSON: ' + e.message); return; }
+
+      if (!Array.isArray(parsed))   { showError('JSON must be an array'); return; }
+      if (!parsed.length)           { showError('Array is empty'); return; }
+
+      const allNonObjects = parsed.every(x => !x || typeof x !== 'object' || Array.isArray(x));
+      if (allNonObjects) { showError('Array items are not objects'); return; }
+
+      state.rawJson = raw;
+      state.items   = parsed;
+      state.fields  = extractFields(parsed);
+
+      if (!state.fields.length) { showError('No fields found in array items'); return; }
+
+      document.getElementById('json-input').scrollTop = 0;
+      document.getElementById('json-hint').hidden = true;
+      initQueryTree();
+      renderFieldList();
+      autoSizeFieldSelectors();
+      render();
+    }
+
+    // =========================================================================
+    // COPY TO CLIPBOARD
+    // =========================================================================
+    function copyExpression() {
+      const expr = buildFullExpression();
+      const btn  = document.getElementById('btn-copy');
+
+      function onSuccess() {
+        btn.textContent = 'Copied!';
+        btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+      }
+
+      function fallback(text) {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        Object.assign(ta.style, { position:'fixed', opacity:'0', top:'0', left:'0' });
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); onSuccess(); } catch (_) {}
+        document.body.removeChild(ta);
+      }
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(expr).then(onSuccess).catch(() => fallback(expr));
+      } else {
+        fallback(expr);
+      }
+    }
+
+    // =========================================================================
+    // EVENT WIRING
+    // =========================================================================
+    document.getElementById('json-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) parseJson();
+    });
+
+    let _autoParseTimer = null;
+    document.getElementById('json-input').addEventListener('input', () => {
+      document.getElementById('parse-error').hidden = true;
+      clearTimeout(_autoParseTimer);
+      const raw = document.getElementById('json-input').value.trim();
+      if (!raw) { clearJsonState(); return; }
+      _autoParseTimer = setTimeout(() => {
+        let parsed;
+        try { parsed = JSON.parse(raw); } catch (_) { return; }
+        if (!Array.isArray(parsed) || !parsed.length) return;
+        if (parsed.every(x => !x || typeof x !== 'object' || Array.isArray(x))) return;
+        parseJson();
+      }, 300);
+    });
+
+    document.getElementById('btn-copy').addEventListener('click', copyExpression);
+
+    const rootGroup = document.getElementById('root-group');
+
+    rootGroup.addEventListener('click', e => {
+      const t = e.target;
+      const action = t.dataset.action;
+      if (!action) return;
+
+      if (action === 'set-and')         { setGroupLogic(t.dataset.group, 'AND'); render(); }
+      else if (action === 'set-or')     { setGroupLogic(t.dataset.group, 'OR');  render(); }
+      else if (action === 'add-condition') { addCondition(t.dataset.group); render(); }
+      else if (action === 'add-group')  { addSubgroup(t.dataset.group); render(); }
+      else if (action === 'remove')     { removeNode(t.dataset.node); render(); }
+      else if (action === 'toggle-fx')  { toggleFx(t.dataset.cond); render(); }
+      else if (action === 'toggle-collapse') {
+        const groupEl = t.closest('.group-node');
+        if (groupEl) groupEl.classList.toggle('is-collapsed');
+      }
+    });
+
+    rootGroup.addEventListener('change', e => {
+      const t = e.target;
+      const action = t.dataset.action;
+      if (!action) return;
+
+      if (action === 'set-field') {
+        setField(t.dataset.cond, t.value);
+        render();
+      } else if (action === 'set-op') {
+        setOp(t.dataset.cond, t.value);
+        render();
+      } else if (action === 'set-value' && t.tagName === 'SELECT') {
+        // boolean select — immediate update, no re-render of builder
+        setValue(t.dataset.cond, t.value);
+        renderExpression();
+        renderPreview();
+      }
+    });
+
+    rootGroup.addEventListener('input', e => {
+      const t = e.target;
+      if (t.dataset.action === 'set-value' && t.tagName === 'INPUT') {
+        setValue(t.dataset.cond, t.value);
+        debounceUpdate();
+      }
+    });
+
+    // =========================================================================
+    // INIT
+    // =========================================================================
+    initQueryTree();
+    render();
+
+  })();
+  </script>
+</body>
+</html>

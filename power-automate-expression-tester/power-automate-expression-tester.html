@@ -1,0 +1,1284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- CSP: blocks all external resource loads; inline styles/scripts required for single-file design -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'none'; img-src 'none'; font-src 'none';">
+  <title>⚡ Power Automate Expression Tester</title>
+  <style>
+    :root {
+      --bg: #1e1e2e;
+      --surface: #282838;
+      --surface2: #313145;
+      --border: #45455a;
+      --text: #cdd6f4;
+      --text-muted: #6c7086;
+      --accent: #89b4fa;
+      --accent2: #a6e3a1;
+      --accent3: #fab387;
+      --accent4: #cba6f7;
+      --error: #f38ba8;
+      --success: #a6e3a1;
+      --code-string: #a6e3a1;
+      --code-number: #fab387;
+      --code-bool: #cba6f7;
+      --code-func: #89b4fa;
+      --font-mono: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+      --font-sans: 'Segoe UI', system-ui, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+    .header-icon { font-size: 1.4rem; }
+    header h1 { font-size: 1rem; font-weight: 600; color: var(--accent); }
+    header p { font-size: 0.75rem; color: var(--text-muted); }
+
+    .main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .left-panel {
+      width: 50%;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid var(--border);
+      overflow: hidden;
+    }
+
+    .right-panel {
+      width: 50%;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .section-header {
+      padding: 7px 14px;
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+      user-select: none;
+    }
+
+    .json-section {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    .json-content {
+      flex: 1;
+      overflow: hidden;
+    }
+
+    textarea {
+      width: 100%;
+      height: 100%;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text);
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      line-height: 1.6;
+      padding: 12px 14px;
+      resize: none;
+    }
+
+    textarea::placeholder { color: var(--text-muted); }
+
+    .expr-section {
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #expr-input {
+      height: 72px;
+      font-size: 0.9rem;
+    }
+
+    .expr-actions {
+      padding: 7px 14px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      border-top: 1px solid var(--border);
+      background: var(--surface2);
+    }
+
+    .expr-hint {
+      margin-left: auto;
+      font-size: 0.68rem;
+      color: var(--text-muted);
+    }
+
+    button {
+      padding: 5px 14px;
+      border: none;
+      border-radius: 5px;
+      font-family: var(--font-sans);
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.1s;
+    }
+    button:hover { opacity: 0.8; }
+    .btn-primary { background: var(--accent); color: #1e1e2e; }
+    .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+
+    /* Result section */
+    .result-section {
+      flex: 0 0 auto;
+      display: flex;
+      flex-direction: column;
+      min-height: 100px;
+      max-height: 38%;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .result-area {
+      flex: 1;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      line-height: 1.6;
+      padding: 12px 14px;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .result-string { color: var(--code-string); }
+    .result-number { color: var(--code-number); }
+    .result-bool   { color: var(--code-bool); }
+    .result-null   { color: var(--text-muted); font-style: italic; }
+    .result-obj    { color: var(--accent3); }
+    .result-error  { color: var(--error); }
+    .result-info   { color: var(--text-muted); font-style: italic; font-size: 0.8rem; }
+
+    .status-badge {
+      font-size: 0.63rem;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-weight: 700;
+    }
+    .badge-ok    { background: rgba(166,227,161,0.15); color: var(--success); }
+    .badge-error { background: rgba(243,139,168,0.15); color: var(--error); }
+    .badge-empty { background: rgba(108,112,134,0.15); color: var(--text-muted); }
+
+    .json-badge {
+      font-size: 0.65rem;
+      padding: 1px 6px;
+      border-radius: 4px;
+    }
+    .json-ok    { color: var(--success); }
+    .json-error { color: var(--error); }
+
+    .copy-btn {
+      font-size: 0.63rem;
+      padding: 2px 8px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    .copy-btn:hover { color: var(--text); border-color: var(--accent); }
+
+    /* Examples section */
+    .examples-section {
+      flex-shrink: 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .examples-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      padding: 7px 10px;
+      max-height: 90px;
+      overflow-y: auto;
+    }
+
+    .example-chip {
+      padding: 3px 10px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      color: var(--accent);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.1s, border-color 0.1s;
+    }
+    .example-chip:hover {
+      background: var(--border);
+      border-color: var(--accent);
+    }
+
+    /* Function reference */
+    .ref-section {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    .ref-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 6px;
+    }
+
+    .ref-category {
+      margin-bottom: 5px;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      overflow: hidden;
+    }
+
+    .ref-category-header {
+      padding: 6px 12px;
+      background: var(--surface2);
+      cursor: pointer;
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--accent4);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      user-select: none;
+    }
+    .ref-category-header:hover { background: var(--border); }
+    .ref-toggle { color: var(--text-muted); font-size: 0.6rem; }
+
+    .ref-category-body { display: none; }
+    .ref-category-body.open { display: block; }
+
+    .ref-fn {
+      padding: 5px 12px;
+      border-top: 1px solid var(--border);
+    }
+    .ref-fn-sig {
+      font-family: var(--font-mono);
+      font-size: 0.73rem;
+      color: var(--accent);
+      margin-bottom: 1px;
+    }
+    .ref-fn-desc {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+    }
+
+    /* Scrollbars */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+    @media (max-width: 760px) {
+      .main { flex-direction: column; }
+      .left-panel, .right-panel { width: 100%; height: 50%; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-icon">⚡</div>
+  <div>
+    <h1>Power Automate Expression Tester</h1>
+    <p>Paste your action output JSON, then test Cloud Flow expressions against it</p>
+  </div>
+</header>
+
+<div class="main">
+  <!-- ── LEFT PANEL ── -->
+  <div class="left-panel">
+    <div class="json-section">
+      <div class="section-header">
+        <span>Action Output (JSON)</span>
+        <span id="json-status" class="json-badge">—</span>
+      </div>
+      <div class="json-content">
+        <textarea id="json-input" spellcheck="false"
+          placeholder='Paste the JSON output of your Power Automate action here…'></textarea>
+      </div>
+    </div>
+
+    <div class="expr-section">
+      <div class="section-header">
+        <span>Expression</span>
+        <span style="color:var(--text-muted);font-size:0.65rem;font-weight:400;text-transform:none">
+          Enter ↵ to evaluate • supports @{…} interpolation
+        </span>
+      </div>
+      <textarea id="expr-input" spellcheck="false"
+        placeholder="triggerBody()?['Subject']"></textarea>
+      <div class="expr-actions">
+        <button class="btn-primary" onclick="evaluateExpr()">▶ Evaluate</button>
+        <button class="btn-secondary" onclick="clearExpr()">✕ Clear</button>
+        <span class="expr-hint">Auto-evaluates as you type</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── RIGHT PANEL ── -->
+  <div class="right-panel">
+    <div class="result-section">
+      <div class="section-header">
+        <span>Result</span>
+        <div style="display:flex;gap:6px;align-items:center">
+          <span id="result-badge" class="status-badge badge-empty">—</span>
+          <button class="copy-btn" onclick="copyResult()">copy</button>
+        </div>
+      </div>
+      <div id="result" class="result-area">
+        <span class="result-info">Enter an expression to see the result here</span>
+      </div>
+    </div>
+
+    <div class="examples-section">
+      <div class="section-header">
+        <span>Examples</span>
+        <span style="color:var(--text-muted);font-size:0.65rem;font-weight:400;text-transform:none">click to try</span>
+      </div>
+      <div class="examples-list" id="examples-list"></div>
+    </div>
+
+    <div class="ref-section">
+      <div class="section-header">Function Reference</div>
+      <div class="ref-content" id="ref-content"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════════
+//  LEXER
+// ═══════════════════════════════════════════════════════════════════════════════
+const TK = {
+  STRING:'STRING', NUMBER:'NUMBER', BOOL:'BOOL', NULL:'NULL',
+  IDENT:'IDENT', LPAREN:'LPAREN', RPAREN:'RPAREN',
+  LBRACKET:'LBRACKET', RBRACKET:'RBRACKET',
+  COMMA:'COMMA', DOT:'DOT', QUESTION:'QUESTION', EOF:'EOF',
+};
+
+class Token {
+  constructor(type, value, pos) { this.type=type; this.value=value; this.pos=pos; }
+}
+
+class Lexer {
+  constructor(src) { this.src=src; this.pos=0; }
+
+  skipWs() { while (this.pos<this.src.length && /\s/.test(this.src[this.pos])) this.pos++; }
+
+  readString() {
+    const start=this.pos++;
+    let s='';
+    while (this.pos<this.src.length && this.src[this.pos]!=="'") {
+      if (this.src[this.pos]==='\\' && this.src[this.pos+1]==="'") { s+="'"; this.pos+=2; }
+      else s+=this.src[this.pos++];
+    }
+    if (this.src[this.pos]!=="'") throw new Error(`Unterminated string starting at position ${start}`);
+    this.pos++;
+    return new Token(TK.STRING, s, start);
+  }
+
+  readNumber() {
+    const start=this.pos; let s='';
+    if (this.src[this.pos]==='-') s+=this.src[this.pos++];
+    while (this.pos<this.src.length && /[0-9]/.test(this.src[this.pos])) s+=this.src[this.pos++];
+    if (this.pos<this.src.length && this.src[this.pos]==='.') {
+      s+=this.src[this.pos++];
+      while (this.pos<this.src.length && /[0-9]/.test(this.src[this.pos])) s+=this.src[this.pos++];
+    }
+    return new Token(TK.NUMBER, parseFloat(s), start);
+  }
+
+  readIdent() {
+    const start=this.pos; let s='';
+    while (this.pos<this.src.length && /[a-zA-Z0-9_]/.test(this.src[this.pos])) s+=this.src[this.pos++];
+    if (s==='true')  return new Token(TK.BOOL, true,  start);
+    if (s==='false') return new Token(TK.BOOL, false, start);
+    if (s==='null')  return new Token(TK.NULL, null,  start);
+    return new Token(TK.IDENT, s, start);
+  }
+
+  tokenize() {
+    const tokens=[];
+    while (true) {
+      this.skipWs();
+      if (this.pos>=this.src.length) { tokens.push(new Token(TK.EOF,null,this.pos)); break; }
+      const c=this.src[this.pos];
+      if      (c==="'")                                                       tokens.push(this.readString());
+      else if (/[0-9]/.test(c)||(c==='-'&&this.pos+1<this.src.length&&/[0-9]/.test(this.src[this.pos+1]))) tokens.push(this.readNumber());
+      else if (/[a-zA-Z_]/.test(c))                                           tokens.push(this.readIdent());
+      else if (c==='(') tokens.push(new Token(TK.LPAREN,   c, this.pos++));
+      else if (c===')') tokens.push(new Token(TK.RPAREN,   c, this.pos++));
+      else if (c==='[') tokens.push(new Token(TK.LBRACKET, c, this.pos++));
+      else if (c===']') tokens.push(new Token(TK.RBRACKET, c, this.pos++));
+      else if (c===',') tokens.push(new Token(TK.COMMA,    c, this.pos++));
+      else if (c==='.') tokens.push(new Token(TK.DOT,      c, this.pos++));
+      else if (c==='?') tokens.push(new Token(TK.QUESTION, c, this.pos++));
+      else throw new Error(`Unexpected character '${c}' at position ${this.pos}`);
+    }
+    return tokens;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  PARSER  (recursive descent → AST)
+// ═══════════════════════════════════════════════════════════════════════════════
+class Parser {
+  constructor(tokens) { this.tokens=tokens; this.pos=0; }
+
+  peek()         { return this.tokens[this.pos]; }
+  next()         { return this.tokens[this.pos++]; }
+  check(type)    { return this.peek().type===type; }
+  expect(type)   {
+    const t=this.next();
+    if (t.type!==type) throw new Error(`Expected ${type} but got '${t.value}' at position ${t.pos}`);
+    return t;
+  }
+  peekAhead(n)   { return this.tokens[this.pos+n]; }
+
+  parseExpression() { return this.parsePostfix(this.parsePrimary()); }
+
+  parsePrimary() {
+    const t=this.peek();
+    if (t.type===TK.STRING) { this.next(); return {type:'Literal',value:t.value}; }
+    if (t.type===TK.NUMBER) { this.next(); return {type:'Literal',value:t.value}; }
+    if (t.type===TK.BOOL)   { this.next(); return {type:'Literal',value:t.value}; }
+    if (t.type===TK.NULL)   { this.next(); return {type:'Literal',value:null}; }
+    if (t.type===TK.IDENT) {
+      this.next();
+      if (this.check(TK.LPAREN)) {
+        this.next();
+        const args=[];
+        if (!this.check(TK.RPAREN)) {
+          args.push(this.parseExpression());
+          while (this.check(TK.COMMA)) { this.next(); args.push(this.parseExpression()); }
+        }
+        this.expect(TK.RPAREN);
+        return {type:'Call',name:t.value,args};
+      }
+      return {type:'Ident',name:t.value};
+    }
+    if (t.type===TK.LPAREN) {
+      this.next();
+      const expr=this.parseExpression();
+      this.expect(TK.RPAREN);
+      return expr;
+    }
+    throw new Error(`Unexpected token '${t.value}' (${t.type}) at position ${t.pos}`);
+  }
+
+  parsePostfix(node) {
+    while (true) {
+      const t=this.peek();
+      // ?[ safe index ]
+      if (t.type===TK.QUESTION && this.peekAhead(1)?.type===TK.LBRACKET) {
+        this.next(); this.next();
+        const key=this.parseExpression();
+        this.expect(TK.RBRACKET);
+        node={type:'Index',object:node,key,safe:true};
+      }
+      // [ index ]
+      else if (t.type===TK.LBRACKET) {
+        this.next();
+        const key=this.parseExpression();
+        this.expect(TK.RBRACKET);
+        node={type:'Index',object:node,key,safe:false};
+      }
+      // ?. property  (safe dot)
+      else if (t.type===TK.QUESTION && this.peekAhead(1)?.type===TK.DOT) {
+        this.next(); this.next();
+        const prop=this.expect(TK.IDENT);
+        node={type:'Index',object:node,key:{type:'Literal',value:prop.value},safe:true};
+      }
+      // . property
+      else if (t.type===TK.DOT) {
+        this.next();
+        const prop=this.expect(TK.IDENT);
+        node={type:'Index',object:node,key:{type:'Literal',value:prop.value},safe:false};
+      }
+      else break;
+    }
+    return node;
+  }
+
+  parse() {
+    const expr=this.parseExpression();
+    if (!this.check(TK.EOF)) {
+      const t=this.peek();
+      throw new Error(`Unexpected token '${t.value}' after expression at position ${t.pos}`);
+    }
+    return expr;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  DATE HELPERS  (.NET-style format strings)
+// ═══════════════════════════════════════════════════════════════════════════════
+function parseDate(val) {
+  if (val instanceof Date) return val;
+  const d = new Date(val);
+  if (isNaN(d.getTime())) throw new Error(`Cannot parse '${val}' as a date/time`);
+  return d;
+}
+
+function formatDate(date, fmt) {
+  if (!fmt) return date.toISOString();
+  const d = date;
+  const pad = (n, w=2) => String(n).padStart(w, '0');
+  const h12 = d.getUTCHours()%12||12;
+  const ampm = d.getUTCHours()<12 ? 'AM' : 'PM';
+  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const days   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+  const STANDARD = {
+    'd': `${d.getUTCMonth()+1}/${d.getUTCDate()}/${d.getUTCFullYear()}`,
+    'D': `${days[d.getUTCDay()]}, ${months[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`,
+    't': `${h12}:${pad(d.getUTCMinutes())} ${ampm}`,
+    'T': `${h12}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())} ${ampm}`,
+    'f': `${days[d.getUTCDay()]}, ${months[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()} ${h12}:${pad(d.getUTCMinutes())} ${ampm}`,
+    'F': `${days[d.getUTCDay()]}, ${months[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()} ${h12}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())} ${ampm}`,
+    'g': `${d.getUTCMonth()+1}/${d.getUTCDate()}/${d.getUTCFullYear()} ${h12}:${pad(d.getUTCMinutes())} ${ampm}`,
+    'G': `${d.getUTCMonth()+1}/${d.getUTCDate()}/${d.getUTCFullYear()} ${h12}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())} ${ampm}`,
+    'M': `${months[d.getUTCMonth()]} ${d.getUTCDate()}`,
+    'R': d.toUTCString(),
+    's': `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())}T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`,
+    'u': `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}Z`,
+    'Y': `${months[d.getUTCMonth()]} ${d.getUTCFullYear()}`,
+    'o': d.toISOString(),
+    'O': d.toISOString(),
+  };
+  if (STANDARD[fmt]) return STANDARD[fmt];
+
+  // Custom pattern
+  let result=''; let i=0;
+  while (i<fmt.length) {
+    if      (fmt.substr(i,4)==='yyyy')  { result+=pad(d.getUTCFullYear(),4); i+=4; }
+    else if (fmt.substr(i,3)==='yyy')   { result+=pad(d.getUTCFullYear(),4); i+=3; }
+    else if (fmt.substr(i,2)==='yy')    { result+=pad(d.getUTCFullYear()%100); i+=2; }
+    else if (fmt.substr(i,1)==='y')     { result+=(d.getUTCFullYear()%100); i+=1; }
+    else if (fmt.substr(i,4)==='MMMM')  { result+=months[d.getUTCMonth()]; i+=4; }
+    else if (fmt.substr(i,3)==='MMM')   { result+=months[d.getUTCMonth()].slice(0,3); i+=3; }
+    else if (fmt.substr(i,2)==='MM')    { result+=pad(d.getUTCMonth()+1); i+=2; }
+    else if (fmt.substr(i,1)==='M')     { result+=(d.getUTCMonth()+1); i+=1; }
+    else if (fmt.substr(i,4)==='dddd')  { result+=days[d.getUTCDay()]; i+=4; }
+    else if (fmt.substr(i,3)==='ddd')   { result+=days[d.getUTCDay()].slice(0,3); i+=3; }
+    else if (fmt.substr(i,2)==='dd')    { result+=pad(d.getUTCDate()); i+=2; }
+    else if (fmt.substr(i,1)==='d')     { result+=d.getUTCDate(); i+=1; }
+    else if (fmt.substr(i,2)==='HH')    { result+=pad(d.getUTCHours()); i+=2; }
+    else if (fmt.substr(i,1)==='H')     { result+=d.getUTCHours(); i+=1; }
+    else if (fmt.substr(i,2)==='hh')    { result+=pad(h12); i+=2; }
+    else if (fmt.substr(i,1)==='h')     { result+=h12; i+=1; }
+    else if (fmt.substr(i,2)==='mm')    { result+=pad(d.getUTCMinutes()); i+=2; }
+    else if (fmt.substr(i,1)==='m')     { result+=d.getUTCMinutes(); i+=1; }
+    else if (fmt.substr(i,2)==='ss')    { result+=pad(d.getUTCSeconds()); i+=2; }
+    else if (fmt.substr(i,1)==='s')     { result+=d.getUTCSeconds(); i+=1; }
+    else if (fmt.substr(i,3)==='fff')   { result+=pad(d.getUTCMilliseconds(),3); i+=3; }
+    else if (fmt.substr(i,2)==='ff')    { result+=pad(Math.floor(d.getUTCMilliseconds()/10)); i+=2; }
+    else if (fmt.substr(i,1)==='f')     { result+=Math.floor(d.getUTCMilliseconds()/100); i+=1; }
+    else if (fmt.substr(i,2)==='tt')    { result+=ampm; i+=2; }
+    else if (fmt.substr(i,1)==='t')     { result+=ampm[0]; i+=1; }
+    else if (fmt.substr(i,1)==="'")     {
+      i++;
+      while (i<fmt.length && fmt[i]!=="'") result+=fmt[i++];
+      i++;
+    }
+    else { result+=fmt[i++]; }
+  }
+  return result;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  FUNCTION LIBRARY
+// ═══════════════════════════════════════════════════════════════════════════════
+function makeFunctions(ctx) {
+  return {
+    // ── Context ──────────────────────────────────────────
+    triggerBody:    ()     => ctx.body,
+    triggerOutputs: ()     => ({ body: ctx.body }),
+    body:           (_name) => ctx.body,
+    outputs:        (_name) => ({ body: ctx.body }),
+    variables:      (name)  => ctx.variables?.[name] ?? null,
+    parameters:     (name)  => ctx.parameters?.[name] ?? null,
+    item:           ()     => ctx.body,
+    items:          (_loop) => ctx.body,
+    workflow:       ()     => ({ run:{ id:'run-id', name:'My workflow' }, id:'workflow-id' }),
+    guid:           ()     => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+                                const r=Math.random()*16|0; return (c==='x'?r:(r&0x3|0x8)).toString(16); }),
+
+    // ── String ───────────────────────────────────────────
+    concat:       (...args) => args.map(a => a==null?'':String(a)).join(''),
+    substring:    (s, start, len) => { s=String(s); return len==null ? s.slice(start) : s.substr(start, len); },
+    toLower:      (s) => String(s).toLowerCase(),
+    toUpper:      (s) => String(s).toUpperCase(),
+    trim:         (s) => String(s).trim(),
+    replace:      (s, old, n) => String(s).split(String(old)).join(String(n)),
+    split:        (s, d) => String(s).split(String(d)),
+    startsWith:   (s, p) => String(s).startsWith(String(p)),
+    endsWith:     (s, p) => String(s).endsWith(String(p)),
+    indexOf:      (s, sub) => {
+      if (Array.isArray(s)) return s.findIndex(i => JSON.stringify(i)===JSON.stringify(sub));
+      return String(s).indexOf(String(sub));
+    },
+    lastIndexOf:  (s, sub) => String(s).lastIndexOf(String(sub)),
+    nthIndexOf:   (s, sub, n) => {
+      s=String(s); sub=String(sub); let idx=-1;
+      for (let i=0; i<n; i++) { idx=s.indexOf(sub, idx+1); if (idx===-1) return -1; }
+      return idx;
+    },
+    slice:        (s, start, end) => Array.isArray(s) ? s.slice(start,end) : String(s).slice(start,end),
+    chunk:        (s, size) => { s=String(s); const r=[]; for(let i=0;i<s.length;i+=size) r.push(s.substr(i,size)); return r; },
+    length:       (v) => {
+      if (typeof v==='string') return v.length;
+      if (Array.isArray(v))    return v.length;
+      if (v&&typeof v==='object') return Object.keys(v).length;
+      throw new Error(`length() requires a string, array, or object`);
+    },
+
+    // ── Type conversion ──────────────────────────────────
+    string:  (v) => { if (v==null) return ''; if (typeof v==='object') return JSON.stringify(v); return String(v); },
+    int:     (v) => { const n=parseInt(v,10); if (isNaN(n)) throw new Error(`Cannot convert '${v}' to integer`); return n; },
+    float:   (v) => { const n=parseFloat(v);  if (isNaN(n)) throw new Error(`Cannot convert '${v}' to float`);   return n; },
+    decimal: (v) => { const n=parseFloat(v);  if (isNaN(n)) throw new Error(`Cannot convert '${v}' to decimal`); return n; },
+    bool:    (v) => {
+      if (typeof v==='boolean') return v;
+      if (v==='true' ||v===1||v==='1') return true;
+      if (v==='false'||v===0||v==='0') return false;
+      throw new Error(`Cannot convert '${v}' to boolean`);
+    },
+    json:    (v) => { if (typeof v==='string') return JSON.parse(v); return v; },
+    array:   (v) => Array.isArray(v)?v:[v],
+    xml:     (v) => { const p=new DOMParser(); return p.parseFromString(String(v),'text/xml'); },
+
+    // ── Logic / comparison ────────────────────────────────
+    if:             (c, t, f) => c ? t : f,
+    equals:         (a, b)    => JSON.stringify(a)===JSON.stringify(b),
+    not:            (v)       => !v,
+    and:            (...a)    => a.every(Boolean),
+    or:             (...a)    => a.some(Boolean),
+    greater:        (a,b)     => a>b,
+    greaterOrEquals:(a,b)     => a>=b,
+    less:           (a,b)     => a<b,
+    lessOrEquals:   (a,b)     => a<=b,
+    contains:       (col, val) => {
+      if (typeof col==='string') return col.includes(String(val));
+      if (Array.isArray(col))   return col.some(i=>JSON.stringify(i)===JSON.stringify(val));
+      if (col&&typeof col==='object') return String(val) in col;
+      return false;
+    },
+    empty:   (v) => v==null||v===''||(Array.isArray(v)&&v.length===0)||(typeof v==='object'&&!Array.isArray(v)&&Object.keys(v).length===0),
+    coalesce:(...args) => { for (const a of args) if (a!==null&&a!==undefined) return a; return null; },
+    null:    () => null,
+
+    // ── Array ────────────────────────────────────────────
+    first:        (a)    => Array.isArray(a)?a[0]??null:(typeof a==='string'?a[0]??null:null),
+    last:         (a)    => Array.isArray(a)?a[a.length-1]??null:(typeof a==='string'?a[a.length-1]??null:null),
+    join:         (a, d) => (Array.isArray(a)?a:[a]).join(String(d??',')),
+    createArray:  (...a) => a,
+    skip:         (a, n) => (Array.isArray(a)?a:[]).slice(Number(n)),
+    take:         (a, n) => (Array.isArray(a)?a:[]).slice(0,Number(n)),
+    reverse:      (a)    => Array.isArray(a)?[...a].reverse():(typeof a==='string'?a.split('').reverse().join(''):a),
+    sort:         (a, dir) => {
+      if (!Array.isArray(a)) throw new Error('sort() requires an array');
+      const s=[...a].sort((x,y)=>x<y?-1:x>y?1:0);
+      return (dir&&String(dir).toLowerCase()==='desc')?s.reverse():s;
+    },
+    union:        (...arrays) => {
+      const seen=new Set(); const result=[];
+      for (const arr of arrays) for (const item of (Array.isArray(arr)?arr:Object.keys(arr))) {
+        const k=JSON.stringify(item); if (!seen.has(k)){seen.add(k);result.push(item);}
+      }
+      return result;
+    },
+    intersection: (a, b) => {
+      const bs=new Set((Array.isArray(b)?b:[]).map(i=>JSON.stringify(i)));
+      return (Array.isArray(a)?a:[]).filter(i=>bs.has(JSON.stringify(i)));
+    },
+    flatten:      (a, d) => Array.isArray(a)?a.flat(d??1):[a],
+    range:        (start, count) => Array.from({length:Number(count)},(_,i)=>Number(start)+i),
+
+    // ── Math ─────────────────────────────────────────────
+    add:  (a,b) => Number(a)+Number(b),
+    sub:  (a,b) => Number(a)-Number(b),
+    mul:  (a,b) => Number(a)*Number(b),
+    div:  (a,b) => { if(Number(b)===0) throw new Error('Division by zero'); return Number(a)/Number(b); },
+    mod:  (a,b) => Number(a)%Number(b),
+    max:  (...a) => { const n=a.length===1&&Array.isArray(a[0])?a[0]:a; return Math.max(...n.map(Number)); },
+    min:  (...a) => { const n=a.length===1&&Array.isArray(a[0])?a[0]:a; return Math.min(...n.map(Number)); },
+    rand: (lo,hi) => Math.floor(Math.random()*(Number(hi)-Number(lo)+1))+Number(lo),
+    abs:  (n) => Math.abs(Number(n)),
+
+    // ── Date / Time ───────────────────────────────────────
+    utcNow:         (fmt)         => fmt?formatDate(new Date(),fmt):new Date().toISOString(),
+    formatDateTime: (ts, fmt)     => formatDate(parseDate(ts), fmt),
+    addDays:        (ts,n,fmt)    => { const d=parseDate(ts);d.setUTCDate(d.getUTCDate()+Number(n));   return fmt?formatDate(d,fmt):d.toISOString(); },
+    addHours:       (ts,n,fmt)    => { const d=parseDate(ts);d.setUTCHours(d.getUTCHours()+Number(n)); return fmt?formatDate(d,fmt):d.toISOString(); },
+    addMinutes:     (ts,n,fmt)    => { const d=parseDate(ts);d.setUTCMinutes(d.getUTCMinutes()+Number(n));return fmt?formatDate(d,fmt):d.toISOString(); },
+    addSeconds:     (ts,n,fmt)    => { const d=parseDate(ts);d.setUTCSeconds(d.getUTCSeconds()+Number(n));return fmt?formatDate(d,fmt):d.toISOString(); },
+    addMilliseconds:(ts,n,fmt)    => { const d=parseDate(ts);d.setUTCMilliseconds(d.getUTCMilliseconds()+Number(n));return fmt?formatDate(d,fmt):d.toISOString(); },
+    addMonths:      (ts,n,fmt)    => { const d=parseDate(ts);d.setUTCMonth(d.getUTCMonth()+Number(n)); return fmt?formatDate(d,fmt):d.toISOString(); },
+    addYears:       (ts,n,fmt)    => { const d=parseDate(ts);d.setUTCFullYear(d.getUTCFullYear()+Number(n));return fmt?formatDate(d,fmt):d.toISOString(); },
+    getPastTime:    (n,unit,fmt)  => {
+      const d=new Date(); const v=Number(n);
+      const u=String(unit).toLowerCase();
+      if(u.startsWith('second')) d.setUTCSeconds(d.getUTCSeconds()-v);
+      else if(u.startsWith('minute')) d.setUTCMinutes(d.getUTCMinutes()-v);
+      else if(u.startsWith('hour'))   d.setUTCHours(d.getUTCHours()-v);
+      else if(u.startsWith('day'))    d.setUTCDate(d.getUTCDate()-v);
+      else if(u.startsWith('month'))  d.setUTCMonth(d.getUTCMonth()-v);
+      else if(u.startsWith('year'))   d.setUTCFullYear(d.getUTCFullYear()-v);
+      return fmt?formatDate(d,fmt):d.toISOString();
+    },
+    getFutureTime:  (n,unit,fmt)  => {
+      const d=new Date(); const v=Number(n);
+      const u=String(unit).toLowerCase();
+      if(u.startsWith('second')) d.setUTCSeconds(d.getUTCSeconds()+v);
+      else if(u.startsWith('minute')) d.setUTCMinutes(d.getUTCMinutes()+v);
+      else if(u.startsWith('hour'))   d.setUTCHours(d.getUTCHours()+v);
+      else if(u.startsWith('day'))    d.setUTCDate(d.getUTCDate()+v);
+      else if(u.startsWith('month'))  d.setUTCMonth(d.getUTCMonth()+v);
+      else if(u.startsWith('year'))   d.setUTCFullYear(d.getUTCFullYear()+v);
+      return fmt?formatDate(d,fmt):d.toISOString();
+    },
+    convertTimeZone:(ts,_src,dst,fmt) => {
+      const d=parseDate(ts);
+      try {
+        const shifted=new Date(d.toLocaleString('en-US',{timeZone:dst}));
+        return fmt?formatDate(shifted,fmt):shifted.toISOString();
+      } catch { return fmt?formatDate(d,fmt):d.toISOString(); }
+    },
+    startOfDay:   (ts)  => { const d=parseDate(ts);d.setUTCHours(0,0,0,0);return d.toISOString(); },
+    startOfHour:  (ts)  => { const d=parseDate(ts);d.setUTCMinutes(0,0,0);return d.toISOString(); },
+    startOfMonth: (ts)  => { const d=parseDate(ts);d.setUTCDate(1);d.setUTCHours(0,0,0,0);return d.toISOString(); },
+    startOfWeek:  (ts)  => { const d=parseDate(ts);d.setUTCDate(d.getUTCDate()-d.getUTCDay());d.setUTCHours(0,0,0,0);return d.toISOString(); },
+    startOfYear:  (ts)  => { const d=parseDate(ts);d.setUTCMonth(0,1);d.setUTCHours(0,0,0,0);return d.toISOString(); },
+    dayOfWeek:    (ts)  => parseDate(ts).getUTCDay(),
+    dayOfMonth:   (ts)  => parseDate(ts).getUTCDate(),
+    dayOfYear:    (ts)  => { const d=parseDate(ts);return Math.floor((d-new Date(Date.UTC(d.getUTCFullYear(),0,0)))/86400000); },
+    month:        (ts)  => parseDate(ts).getUTCMonth()+1,
+    year:         (ts)  => parseDate(ts).getUTCFullYear(),
+    hour:         (ts)  => parseDate(ts).getUTCHours(),
+    minute:       (ts)  => parseDate(ts).getUTCMinutes(),
+    second:       (ts)  => parseDate(ts).getUTCSeconds(),
+    ticks:        (ts)  => parseDate(ts).getTime()*10000+621355968000000000,
+
+    // ── Object ───────────────────────────────────────────
+    addProperty:    (o,k,v) => ({...o,[k]:v}),
+    removeProperty: (o,k)   => { const r={...o}; delete r[k]; return r; },
+    setProperty:    (o,k,v) => ({...o,[k]:v}),
+
+    // ── Encoding ─────────────────────────────────────────
+    base64:              (s) => btoa(unescape(encodeURIComponent(String(s)))),
+    base64ToString:      (s) => decodeURIComponent(escape(atob(String(s)))),
+    base64ToBinary:      (s) => atob(String(s)),
+    decodeBase64:        (s) => decodeURIComponent(escape(atob(String(s)))),
+    encodeUriComponent:  (s) => encodeURIComponent(String(s)),
+    decodeUriComponent:  (s) => decodeURIComponent(String(s)),
+    uriComponent:        (s) => encodeURIComponent(String(s)),
+    uriComponentToString:(s) => decodeURIComponent(String(s)),
+    encodeUri:           (s) => encodeURI(String(s)),
+    decodeUri:           (s) => decodeURI(String(s)),
+
+    // ── XPath ────────────────────────────────────────────
+    xpath: (xml, path) => {
+      if (typeof xml==='string') xml=new DOMParser().parseFromString(xml,'text/xml');
+      if (!(xml instanceof Document||xml instanceof Node)) return null;
+      const r=xml.evaluate(path, xml, null, XPathResult.ANY_TYPE, null);
+      const nodes=[]; let n;
+      while ((n=r.iterateNext?.())!=null) nodes.push(n.textContent);
+      return nodes.length===1?nodes[0]:nodes;
+    },
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  EVALUATOR
+// ═══════════════════════════════════════════════════════════════════════════════
+function evalAST(node, fns) {
+  switch (node.type) {
+    case 'Literal': return node.value;
+
+    case 'Ident':
+      if (node.name in fns) return fns[node.name]();
+      throw new Error(`Unknown identifier: '${node.name}' — did you mean to call it as a function?`);
+
+    case 'Call': {
+      const fn=fns[node.name];
+      if (!fn) throw new Error(`Unknown function: '${node.name}()'\nCheck the Function Reference for supported functions.`);
+      const args=node.args.map(a=>evalAST(a,fns));
+      return fn(...args);
+    }
+
+    case 'Index': {
+      const obj=evalAST(node.object, fns);
+      if (node.safe && (obj===null||obj===undefined)) return null;
+      if (obj===null||obj===undefined)
+        throw new Error(`Cannot read property of null/undefined.\nTip: use ?['key'] instead of ['key'] for safe navigation.`);
+      const key=evalAST(node.key, fns);
+      // Block access to prototype/constructor chains — these are never valid data keys
+      // in a Power Automate payload and could expose JS internals.
+      if (typeof key === 'string' && (key === '__proto__' || key === 'constructor' || key === 'prototype'))
+        return null;
+      if (Array.isArray(obj))    return obj[Number(key)]??null;
+      if (typeof obj==='object') return Object.prototype.hasOwnProperty.call(obj, key) ? obj[key] : null;
+      if (typeof obj==='string') return obj[Number(key)]??null;
+      throw new Error(`Cannot access property '${key}' on a ${typeof obj} value`);
+    }
+
+    default:
+      throw new Error(`Internal: unknown AST node type '${node.type}'`);
+  }
+}
+
+function parseAndEval(expr, ctx) {
+  const tokens = new Lexer(expr).tokenize();
+  const ast    = new Parser(tokens).parse();
+  return evalAST(ast, makeFunctions(ctx));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  INTERPOLATION  (@{…} syntax)
+// ═══════════════════════════════════════════════════════════════════════════════
+function interpolate(template, ctx) {
+  let result=''; let i=0;
+  while (i<template.length) {
+    if (template[i]==='@' && template[i+1]==='{') {
+      let depth=0, j=i+2;
+      while (j<template.length) {
+        if      (template[j]==='{') depth++;
+        else if (template[j]==='}') { if (depth===0) break; depth--; }
+        j++;
+      }
+      const inner=template.slice(i+2, j).trim();
+      const val=parseAndEval(inner, ctx);
+      result += val==null?'':(typeof val==='object'?JSON.stringify(val):String(val));
+      i=j+1;
+    } else {
+      result+=template[i++];
+    }
+  }
+  return result;
+}
+
+function evalExpression(input, ctx) {
+  input=input.trim();
+  if (!input) return undefined;
+  // Bare @expr  (e.g.  @concat('a','b') )
+  if (input.startsWith('@') && !input.startsWith('@{'))
+    return parseAndEval(input.slice(1).trim(), ctx);
+  // String with @{…} embedded
+  if (input.includes('@{'))
+    return interpolate(input, ctx);
+  // Pure expression
+  return parseAndEval(input, ctx);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  RENDERING
+// ═══════════════════════════════════════════════════════════════════════════════
+function esc(s) {
+  // Escape all characters that can break out of HTML element content or attributes.
+  // Quoting both " and ' is defensive — esc() output must be safe in any HTML context.
+  return String(s)
+    .replace(/&/g,  '&amp;')
+    .replace(/</g,  '&lt;')
+    .replace(/>/g,  '&gt;')
+    .replace(/"/g,  '&quot;')
+    .replace(/'/g,  '&#39;');
+}
+
+function renderValue(val) {
+  if (val===undefined) return `<span class="result-info">—</span>`;
+  if (val===null)      return `<span class="result-null">null</span>`;
+  if (typeof val==='boolean') return `<span class="result-bool">${val}</span>`;
+  if (typeof val==='number')  return `<span class="result-number">${val}</span>`;
+  if (typeof val==='string') {
+    // Try to detect & pretty-print JSON strings
+    if ((val.startsWith('{') || val.startsWith('[')) && val.length>1) {
+      try { return renderValue(JSON.parse(val)); } catch {}
+    }
+    return `<span class="result-string">${esc(val)}</span>`;
+  }
+  if (Array.isArray(val)||typeof val==='object')
+    return `<span class="result-obj">${esc(JSON.stringify(val, null, 2))}</span>`;
+  return `<span class="result-string">${esc(String(val))}</span>`;
+}
+
+function typeLabel(val) {
+  if (val===undefined) return '—';
+  if (val===null)      return 'null';
+  if (Array.isArray(val)) return `array[${val.length}]`;
+  return typeof val;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  FUNCTION REFERENCE  DATA
+// ═══════════════════════════════════════════════════════════════════════════════
+const REF = [
+  { category:'Context', fns:[
+    { sig:'triggerBody()',            desc:'Returns the pasted action output JSON object' },
+    { sig:'body(actionName)',         desc:'Returns the action output — same as triggerBody() in this tool' },
+    { sig:'outputs(actionName)',      desc:'Returns { body: <action output> }' },
+    { sig:'triggerOutputs()',         desc:'Returns { body: <action output> }' },
+    { sig:'variables(name)',          desc:'Returns a flow variable by name (not supported in this tool)' },
+    { sig:'parameters(name)',         desc:'Returns a flow parameter by name (not supported in this tool)' },
+    { sig:'item()',                   desc:'Returns the current item (same as triggerBody() here)' },
+    { sig:'guid()',                   desc:'Generates a new random GUID string' },
+    { sig:'utcNow([format])',         desc:'Returns the current UTC time as ISO 8601 (or custom format)' },
+    { sig:'workflow()',               desc:'Returns metadata about the current workflow run' },
+  ]},
+  { category:'String', fns:[
+    { sig:'concat(str1, str2, …)',        desc:'Joins all arguments together as a string' },
+    { sig:'substring(str, start[, len])', desc:'Extracts characters starting at start, optionally limiting to len' },
+    { sig:'toLower(str)',                 desc:'Converts string to lowercase' },
+    { sig:'toUpper(str)',                 desc:'Converts string to uppercase' },
+    { sig:'trim(str)',                    desc:'Removes leading and trailing whitespace' },
+    { sig:'replace(str, old, new)',       desc:'Replaces every occurrence of old with new' },
+    { sig:'split(str, delimiter)',        desc:'Splits a string into an array on the delimiter' },
+    { sig:'length(str)',                  desc:'Returns the number of characters' },
+    { sig:'startsWith(str, prefix)',      desc:'Returns true if the string begins with prefix' },
+    { sig:'endsWith(str, suffix)',        desc:'Returns true if the string ends with suffix' },
+    { sig:'indexOf(str, substring)',      desc:'Returns the zero-based index of the first match (−1 if not found)' },
+    { sig:'nthIndexOf(str, sub, n)',      desc:'Returns the index of the nth occurrence of sub' },
+    { sig:'lastIndexOf(str, substring)',  desc:'Returns the index of the last occurrence' },
+    { sig:'chunk(str, size)',             desc:'Splits a string into an array of chunks of the given size' },
+  ]},
+  { category:'Type Conversion', fns:[
+    { sig:'string(value)',  desc:'Converts a value to a string; objects become JSON' },
+    { sig:'int(value)',     desc:'Parses a value as an integer' },
+    { sig:'float(value)',   desc:'Parses a value as a floating-point number' },
+    { sig:'decimal(value)', desc:'Parses a value as a decimal number' },
+    { sig:'bool(value)',    desc:"Converts 'true'/'false'/1/0 to a boolean" },
+    { sig:'json(str)',      desc:'Parses a JSON string into an object or array' },
+    { sig:'array(value)',   desc:'Wraps a non-array value in a single-element array' },
+    { sig:'xml(str)',       desc:'Parses an XML string' },
+  ]},
+  { category:'Logic / Comparison', fns:[
+    { sig:'if(condition, trueVal, falseVal)', desc:'Returns trueVal if condition is truthy, otherwise falseVal' },
+    { sig:'equals(val1, val2)',               desc:'Deep equality check — returns true if both values are equal' },
+    { sig:'not(value)',                       desc:'Logical negation' },
+    { sig:'and(val1, val2, …)',               desc:'Returns true only if all arguments are truthy' },
+    { sig:'or(val1, val2, …)',                desc:'Returns true if any argument is truthy' },
+    { sig:'greater(val1, val2)',              desc:'Returns true if val1 > val2' },
+    { sig:'greaterOrEquals(val1, val2)',      desc:'Returns true if val1 >= val2' },
+    { sig:'less(val1, val2)',                 desc:'Returns true if val1 < val2' },
+    { sig:'lessOrEquals(val1, val2)',         desc:'Returns true if val1 <= val2' },
+    { sig:'contains(collection, value)',      desc:'True if string contains substring, array contains element, or object has key' },
+    { sig:'empty(value)',                     desc:'True if value is null, empty string, empty array, or empty object' },
+    { sig:'coalesce(val1, val2, …)',          desc:'Returns the first non-null, non-undefined value' },
+    { sig:'null()',                           desc:'Returns null' },
+  ]},
+  { category:'Array', fns:[
+    { sig:'first(array)',            desc:'Returns the first element' },
+    { sig:'last(array)',             desc:'Returns the last element' },
+    { sig:'length(array)',           desc:'Returns the number of elements' },
+    { sig:'join(array, delimiter)',  desc:'Joins array elements into a delimited string' },
+    { sig:'createArray(v1, v2, …)', desc:'Creates an array from the supplied arguments' },
+    { sig:'skip(array, count)',      desc:'Returns the array with the first N elements removed' },
+    { sig:'take(array, count)',      desc:'Returns only the first N elements' },
+    { sig:'reverse(array)',          desc:'Reverses the order of elements' },
+    { sig:"sort(array[, 'asc'|'desc'])", desc:'Sorts elements ascending (default) or descending' },
+    { sig:'union(array1, array2)',   desc:'Returns a deduplicated array of all elements from both arrays' },
+    { sig:'intersection(a, b)',      desc:'Returns elements that appear in both arrays' },
+    { sig:'contains(array, value)',  desc:'Returns true if the array contains the value' },
+    { sig:'flatten(array[, depth])', desc:'Flattens nested arrays (default depth 1)' },
+    { sig:'range(start, count)',     desc:'Creates an array of sequential integers' },
+    { sig:'indexOf(array, value)',   desc:'Returns the index of the first matching element' },
+  ]},
+  { category:'Math', fns:[
+    { sig:'add(a, b)',        desc:'Returns a + b' },
+    { sig:'sub(a, b)',        desc:'Returns a − b' },
+    { sig:'mul(a, b)',        desc:'Returns a × b' },
+    { sig:'div(a, b)',        desc:'Returns a ÷ b' },
+    { sig:'mod(a, b)',        desc:'Returns the remainder of a ÷ b' },
+    { sig:'max(a, b, …)',     desc:'Returns the largest value (also accepts an array)' },
+    { sig:'min(a, b, …)',     desc:'Returns the smallest value (also accepts an array)' },
+    { sig:'rand(min, max)',   desc:'Returns a random integer between min and max (inclusive)' },
+    { sig:'abs(n)',           desc:'Returns the absolute value' },
+  ]},
+  { category:'Date / Time', fns:[
+    { sig:'utcNow([format])',                      desc:'Current UTC time. Format uses .NET tokens: yyyy MM dd HH mm ss fff' },
+    { sig:'formatDateTime(timestamp, format)',      desc:'Formats a timestamp. e.g. "yyyy-MM-dd", "dddd MMMM dd", "HH:mm tt"' },
+    { sig:'addDays(ts, n[, format])',              desc:'Adds n days to a timestamp' },
+    { sig:'addHours(ts, n[, format])',             desc:'Adds n hours' },
+    { sig:'addMinutes(ts, n[, format])',           desc:'Adds n minutes' },
+    { sig:'addSeconds(ts, n[, format])',           desc:'Adds n seconds' },
+    { sig:'addMonths(ts, n[, format])',            desc:'Adds n months' },
+    { sig:'addYears(ts, n[, format])',             desc:'Adds n years' },
+    { sig:"getPastTime(n, unit[, format])",        desc:"Past time relative to now. Units: 'Second', 'Minute', 'Hour', 'Day', 'Month', 'Year'" },
+    { sig:"getFutureTime(n, unit[, format])",      desc:'Future time relative to now' },
+    { sig:'convertTimeZone(ts, src, dst[, fmt])',  desc:'Converts between IANA time zones (e.g. "UTC", "America/New_York")' },
+    { sig:'startOfDay(ts)',                        desc:'Returns midnight (00:00:00) of the given day' },
+    { sig:'startOfHour(ts)',                       desc:'Returns the top of the hour (:00:00)' },
+    { sig:'startOfMonth(ts)',                      desc:'Returns the first day of the month at midnight' },
+    { sig:'startOfWeek(ts)',                       desc:'Returns the preceding Sunday at midnight' },
+    { sig:'startOfYear(ts)',                       desc:'Returns January 1st of the year at midnight' },
+    { sig:'dayOfWeek(ts)',                         desc:'Returns 0 (Sunday) through 6 (Saturday)' },
+    { sig:'dayOfMonth(ts)',                        desc:'Returns the day of the month (1–31)' },
+    { sig:'dayOfYear(ts)',                         desc:'Returns the day of the year (1–366)' },
+    { sig:'month(ts)',                             desc:'Returns the month number (1–12)' },
+    { sig:'year(ts)',                              desc:'Returns the four-digit year' },
+    { sig:'hour(ts)',                              desc:'Returns the hour (0–23)' },
+    { sig:'minute(ts)',                            desc:'Returns the minute (0–59)' },
+    { sig:'second(ts)',                            desc:'Returns the second (0–59)' },
+    { sig:'ticks(ts)',                             desc:'Returns .NET ticks (100-nanosecond intervals since 0001-01-01)' },
+  ]},
+  { category:'Object', fns:[
+    { sig:'addProperty(obj, key, value)',    desc:'Returns a new object with the property added' },
+    { sig:'removeProperty(obj, key)',        desc:'Returns a new object with the property removed' },
+    { sig:'setProperty(obj, key, value)',    desc:'Returns a new object with the property set (alias for addProperty)' },
+  ]},
+  { category:'Encoding', fns:[
+    { sig:'base64(str)',              desc:'Encodes a string as Base64' },
+    { sig:'base64ToString(str)',      desc:'Decodes a Base64-encoded string' },
+    { sig:'encodeUriComponent(str)', desc:'URL-encodes a string (encodes special characters)' },
+    { sig:'decodeUriComponent(str)', desc:'Decodes a URL-encoded string' },
+    { sig:'uriComponent(str)',        desc:'Alias for encodeUriComponent' },
+    { sig:'uriComponentToString(s)', desc:'Alias for decodeUriComponent' },
+    { sig:'encodeUri(str)',           desc:'URL-encodes a full URI (preserves ://?=& etc.)' },
+    { sig:'decodeUri(str)',           desc:'Decodes a full encoded URI' },
+  ]},
+];
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  EXAMPLE EXPRESSIONS
+// ═══════════════════════════════════════════════════════════════════════════════
+const EXAMPLES = [
+  { label:'Get subject',        expr:"triggerBody()?['Subject']" },
+  { label:'Lower case',         expr:"toLower(triggerBody()?['Subject'])" },
+  { label:'Concat',             expr:"concat('From: ', triggerBody()?['From'])" },
+  { label:'Interpolation',      expr:"Message from @{triggerBody()?['From']}: @{triggerBody()?['Subject']}" },
+  { label:'Nested property',    expr:"triggerBody()?['Body']?['content']" },
+  { label:'Conditional',        expr:"if(triggerBody()?['IsRead'], 'Already read', 'Unread')" },
+  { label:'Format date',        expr:"formatDateTime(triggerBody()?['ReceivedDateTime'], 'dddd, MMMM dd yyyy')" },
+  { label:'Add 1 day',          expr:"addDays(triggerBody()?['ReceivedDateTime'], 1)" },
+  { label:'Contains check',     expr:"contains(triggerBody()?['Subject'], 'Meeting')" },
+  { label:'Length of subject',  expr:"length(triggerBody()?['Subject'])" },
+  { label:'Split email domain', expr:"last(split(triggerBody()?['From'], '@'))" },
+  { label:'Current time',       expr:"utcNow('yyyy-MM-dd HH:mm:ss')" },
+  { label:'Coalesce/default',   expr:"coalesce(triggerBody()?['MissingProp'], 'default value')" },
+  { label:'Create array',       expr:"createArray('one', 'two', 'three')" },
+  { label:'First of array',     expr:"first(createArray('a', 'b', 'c'))" },
+  { label:'Math',               expr:"add(mul(2, 3), 4)" },
+  { label:'Day of week',        expr:"dayOfWeek(triggerBody()?['ReceivedDateTime'])" },
+  { label:'Base64 encode',      expr:"base64(triggerBody()?['Subject'])" },
+  { label:'URL encode',         expr:"encodeUriComponent(triggerBody()?['Subject'])" },
+  { label:'Empty check',        expr:"empty(triggerBody()?['Subject'])" },
+  { label:'Past time',          expr:"getPastTime(7, 'Day', 'yyyy-MM-dd')" },
+  { label:'Start of day',       expr:"startOfDay(triggerBody()?['ReceivedDateTime'])" },
+  { label:'GUID',               expr:"guid()" },
+  { label:'Join array',         expr:"join(createArray('Power', 'Automate', 'Rocks'), ' ')" },
+  { label:'Replace text',       expr:"replace(triggerBody()?['Subject'], 'tomorrow', 'today')" },
+];
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  UI LOGIC
+// ═══════════════════════════════════════════════════════════════════════════════
+const jsonInput   = document.getElementById('json-input');
+const exprInput   = document.getElementById('expr-input');
+const resultEl    = document.getElementById('result');
+const resultBadge = document.getElementById('result-badge');
+const jsonStatus  = document.getElementById('json-status');
+
+let debounceTimer = null;
+let lastResult    = undefined;
+
+function getCtx() {
+  const raw = jsonInput.value.trim();
+  if (!raw) return { body: {} };
+  try { return { body: JSON.parse(raw) }; }
+  catch { return { body: {} }; }
+}
+
+function evaluateExpr() {
+  const expr = exprInput.value.trim();
+  if (!expr) {
+    resultEl.innerHTML = `<span class="result-info">Enter an expression to see the result here</span>`;
+    resultBadge.textContent = '—';
+    resultBadge.className   = 'status-badge badge-empty';
+    lastResult = undefined;
+    return;
+  }
+  try {
+    const val = evalExpression(expr, getCtx());
+    lastResult = val;
+    resultEl.innerHTML      = renderValue(val);
+    resultBadge.textContent = typeLabel(val);
+    resultBadge.className   = 'status-badge badge-ok';
+  } catch(e) {
+    lastResult = undefined;
+    resultEl.innerHTML      = `<span class="result-error">❌ ${esc(e.message)}</span>`;
+    resultBadge.textContent = 'error';
+    resultBadge.className   = 'status-badge badge-error';
+  }
+}
+
+function scheduleEval() {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(evaluateExpr, 280);
+}
+
+function clearExpr() {
+  exprInput.value         = '';
+  resultEl.innerHTML      = `<span class="result-info">Enter an expression to see the result here</span>`;
+  resultBadge.textContent = '—';
+  resultBadge.className   = 'status-badge badge-empty';
+  lastResult = undefined;
+  exprInput.focus();
+}
+
+function copyResult() {
+  if (lastResult === undefined) return;
+  const text = typeof lastResult === 'object'
+    ? JSON.stringify(lastResult, null, 2)
+    : String(lastResult);
+  navigator.clipboard?.writeText(text).catch(() => {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+  });
+}
+
+// JSON input → live validation + re-evaluate
+jsonInput.addEventListener('input', () => {
+  const raw = jsonInput.value.trim();
+  if (!raw) {
+    jsonStatus.textContent = '—';
+    jsonStatus.className   = 'json-badge';
+  } else {
+    try {
+      JSON.parse(raw);
+      jsonStatus.textContent = '✓ valid JSON';
+      jsonStatus.className   = 'json-badge json-ok';
+    } catch {
+      jsonStatus.textContent = '✗ invalid JSON';
+      jsonStatus.className   = 'json-badge json-error';
+    }
+  }
+  scheduleEval();
+});
+
+// Expression input
+exprInput.addEventListener('input', scheduleEval);
+exprInput.addEventListener('keydown', e => {
+  if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); evaluateExpr(); }
+});
+
+// ── Build function reference ──────────────────────────────
+function buildRef() {
+  const container = document.getElementById('ref-content');
+  REF.forEach((cat, idx) => {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'ref-category';
+
+    const hdr = document.createElement('div');
+    hdr.className = 'ref-category-header';
+    hdr.innerHTML = `<span>${esc(cat.category)}</span><span class="ref-toggle">${cat.fns.length} fn ▾</span>`;
+
+    const body = document.createElement('div');
+    body.className = 'ref-category-body';
+    if (idx === 0) body.classList.add('open');
+
+    hdr.addEventListener('click', () => body.classList.toggle('open'));
+
+    cat.fns.forEach(fn => {
+      const d = document.createElement('div');
+      d.className = 'ref-fn';
+      d.innerHTML = `<div class="ref-fn-sig">${esc(fn.sig)}</div><div class="ref-fn-desc">${esc(fn.desc)}</div>`;
+      body.appendChild(d);
+    });
+
+    wrapper.appendChild(hdr);
+    wrapper.appendChild(body);
+    container.appendChild(wrapper);
+  });
+}
+
+// ── Build examples ────────────────────────────────────────
+function buildExamples() {
+  const container = document.getElementById('examples-list');
+  EXAMPLES.forEach(ex => {
+    const chip = document.createElement('div');
+    chip.className = 'example-chip';
+    chip.textContent = ex.label;
+    chip.title = ex.expr;
+    chip.addEventListener('click', () => {
+      exprInput.value = ex.expr;
+      exprInput.focus();
+      evaluateExpr();
+    });
+    container.appendChild(chip);
+  });
+}
+
+// ── Initialise ────────────────────────────────────────────
+buildRef();
+buildExamples();
+
+// Pre-populate with example JSON
+const SAMPLE_JSON = {
+  "Subject": "Meeting tomorrow",
+  "From": "alice@example.com",
+  "Body": { "content": "Let's meet at 3pm" },
+  "ReceivedDateTime": "2024-01-15T14:30:00Z",
+  "IsRead": false,
+  "Attachments": [
+    { "Name": "agenda.pdf", "Size": 12345 },
+    { "Name": "slides.pptx", "Size": 98765 }
+  ]
+};
+jsonInput.value = JSON.stringify(SAMPLE_JSON, null, 2);
+jsonStatus.textContent = '✓ valid JSON';
+jsonStatus.className   = 'json-badge json-ok';
+
+// Evaluate the default placeholder expression
+exprInput.value = "triggerBody()?['Subject']";
+evaluateExpr();
+</script>
+</body>
+</html>

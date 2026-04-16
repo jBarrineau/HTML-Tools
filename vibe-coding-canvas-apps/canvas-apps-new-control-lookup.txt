@@ -1,0 +1,43 @@
+ID: 00 | Avatar@1.0.40 | Name, Image | END: 00
+ID: 01 | Button@0.0.45 | OnSelect, Text | END: 01
+ID: 02 | Camera@2.4.0 | AvailableDevices, Camera, OnStream, Photo, Stream, StreamRate | END: 02
+ID: 03 | CheckBox@0.0.30 | Checked, Label, OnCheck, OnUncheck | END: 03
+ID: 04 | Classic/Button@2.2.0 | OnSelect, Text | END: 04
+ID: 05 | Classic/CheckBox@2.1.0 | Default, Text, Value | END: 05
+ID: 06 | Classic/ComboBox@2.4.0 | Items, DefaultSelectedItems, SelectedItems, Selected, SelectMultiple, IsSearchable, SearchFields | END: 06
+ID: 07 | Classic/DatePicker@2.6.0 | DefaultDate, SelectedDate, Format, Language | END: 07
+ID: 08 | Classic/DropDown@2.3.1 | Default, Items, Value, Selected, AllowEmptySelection | END: 08
+ID: 09 | Classic/Radio@2.3.0 | Default, Items, Layout, Value, Selected | END: 09
+ID: 10 | Classic/Slider@2.1.0 | Default, Max, Min, Value | END: 10
+ID: 11 | Classic/TextInput@2.3.2 | Default, Text | END: 11
+ID: 12 | Classic/Toggle@2.1.0 | Default, Value | END: 12
+ID: 13 | DataTable@1.0.3 | Items, Selected | END: 13
+ID: 14 | DropDown@0.0.45 | Items, ValidationState, OnChange | END: 14
+ID: 15 | Gallery@2.15.0 | Default, Items, Selected | END: 15
+ID: 16 | HtmlViewer@2.1.0 | Color, Font, HtmlText | END: 16
+ID: 17 | Image@2.2.3 | Image | END: 17
+ID: 18 | Label@2.5.1 | AutoHeight, Color, Font, Text, DelayOutput | END: 18
+ID: 19 | ListBox@2.2.0 | Default, Items | END: 19
+ID: 20 | Microphone@2.2.0 | Audio, Mic, OnStop | END: 20
+ID: 21 | ModernCard@1.0.0 | Direction, Title, Subtitle, Description, Image, ImageAltText, HeaderImage, HeaderImageAltText, ImagePosition | END: 21
+ID: 22 | ModernCombobox@1.0.0 | Items, DefaultSelectedItems, SelectMultiple | END: 22
+ID: 23 | ModernDatePicker@1.0.0 | SelectedDate, Format, DateTimeZone | END: 23
+ID: 24 | ModernInformationButton@1.0.0 | Content, IconColor, OnSelect | END: 24
+ID: 25 | ModernLink@1.0.0 | Text, Url, Type | END: 25
+ID: 26 | ModernNumberInput@1.1.0 | Value, Min, Max, Step, Precision | END: 26
+ID: 27 | ModernRadio@1.0.0 | Items, ItemDisplayText, Default, Selected | END: 27
+ID: 28 | ModernTabList@1.0.0 | Items, Default, Selected, Appearance | END: 28
+ID: 29 | ModernText@1.0.0 | Text, Size, Color | END: 29
+ID: 30 | ModernTextInput@1.0.0 | Text, Placeholder, Type, TriggerOutput | END: 30
+ID: 31 | PDFViewer@2.5.0 | Document | END: 31
+ID: 32 | PenInput@2.3.0 | Image, Color, Mode | END: 32
+ID: 33 | PieChart@2.3.0 | Items, ShowLabels | END: 33
+ID: 34 | PowerBI@2.4.0 | AllowNewAPI, Dashboard, LoadPowerBIContent, PowerBIInteractions, Tile, Workspace | END: 34
+ID: 35 | Progress@1.1.34 | Value, Max, Indeterminate | END: 35
+ID: 36 | Rating@2.1.0 | Default, Max | END: 36
+ID: 37 | RichTextEditor@2.7.0 | Default, HtmlText | END: 37
+ID: 38 | Slider@1.0.32 | OnChange, Value, Min, Max | END: 38
+ID: 39 | Spinner@1.4.6 | Label, Appearance, SpinnerSize | END: 39
+ID: 40 | Table@1.0.278 | Items, ReflowBehavior, Selected, OnSelect | END: 40
+ID: 41 | Timer@2.1.0 | Duration, OnTimerEnd, Repeat | END: 41
+ID: 42 | Toggle@1.1.5 | Checked, Label, OnCheck, OnSelect, OnUncheck | END: 42
