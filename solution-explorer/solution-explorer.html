@@ -1,0 +1,1185 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Power Platform Solution Explorer</title>
+<style>
+:root {
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --text-xs: 0.75rem; --text-sm: 0.875rem; --text-base: 1rem; --text-lg: 1.125rem; --text-xl: 1.25rem;
+  --bg-app: linear-gradient(135deg, #e8eaf0 0%, #d4d8e2 100%);
+  --glass-bg: rgba(255,255,255,0.82); --glass-border: rgba(100,116,139,0.25);
+  --glass-shadow: 0 4px 16px 0 rgba(31,38,135,0.10); --glass-blur: 8px;
+  --text-main: #0f172a; --text-muted: #475569;
+  --btn-primary: rgba(255,255,255,0.85); --btn-hover: rgba(241,245,249,0.95);
+}
+[data-theme="dark"] {
+  --bg-app: linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%);
+  --glass-bg: rgba(17,25,40,0.65); --glass-border: rgba(255,255,255,0.12);
+  --glass-shadow: 0 8px 32px 0 rgba(0,0,0,0.37); --glass-blur: 16px;
+  --text-main: #f9fafb; --text-muted: #9ca3af;
+  --btn-primary: rgba(17,25,40,0.8); --btn-hover: rgba(30,41,59,0.9);
+}
+.glass-panel {
+  background: var(--glass-bg); backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border); box-shadow: var(--glass-shadow); border-radius: 16px;
+}
+*,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
+html,body { width:100%; height:100%; overflow:hidden; font-family:var(--font-sans);
+  background:var(--bg-app); color:var(--text-main); line-height:1.5; }
+
+#theme-toggle {
+  position:fixed; top:12px; right:12px; z-index:1000;
+  padding:6px 14px; border-radius:20px; border:1px solid var(--glass-border);
+  background:var(--btn-primary); color:var(--text-main); cursor:pointer;
+  font-size:var(--text-sm); font-family:var(--font-sans);
+  backdrop-filter:blur(var(--glass-blur)); transition:background 0.2s;
+}
+#theme-toggle:hover { background:var(--btn-hover); }
+
+#reset-btn {
+  padding:6px 14px; border-radius:20px; border:1px solid rgba(245,158,11,0.35);
+  background:rgba(245,158,11,0.12); color:#f59e0b; cursor:pointer;
+  font-size:var(--text-sm); font-family:var(--font-sans);
+  backdrop-filter:blur(var(--glass-blur)); transition:background 0.2s;
+}
+#reset-btn:hover { background:rgba(245,158,11,0.22); }
+
+#drop-zone {
+  position:fixed; inset:0; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:16px;
+  background:var(--bg-app); z-index:100;
+}
+#drop-area {
+  width:480px; max-width:90vw; padding:48px;
+  display:flex; flex-direction:column; align-items:center; gap:16px;
+  border:2px dashed var(--glass-border); border-radius:16px;
+  background:var(--glass-bg); backdrop-filter:blur(var(--glass-blur));
+  text-align:center; transition:border-color 0.2s, background 0.2s;
+}
+#drop-zone.drag-over #drop-area { border-color:#3b82f6; background:rgba(59,130,246,0.1); }
+.drop-icon { font-size:3rem; }
+#drop-area h2 { font-size:var(--text-xl); }
+#drop-area p { color:var(--text-muted); font-size:var(--text-sm); }
+#file-input { display:none; }
+.browse-btn {
+  padding:8px 20px; border-radius:8px; border:1px solid var(--glass-border);
+  background:var(--btn-primary); color:var(--text-main); cursor:pointer;
+  font-size:var(--text-sm); font-family:var(--font-sans); transition:background 0.2s;
+  display:inline-block;
+}
+.browse-btn:hover { background:var(--btn-hover); }
+#error-msg { color:#ef4444; font-size:var(--text-sm); display:none; margin-top:4px; }
+
+#main-layout { display:none; width:100vw; height:100vh; overflow:hidden; }
+
+#card-panel {
+  flex: 0 0 40%; width:40%; height:100vh; overflow-y:auto;
+  padding:12px; display:flex; flex-direction:column; gap:8px;
+  scrollbar-width:thin; scrollbar-color:var(--glass-border) transparent;
+}
+#card-panel-header {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:6px 4px; position:sticky; top:0; z-index:10;
+  background:var(--glass-bg); backdrop-filter:blur(var(--glass-blur));
+  -webkit-backdrop-filter:blur(var(--glass-blur)); flex-shrink:0;
+}
+#card-panel-header h3 { font-size:var(--text-base); color:var(--text-main); }
+#node-count { font-size:var(--text-xs); color:var(--text-muted); }
+
+.node-card {
+  padding:10px 12px; border-radius:10px; border:1px solid var(--glass-border);
+  background:var(--glass-bg); backdrop-filter:blur(var(--glass-blur));
+  cursor:pointer; transition:border-color 0.15s, box-shadow 0.15s;
+  scroll-margin-top:48px; flex-shrink:0;
+}
+.node-card:hover,.node-card.card-hovered { border-color:rgba(59,130,246,0.5); box-shadow:0 0 0 2px rgba(59,130,246,0.15); }
+.node-card.card-selected { border-color:#3b82f6; box-shadow:0 0 0 2px rgba(59,130,246,0.35); }
+.card-screen-child { margin-left:16px; border-left:2px solid rgba(16,185,129,0.35); }
+.card-header { display:flex; align-items:center; gap:7px; margin-bottom:3px; }
+.card-icon { font-size:0.9rem; flex-shrink:0; }
+.card-name { font-size:var(--text-sm); font-weight:600; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.card-type-badge { font-size:0.65rem; padding:2px 5px; border-radius:4px;
+  background:rgba(99,102,241,0.15); color:#818cf8; border:1px solid rgba(99,102,241,0.25); white-space:nowrap; flex-shrink:0; }
+.card-path { font-size:0.65rem; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-bottom:4px; }
+.card-site { font-size:0.65rem; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-bottom:4px; }
+.card-size { font-size:0.65rem; color:var(--text-muted); }
+.card-rels { display:flex; flex-direction:column; gap:4px; margin-top:6px; }
+.card-rel-group { font-size:0.65rem; color:var(--text-muted); }
+.card-rel-label { display:block; margin-bottom:3px; font-weight:600; }
+.card-rel-links { display:flex; flex-wrap:wrap; gap:3px; }
+.rel-link {
+  font-size:0.65rem; padding:2px 6px; border-radius:4px;
+  border:1px solid var(--glass-border); background:var(--btn-primary);
+  color:var(--text-main); cursor:pointer; transition:background 0.15s;
+}
+.rel-link:hover { background:var(--btn-hover); }
+
+#svg-panel {
+  flex: 0 0 60%; width:60%; height:100vh; overflow:auto;
+  padding:12px; display:flex; flex-direction:column; gap:10px;
+  scrollbar-width:thin; scrollbar-color:var(--glass-border) transparent;
+}
+#svg-panel-header {
+  display:flex; align-items:center; gap:8px; flex-shrink:0;
+  font-size:var(--text-sm); color:var(--text-muted); padding-right:100px;
+  flex-wrap:wrap;
+}
+#dep-graph { display:block; }
+
+#legend {
+  display:flex; flex-wrap:wrap; gap:10px; flex:1;
+}
+.legend-item { display:flex; align-items:center; gap:5px; font-size:0.65rem; color:var(--text-muted); }
+.legend-line { width:24px; height:2px; border-radius:1px; }
+
+.svg-node { cursor:pointer; }
+.svg-node.svg-dimmed { opacity:0.2; }
+.svg-node.svg-hovered .svg-node-rect { stroke-width:2.5 !important; filter:brightness(1.25); }
+.svg-node.svg-selected .svg-node-rect { stroke-width:3 !important; filter:brightness(1.3); }
+.svg-node.svg-peer .svg-node-rect { stroke-width:2.5 !important; }
+.svg-edge.edge-dimmed { opacity:0.06; }
+.svg-edge.edge-highlighted path { stroke-width:2.5 !important; }
+.col-label { font-size:11px; font-family:system-ui,sans-serif; font-weight:700;
+  text-anchor:middle; letter-spacing:0.08em; fill:#9ca3af; }
+
+#loading-overlay {
+  position:fixed; inset:0; z-index:200; display:none; align-items:center;
+  justify-content:center; background:rgba(0,0,0,0.55); backdrop-filter:blur(4px);
+}
+#loading-overlay.active { display:flex; }
+#loading-msg {
+  padding:20px 32px; border-radius:12px;
+  background:var(--glass-bg); border:1px solid var(--glass-border);
+  color:var(--text-main); font-size:var(--text-base);
+}
+</style>
+</head>
+<body>
+
+<button id="theme-toggle">☀️ Light</button>
+
+<div id="loading-overlay"><div id="loading-msg">Parsing...</div></div>
+
+<div id="drop-zone">
+  <div id="drop-area">
+    <div class="drop-icon">📦</div>
+    <h2>Solution Explorer</h2>
+    <p>Drop a Power Platform Solution ZIP, Canvas App Package ZIP, or .msapp file</p>
+    <label class="browse-btn" id="browse-label">Browse file</label>
+    <input type="file" id="file-input" accept=".zip,.msapp">
+    <div id="error-msg"></div>
+  </div>
+</div>
+
+<div id="main-layout">
+  <div id="card-panel">
+    <div id="card-panel-header">
+      <h3 id="solution-name">Solution Explorer</h3>
+      <span id="node-count"></span>
+    </div>
+  </div>
+  <div id="svg-panel">
+    <div id="svg-panel-header">
+      <span>Dependency Graph</span>
+      <div id="legend"></div>
+      <button id="reset-btn">Load another</button>
+    </div>
+    <svg id="dep-graph">
+      <defs id="svg-defs"></defs>
+      <g id="groups-layer"></g>
+      <g id="edges-layer"></g>
+      <g id="nodes-layer"></g>
+    </svg>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ── Constants ──────────────────────────────────────────────────────────────────
+const FILE_SIZE_LIMIT = 1_048_576;
+const SKIP_BY_NAME = new Set([
+  'References/Themes.json','References/Templates.json',
+  'References\\Themes.json','References\\Templates.json',
+  'Src/_EditorState.pa.yaml','Src\\_EditorState.pa.yaml',
+]);
+
+const NODE_TYPES_ORDER = ['solution','canvasapp','flow','datasource','dataverse','control','screen'];
+const TYPE_ICONS = {solution:'📦',canvasapp:'🎨',flow:'⚡',datasource:'🗄️',dataverse:'🔷',control:'🧩',screen:'📄'};
+const TYPE_LABELS = {solution:'Solution',canvasapp:'Canvas App',flow:'Flow',datasource:'Data Source',dataverse:'Dataverse Table',control:'Control',screen:'Screen'};
+
+const EDGE_COLORS = {
+  'app-calls-flow':'#3b82f6',
+  'flow-calls-flow':'#8b5cf6',
+  'flow-reads-data':'#f59e0b',
+  'app-uses-data':'#10b981',
+  'screen-uses-data':'#06b6d4',
+  'screen-calls-flow':'#38bdf8',
+};
+const EDGE_LABELS = {
+  'app-calls-flow':'Calls flow',
+  'flow-calls-flow':'Calls child flow',
+  'flow-reads-data':'Reads data',
+  'app-uses-data':'Uses data',
+  'screen-uses-data':'Screen uses data',
+  'screen-calls-flow':'Screen calls flow',
+};
+
+const SVG_PAD_X = 60, SVG_PAD_Y = 72;
+const COL_W = 200, COL_GAP = 130;
+const NODE_H = 50, NODE_GAP_Y = 24, NODE_RX = 8;
+const GROUP_PAD_X = 10, GROUP_PAD_Y = 8;
+const GROUP_GAP = 20, GROUP_LABEL_H = 14;
+
+const COL_MAP = {datasource:0,dataverse:0,flow:1,canvasapp:2,solution:2,control:2,screen:2};
+const COL_LABELS = ['Data Sources','Flows','Apps'];
+
+const TYPE_COLORS = {
+  solution:   {fill:'#1e3a5f',stroke:'#3b82f6'},
+  canvasapp:  {fill:'#0d3326',stroke:'#10b981'},
+  flow:       {fill:'#2d1b69',stroke:'#8b5cf6'},
+  datasource: {fill:'#451a03',stroke:'#f59e0b'},
+  dataverse:  {fill:'#0a2030',stroke:'#22d3ee'},
+  control:    {fill:'#1a1a2e',stroke:'#6b7280'},
+  screen:     {fill:'#0d1b2a',stroke:'#6b7280'},
+};
+
+// ── Utilities (early) ─────────────────────────────────────────────────────────
+function extractSiteName(url) {
+  if (!url) return '';
+  try {
+    const u = new URL(url);
+    const parts = u.pathname.split('/').filter(Boolean);
+    const idx = parts.indexOf('sites');
+    if (idx !== -1 && parts[idx + 1]) return parts[idx + 1];
+    return u.hostname;
+  } catch { return url; }
+}
+
+// ── ZIP Parser ─────────────────────────────────────────────────────────────────
+function parseZip(buf) {
+  const bytes = new Uint8Array(buf instanceof ArrayBuffer ? buf : buf.buffer);
+  const ab = bytes.buffer;
+  const view = new DataView(ab);
+
+  let eocd = -1;
+  for (let i = bytes.length - 22; i >= 0; i--) {
+    if (view.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw new Error('Not a valid ZIP file');
+
+  const cdCount  = view.getUint16(eocd + 10, true);
+  const cdOffset = view.getUint32(eocd + 16, true);
+
+  const entries = [], map = new Map();
+  let pos = cdOffset;
+  for (let i = 0; i < cdCount; i++) {
+    if (view.getUint32(pos, true) !== 0x02014b50) break;
+    const method    = view.getUint16(pos + 10, true);
+    const compSize  = view.getUint32(pos + 20, true);
+    const uncompSize= view.getUint32(pos + 24, true);
+    const fnLen     = view.getUint16(pos + 28, true);
+    const extraLen  = view.getUint16(pos + 30, true);
+    const cmtLen    = view.getUint16(pos + 32, true);
+    const localOff  = view.getUint32(pos + 42, true);
+    const fnRaw     = bytes.slice(pos + 46, pos + 46 + fnLen);
+    let name;
+    try { name = new TextDecoder('utf-8',{fatal:true}).decode(fnRaw); }
+    catch { name = new TextDecoder('latin1').decode(fnRaw); }
+    name = name.replace(/\\/g, '/');
+    const entry = {name, method, compSize, uncompSize, localOff};
+    entries.push(entry);
+    map.set(name, entry);
+    map.set(name.replace(/\//g,'\\'), entry);
+    pos += 46 + fnLen + extraLen + cmtLen;
+  }
+  return {entries, map, bytes, view, ab};
+}
+
+async function extractEntry(zip, entry) {
+  const {view, bytes} = zip;
+  const fnLen    = view.getUint16(entry.localOff + 26, true);
+  const extraLen = view.getUint16(entry.localOff + 28, true);
+  const start    = entry.localOff + 30 + fnLen + extraLen;
+  const raw      = bytes.slice(start, start + entry.compSize);
+  if (entry.method === 0) return raw;
+  if (entry.method === 8) {
+    const ds = new DecompressionStream('deflate-raw');
+    const w  = ds.writable.getWriter();
+    const r  = ds.readable.getReader();
+    w.write(raw); w.close();
+    const chunks = []; let total = 0;
+    for (;;) { const {done,value} = await r.read(); if (done) break; chunks.push(value); total += value.length; }
+    const out = new Uint8Array(total); let off = 0;
+    for (const c of chunks) { out.set(c, off); off += c.length; }
+    return out;
+  }
+  throw new Error('Unsupported compression: ' + entry.method);
+}
+
+function findE(zip, name) { return zip.map.get(name) || zip.map.get(name.replace(/\//g,'\\')); }
+
+async function extractText(zip, name) {
+  const e = findE(zip, name); if (!e) return null;
+  if (e.uncompSize > FILE_SIZE_LIMIT) return null;
+  const b = await extractEntry(zip, e);
+  try { return new TextDecoder('utf-8').decode(b); } catch { return new TextDecoder('latin1').decode(b); }
+}
+
+async function extractJson(zip, name) {
+  const t = await extractText(zip, name); if (!t) return null;
+  try { return JSON.parse(t); } catch { return null; }
+}
+
+async function extractSubZip(zip, name) {
+  const e = findE(zip, name); if (!e) return null;
+  const b = await extractEntry(zip, e);
+  try { return parseZip(b.buffer); } catch { return null; }
+}
+
+async function extractTopParentName(zip, entry) {
+  const {view, bytes} = zip;
+  const fnLen    = view.getUint16(entry.localOff + 26, true);
+  const extraLen = view.getUint16(entry.localOff + 28, true);
+  const start    = entry.localOff + 30 + fnLen + extraLen;
+  const raw      = bytes.slice(start, start + entry.compSize);
+  let text = '';
+  if (entry.method === 0) {
+    text = new TextDecoder('utf-8').decode(raw.slice(0, 4096));
+  } else if (entry.method === 8) {
+    const ds = new DecompressionStream('deflate-raw');
+    const writer = ds.writable.getWriter();
+    const reader = ds.readable.getReader();
+    writer.write(raw); writer.close();
+    let total = 0;
+    while (total < 4096) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      text += new TextDecoder('utf-8').decode(value);
+      total += value.length;
+    }
+    reader.cancel().catch(() => {});
+  }
+  const idx = text.indexOf('"TopParent"');
+  if (idx === -1) return null;
+  const m = text.slice(idx).match(/"Name"\s*:\s*"([^"]+)"/);
+  return m ? m[1] : null;
+}
+
+// ── Data Model ─────────────────────────────────────────────────────────────────
+function createGraph() {
+  return {nodes:new Map(), edges:[], edgeSet:new Set(), pkgToGuid:new Map(), byType:new Map(), flowNameToId:new Map(), cdsEntityMap:new Map()};
+}
+
+function guid(s) {
+  if (!s) return '';
+  return String(s).toLowerCase().replace(/[{}]/g,'').trim();
+}
+
+function getOrCreate(g, type, id, data={}) {
+  id = guid(id) || id; if (!id) return null;
+  if (g.nodes.has(id)) {
+    const n = g.nodes.get(id);
+    for (const [k, v] of Object.entries(data)) {
+      if (v === undefined || v === null) continue;
+      // Don't overwrite a real displayName with a bare id (GUID reference with no better name)
+      if (k === 'displayName' && v === id && n.displayName !== n.id) continue;
+      if (k === 'filePath' && !v) continue;
+      if (k === 'siteUrl' && !v) continue;
+      n[k] = v;
+    }
+    return n;
+  }
+  const n = {id, type, displayName:id, filePath:'', siteUrl:'', sizeOnly:false, sizeBytes:0,
+              svgX:0, svgY:0, cardEl:null, svgEl:null, ...data};
+  g.nodes.set(id, n);
+  if (!g.byType.has(type)) g.byType.set(type,[]);
+  g.byType.get(type).push(id);
+  return n;
+}
+
+function addEdge(g, src, dst, type) {
+  src = guid(src)||src; dst = guid(dst)||dst;
+  if (!src||!dst||src===dst) return;
+  const k = `${src}→${dst}→${type}`;
+  if (g.edgeSet.has(k)) return;
+  g.edgeSet.add(k);
+  g.edges.push({srcId:src, dstId:dst, type, svgEl:null});
+}
+
+// ── Package Detection ──────────────────────────────────────────────────────────
+async function detectType(zip) {
+  if (findE(zip,'solution.xml') && findE(zip,'customizations.xml')) return 'solution';
+  if (findE(zip,'manifest.json')) return 'app-package';
+  if (findE(zip,'Header.json') && findE(zip,'Properties.json')) return 'msapp';
+  return 'unknown';
+}
+
+// ── Flow Definition ────────────────────────────────────────────────────────────
+function walkActions(actions, flowId, g) {
+  if (!actions || typeof actions !== 'object') return;
+  for (const a of Object.values(actions)) {
+    if (!a) continue;
+    const type = a.type || '';
+    if (type === 'Workflow') {
+      const cid = guid(a.inputs?.host?.workflowReferenceName);
+      if (cid) { getOrCreate(g,'flow',cid,{displayName:cid}); addEdge(g,flowId,cid,'flow-calls-flow'); }
+    }
+    if (type === 'OpenApiConnection') {
+      const api = (a.inputs?.host?.apiId||a.inputs?.host?.connection||'').toLowerCase();
+      if (api.includes('sharepoint')) {
+        const tbl     = a.inputs?.parameters?.table;
+        const dataset = a.inputs?.parameters?.dataset;
+        const fallback = tbl || dataset;
+        if (fallback) {
+          const dsid = guid(fallback)||fallback;
+          getOrCreate(g,'datasource',dsid,{displayName:fallback, siteUrl:tbl ? (dataset||'') : ''});
+          addEdge(g,flowId,dsid,'flow-reads-data');
+        }
+      }
+      if (api.includes('commondataservice')) {
+        const entityName = (a.inputs?.parameters?.entityName||'').toLowerCase();
+        if (entityName) {
+          const displayName = g.cdsEntityMap?.get(entityName) || entityName;
+          getOrCreate(g,'dataverse',entityName,{displayName, filePath:entityName});
+          addEdge(g,flowId,entityName,'flow-reads-data');
+        }
+      }
+    }
+    if (a.actions) walkActions(a.actions,flowId,g);
+    if (a.else?.actions) walkActions(a.else.actions,flowId,g);
+    if (a.cases) for (const c of Object.values(a.cases)) if (c.actions) walkActions(c.actions,flowId,g);
+    if (a.foreach) walkActions(a.foreach,flowId,g);
+    if (a.branches) for (const b of Object.values(a.branches)) if (b.actions) walkActions(b.actions,flowId,g);
+  }
+}
+
+async function processFlowDef(path, json, g, hintGuid) {
+  let fid = hintGuid || '';
+  // Solution ZIPs name workflow files "{FlowName}-{GUID}.json" — extract only the trailing GUID
+  const m1 = path.match(/[Ww]orkflows\/([^/]+)\.json/);
+  if (m1) {
+    const trailingGuid = m1[1].match(/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i);
+    fid = guid(trailingGuid ? trailingGuid[1] : m1[1]);
+  }
+  const m2 = path.match(/flows\/([^/]+)\/definition\.json/i); if (m2) fid = guid(m2[1]);
+  if (!fid) return;
+
+  const props = json.properties || json;
+  const name  = props.displayName || props.definition?.description || fid;
+  const node  = getOrCreate(g,'flow',fid,{displayName:name, filePath:path});
+  if (name && name !== fid) g.flowNameToId.set(name, fid);
+
+  walkActions(props.definition?.actions || props.actions || {}, node.id, g);
+}
+
+// ── YAML Data Source Scanner ───────────────────────────────────────────────────
+function scanYamlForDatasources(text, knownNames) {
+  const found = new Set();
+  for (const name of knownNames) {
+    const re = new RegExp('=\\s*' + name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + '\\b', 'i');
+    if (re.test(text)) found.add(name);
+  }
+  return found;
+}
+
+function scanYamlForFlows(text, knownNames) {
+  const found = new Set();
+  for (const name of knownNames) {
+    const re = new RegExp('=\\s*' + name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + '\\.Run\\b', 'i');
+    if (re.test(text)) found.add(name);
+  }
+  return found;
+}
+
+// ── msapp Processor ────────────────────────────────────────────────────────────
+function processMsappConnRefs(refs, appId, g) {
+  if (!refs||typeof refs!=='object') return;
+  for (const ref of Object.values(refs)) {
+    const hints = ref.connectionRef?.parameterHints || ref.connectionRef?.parameterHintsV2
+                || ref.parameterHints || ref.parameterHintsV2;
+    const wid  = hints?.workflowEntityId?.value;
+    const wname= hints?.workflowDisplayName?.value;
+    if (wid) {
+      const fid = (wname && g.flowNameToId.get(wname)) || guid(wid);
+      getOrCreate(g,'flow',fid,{displayName:wname||fid}); addEdge(g,appId,fid,'app-calls-flow');
+    }
+    for (const [datasetUrl, ds] of Object.entries(ref.datasets||{})) {
+      for (const [dsName, src] of Object.entries(ds.dataSources||{})) {
+        if (src.tableName) {
+          const did=guid(src.tableName)||src.tableName;
+          getOrCreate(g,'datasource',did,{displayName:dsName||src.tableName, siteUrl:datasetUrl}); addEdge(g,appId,did,'app-uses-data');
+        }
+      }
+    }
+  }
+}
+
+function processMsappDS(dsList, appId, g) {
+  if (!Array.isArray(dsList)) return;
+  for (const ds of dsList) {
+    if (ds.Type==='ServiceInfo' && ds.WorkflowEntityId) {
+      const fid = g.flowNameToId.get(ds.Name) || guid(ds.WorkflowEntityId);
+      getOrCreate(g,'flow',fid,{displayName:ds.Name||fid}); addEdge(g,appId,fid,'app-calls-flow');
+    }
+    if (ds.TableName) {
+      const did=guid(ds.TableName)||ds.TableName;
+      getOrCreate(g,'datasource',did,{displayName:ds.Name||ds.TableName, siteUrl:ds.DatasetName||''}); addEdge(g,appId,did,'app-uses-data');
+    }
+    if (ds.Type==='NativeCDSDataSourceInfo' && ds.LogicalName) {
+      const did = ds.LogicalName.toLowerCase();
+      getOrCreate(g,'dataverse',did,{displayName:ds.Name||ds.PreferredName||did, filePath:did});
+      addEdge(g,appId,did,'app-uses-data');
+    }
+  }
+}
+
+async function processMsapp(msZip, path, g) {
+  const props = await extractJson(msZip,'Properties.json');
+  let appId = props?.Id ? guid(props.Id) : path;
+  const appName = props?.Name || path;
+  getOrCreate(g,'canvasapp',appId,{displayName:appName, filePath:path});
+
+  if (props?.LocalConnectionReferences) {
+    let r = props.LocalConnectionReferences;
+    if (typeof r==='string') { try{r=JSON.parse(r);}catch{} }
+    processMsappConnRefs(r,appId,g);
+  }
+
+  const dsFile = await extractJson(msZip,'References/DataSources.json');
+  if (dsFile?.DataSources) processMsappDS(dsFile.DataSources,appId,g);
+
+  // Screen-level data source and flow edges from pa.yaml formula scanning
+  const dsNameToId = new Map();
+  for (const [id, node] of g.nodes) {
+    if (node.type === 'datasource' || node.type === 'dataverse') dsNameToId.set(node.displayName, id);
+  }
+  const flowNameToId = new Map(g.flowNameToId);
+  for (const [id, node] of g.nodes) {
+    if (node.type === 'flow' && node.displayName && node.displayName !== id)
+      flowNameToId.set(node.displayName, id);
+  }
+  for (const entry of msZip.entries) {
+    if (SKIP_BY_NAME.has(entry.name)) continue;
+    if (!/^Src\//i.test(entry.name) || !entry.name.endsWith('.pa.yaml')) continue;
+    if (entry.uncompSize > FILE_SIZE_LIMIT) continue;
+    const text = await extractText(msZip, entry.name);
+    if (!text) continue;
+    const screenName = entry.name.replace(/^Src\//i,'').replace('.pa.yaml','');
+    const screenId = `${appId}::scr::${screenName}`;
+    for (const name of scanYamlForDatasources(text, dsNameToId.keys())) {
+      getOrCreate(g,'screen',screenId,{displayName:screenName});
+      addEdge(g, screenId, dsNameToId.get(name), 'screen-uses-data');
+    }
+    for (const name of scanYamlForFlows(text, flowNameToId.keys())) {
+      getOrCreate(g,'screen',screenId,{displayName:screenName});
+      addEdge(g, screenId, flowNameToId.get(name), 'screen-calls-flow');
+    }
+  }
+
+  const yamlScreens = new Set();
+  for (const entry of msZip.entries) {
+    if (/^Src\//i.test(entry.name) && entry.name.endsWith('.pa.yaml'))
+      yamlScreens.add(entry.name.replace(/^Src\//i,'').replace('.pa.yaml',''));
+  }
+
+  for (const entry of msZip.entries) {
+    if (SKIP_BY_NAME.has(entry.name)) continue;
+    if (/^Controls\//i.test(entry.name) && entry.name.endsWith('.json')) {
+      if (entry.uncompSize > FILE_SIZE_LIMIT) {
+        const topName = await extractTopParentName(msZip, entry);
+        if (topName && yamlScreens.has(topName)) continue;
+        const displayName = topName || entry.name.replace(/^Controls\//i,'').replace('.json','');
+        const cid = `${appId}::ctrl::${topName || entry.name}`;
+        getOrCreate(g,'control',cid,{displayName, filePath:entry.name, sizeOnly:true, sizeBytes:entry.uncompSize});
+      } else {
+        const cj = await extractJson(msZip, entry.name);
+        if (cj?.TopParent?.Name && !yamlScreens.has(cj.TopParent.Name)) {
+          const cid=`${appId}::ctrl::${cj.TopParent.Name}`;
+          getOrCreate(g,'control',cid,{displayName:cj.TopParent.Name,filePath:entry.name});
+        }
+      }
+    }
+    if (/^Src\//i.test(entry.name) && entry.name.endsWith('.pa.yaml')) {
+      const sn = entry.name.replace(/^Src\//i,'').replace('.pa.yaml','');
+      getOrCreate(g,'screen',`${appId}::scr::${sn}`,{displayName:sn,filePath:entry.name});
+    }
+  }
+}
+
+// ── Solution Pipeline ──────────────────────────────────────────────────────────
+async function processSolution(zip, g) {
+  const solTxt = await extractText(zip,'solution.xml');
+  if (solTxt) {
+    const dom = new DOMParser().parseFromString(solTxt,'text/xml');
+    const uname = dom.querySelector('SolutionManifest UniqueName')?.textContent || 'Solution';
+    const ver   = dom.querySelector('SolutionManifest Version')?.textContent || '';
+    getOrCreate(g,'solution',uname,{displayName:`${uname}${ver?' v'+ver:''}`});
+  }
+
+  const custTxt = await extractText(zip,'customizations.xml');
+  if (custTxt) {
+    const dom = new DOMParser().parseFromString(custTxt,'text/xml');
+
+    for (const wf of dom.querySelectorAll('Workflows Workflow')) {
+      const wid  = guid(wf.getAttribute('WorkflowId'));
+      const name = wf.getAttribute('Name') || wid;
+      const jf   = wf.querySelector('JsonFileName')?.textContent?.trim() || '';
+      if (wid) { getOrCreate(g,'flow',wid,{displayName:name,filePath:jf}); if (name && name !== wid) g.flowNameToId.set(name, wid); }
+    }
+
+    for (const ca of dom.querySelectorAll('CanvasApps CanvasApp')) {
+      const caid = guid(ca.getAttribute('UniqueId')||ca.getAttribute('CanvasAppId'));
+      const name = ca.getAttribute('Name')||ca.getAttribute('UniqueName')||caid;
+      if (!caid) continue;
+      getOrCreate(g,'canvasapp',caid,{displayName:name});
+
+      const crEl = ca.querySelector('ConnectionReferences');
+      if (crEl) { let r; try{r=JSON.parse(crEl.textContent);}catch{} if(r) processMsappConnRefs(r,caid,g); }
+
+      const cdEl = ca.querySelector('CdsDependencies');
+      if (cdEl) {
+        let d; try{d=JSON.parse(cdEl.textContent);}catch{}
+        if (d?.cdsdependencies) for (const dep of d.cdsdependencies) {
+          if (dep.componenttype===29) {
+            const fid=guid(dep.dependencyid); if(fid){getOrCreate(g,'flow',fid,{displayName:fid});addEdge(g,caid,fid,'app-calls-flow');}
+          }
+        }
+      }
+    }
+
+    for (const entity of dom.querySelectorAll('Entities Entity')) {
+      const logicalName = entity.querySelector('EntityInfo entity')?.getAttribute('Name')?.toLowerCase();
+      const displayName = entity.querySelector('Name')?.getAttribute('LocalizedName');
+      if (logicalName && displayName) g.cdsEntityMap.set(logicalName, displayName);
+    }
+
+  }
+
+  for (const entry of zip.entries) {
+    if (/^Workflows\//i.test(entry.name) && entry.name.endsWith('.json')) {
+      const j = await extractJson(zip,entry.name);
+      if (j) await processFlowDef(entry.name,j,g);
+    }
+  }
+  for (const entry of zip.entries) {
+    if (entry.name.endsWith('.msapp')) {
+      const sub = await extractSubZip(zip,entry.name);
+      if (sub) await processMsapp(sub,entry.name,g);
+    }
+  }
+}
+
+// ── App Package Pipeline ───────────────────────────────────────────────────────
+async function processAppPackage(zip, g) {
+  const mf = await extractJson(zip,'manifest.json');
+  if (mf?.resources) for (const [k,r] of Object.entries(mf.resources)) {
+    const eg = guid(r.id||r.entityId||k); if (eg) g.pkgToGuid.set(k,eg);
+  }
+
+  for (const entry of zip.entries) {
+    const m = entry.name.match(/Microsoft\.Flow\/flows\/([^/]+)\/definition\.json/i);
+    if (m) { const j=await extractJson(zip,entry.name); if(j) await processFlowDef(entry.name,j,g,guid(m[1])); }
+  }
+  for (const entry of zip.entries) {
+    const m = entry.name.match(/Microsoft\.PowerApps\/apps\/([^/]+)\/\1\.json/i);
+    if (m) { const j=await extractJson(zip,entry.name); if(j) processAppJson(j,m[1],entry.name,g); }
+  }
+  for (const entry of zip.entries) {
+    if (entry.name.endsWith('.msapp')) { const sub=await extractSubZip(zip,entry.name); if(sub) await processMsapp(sub,entry.name,g); }
+  }
+}
+
+function processAppJson(json, appId, path, g) {
+  const aid  = guid(appId);
+  const name = json.displayName||json.name||appId;
+  getOrCreate(g,'canvasapp',aid,{displayName:name,filePath:path});
+  const refs = json.properties?.connectionReferences||json.connectionReferences||{};
+  for (const ref of Object.values(refs)) {
+    const fid=guid(ref.workflowId||ref.flowId);
+    if(fid){getOrCreate(g,'flow',fid,{displayName:fid});addEdge(g,aid,fid,'app-calls-flow');}
+  }
+}
+
+// ── Main Entry ─────────────────────────────────────────────────────────────────
+async function processFile(file) {
+  setLoading(true,'Reading file…');
+  const buf  = await file.arrayBuffer();
+  setLoading(true,'Parsing ZIP…');
+  const zip  = parseZip(buf);
+  const type = await detectType(zip);
+  const g    = createGraph();
+  setLoading(true,`Processing ${type}…`);
+  if      (type==='solution')    await processSolution(zip,g);
+  else if (type==='app-package') await processAppPackage(zip,g);
+  else if (type==='msapp')       await processMsapp(zip,'app.msapp',g);
+  else throw new Error('Unrecognized package. Expected a Power Platform solution ZIP, app package ZIP, or .msapp file.');
+  setLoading(true,'Rendering…');
+  computeLayout(g);
+  renderAll(g, file.name);
+  setLoading(false);
+}
+
+// ── SVG Layout ─────────────────────────────────────────────────────────────────
+function computeLayout(g) {
+  const cols = [[],[]];
+  for (const n of g.nodes.values()) { const c=COL_MAP[n.type]??2; if(c<2) cols[c].push(n); }
+  for (const col of cols) col.sort((a,b)=>a.displayName.localeCompare(b.displayName));
+
+  const cx = [
+    SVG_PAD_X + COL_W/2,
+    SVG_PAD_X + COL_W + COL_GAP + COL_W/2,
+    SVG_PAD_X + 2*(COL_W+COL_GAP) + COL_W/2,
+  ];
+  for (let c=0;c<2;c++) {
+    let y = SVG_PAD_Y + 28;
+    for (const n of cols[c]) { n.svgX=cx[c]; n.svgY=y; y+=NODE_H+NODE_GAP_Y; }
+  }
+
+  // Col 2: canvas apps with their child screens grouped, then ungrouped nodes
+  g.appGroups = [];
+  const apps = (g.byType.get('canvasapp')||[]).map(id=>g.nodes.get(id)).filter(Boolean);
+  apps.sort((a,b)=>a.displayName.localeCompare(b.displayName));
+
+  const screensByApp = new Map();
+  for (const id of (g.byType.get('screen')||[])) {
+    const sep = id.indexOf('::scr::');
+    if (sep !== -1) {
+      const pid = id.slice(0, sep);
+      if (!screensByApp.has(pid)) screensByApp.set(pid,[]);
+      screensByApp.get(pid).push(g.nodes.get(id));
+    }
+  }
+  for (const screens of screensByApp.values()) screens.sort((a,b)=>a.displayName.localeCompare(b.displayName));
+
+  const controlsByApp = new Map();
+  for (const id of (g.byType.get('control')||[])) {
+    const sep = id.indexOf('::ctrl::');
+    if (sep !== -1) {
+      const pid = id.slice(0, sep);
+      if (!controlsByApp.has(pid)) controlsByApp.set(pid,[]);
+      controlsByApp.get(pid).push(g.nodes.get(id));
+    }
+  }
+  for (const ctrls of controlsByApp.values()) ctrls.sort((a,b)=>a.displayName.localeCompare(b.displayName));
+
+  const groupedIds = new Set([
+    ...[...screensByApp.values()].flat().map(n=>n.id),
+    ...[...controlsByApp.values()].flat().map(n=>n.id),
+  ]);
+  const appIds = new Set(apps.map(n=>n.id));
+  const ungrouped = [];
+  for (const n of g.nodes.values()) {
+    if ((COL_MAP[n.type]??2) !== 2) continue;
+    if (appIds.has(n.id) || groupedIds.has(n.id)) continue;
+    ungrouped.push(n);
+  }
+  ungrouped.sort((a,b)=>a.displayName.localeCompare(b.displayName));
+
+  let y2 = SVG_PAD_Y + 28, lastBottom = SVG_PAD_Y*2;
+  for (const app of apps) {
+    const screens = screensByApp.get(app.id) || [];
+    const ctrls  = controlsByApp.get(app.id) || [];
+    if (screens.length > 0 || ctrls.length > 0) {
+      y2 += GROUP_LABEL_H + GROUP_PAD_Y;
+      const boxY = y2 - GROUP_LABEL_H - GROUP_PAD_Y;
+      app.svgX=cx[2]; app.svgY=y2; y2+=NODE_H+NODE_GAP_Y; lastBottom=y2-NODE_GAP_Y;
+      for (const scr of screens) { scr.svgX=cx[2]; scr.svgY=y2; y2+=NODE_H+NODE_GAP_Y; lastBottom=y2-NODE_GAP_Y; }
+      for (const ctrl of ctrls)  { ctrl.svgX=cx[2]; ctrl.svgY=y2; y2+=NODE_H+NODE_GAP_Y; lastBottom=y2-NODE_GAP_Y; }
+      g.appGroups.push({
+        label: app.displayName,
+        boxX: cx[2]-COL_W/2-GROUP_PAD_X, boxY,
+        boxW: COL_W+GROUP_PAD_X*2, boxH: lastBottom+GROUP_PAD_Y-boxY,
+        color: TYPE_COLORS.canvasapp.stroke,
+      });
+      y2 += GROUP_GAP;
+    } else {
+      app.svgX=cx[2]; app.svgY=y2; y2+=NODE_H+NODE_GAP_Y; lastBottom=y2-NODE_GAP_Y;
+    }
+  }
+  for (const n of ungrouped) { n.svgX=cx[2]; n.svgY=y2; y2+=NODE_H+NODE_GAP_Y; lastBottom=y2-NODE_GAP_Y; }
+
+  const col2H = lastBottom + SVG_PAD_Y;
+  const maxH = Math.max(SVG_PAD_Y*2, col2H,
+    ...cols.map(col=>col.length ? col[col.length-1].svgY+NODE_H+SVG_PAD_Y : SVG_PAD_Y*2)
+  );
+  g.svgW = SVG_PAD_X*2 + 3*COL_W + 2*COL_GAP;
+  g.svgH = maxH;
+}
+
+// ── Rendering ──────────────────────────────────────────────────────────────────
+let G = null, selId = null;
+
+function renderAll(g, fname) {
+  G = g; selId = null;
+  document.getElementById('drop-zone').style.display = 'none';
+  document.getElementById('main-layout').style.display = 'flex';
+  document.getElementById('solution-name').textContent = fname;
+  document.getElementById('node-count').textContent = `${g.nodes.size} nodes · ${g.edges.length} edges`;
+  renderSvg(g);
+  renderCards(g);
+}
+
+function svgEl(tag,attrs={}) {
+  const el = document.createElementNS('http://www.w3.org/2000/svg',tag);
+  for (const [k,v] of Object.entries(attrs)) el.setAttribute(k,String(v));
+  return el;
+}
+
+function renderSvg(g) {
+  const svg   = document.getElementById('dep-graph');
+  const defs  = document.getElementById('svg-defs');
+  const grpL  = document.getElementById('groups-layer');
+  const eL    = document.getElementById('edges-layer');
+  const nL    = document.getElementById('nodes-layer');
+  svg.setAttribute('width',g.svgW); svg.setAttribute('height',g.svgH);
+  svg.setAttribute('viewBox',`0 0 ${g.svgW} ${g.svgH}`);
+  defs.innerHTML=''; grpL.innerHTML=''; eL.innerHTML=''; nL.innerHTML='';
+
+  // App group bounding boxes
+  for (const grp of (g.appGroups||[])) {
+    const r=svgEl('rect',{x:grp.boxX,y:grp.boxY,width:grp.boxW,height:grp.boxH,
+      rx:12,fill:'rgba(16,185,129,0.06)',stroke:grp.color,
+      'stroke-width':1,'stroke-dasharray':'4 3',opacity:0.85});
+    grpL.appendChild(r);
+    const lbl=svgEl('text',{x:grp.boxX+10,y:grp.boxY+GROUP_LABEL_H-2,
+      'font-size':9,'font-family':'system-ui,sans-serif',fill:grp.color,
+      opacity:0.7,'font-weight':600,'letter-spacing':'0.05em'});
+    lbl.textContent=grp.label.length>28?grp.label.slice(0,27)+'…':grp.label;
+    grpL.appendChild(lbl);
+  }
+
+  // Arrowhead markers
+  for (const [type,color] of Object.entries(EDGE_COLORS)) {
+    const mk = svgEl('marker',{id:`ah-${type}`,markerWidth:10,markerHeight:7,refX:8,refY:3,orient:'auto'});
+    const pl = svgEl('polygon',{points:'0 0, 8 3, 0 6',fill:color});
+    mk.appendChild(pl); defs.appendChild(mk);
+  }
+
+  // Column labels
+  const cx=[SVG_PAD_X+COL_W/2, SVG_PAD_X+COL_W+COL_GAP+COL_W/2, SVG_PAD_X+2*(COL_W+COL_GAP)+COL_W/2];
+  for (let c=0;c<3;c++) {
+    const t=svgEl('text',{x:cx[c],y:SVG_PAD_Y+8,class:'col-label'});
+    t.textContent=COL_LABELS[c]; nL.appendChild(t);
+  }
+
+  // Edges
+  for (const edge of g.edges) {
+    const src=g.nodes.get(edge.srcId), dst=g.nodes.get(edge.dstId);
+    if (!src||!dst) continue;
+    const color=EDGE_COLORS[edge.type]||'#6b7280';
+    const sc=COL_MAP[src.type]??2, dc=COL_MAP[dst.type]??2;
+    let x1, x2, pathD;
+    const y1=src.svgY+NODE_H/2, y2=dst.svgY+NODE_H/2;
+    if (sc === dc) {
+      // Same-column: loop out the right side
+      x1 = src.svgX + COL_W/2; x2 = dst.svgX + COL_W/2;
+      const bulge = 60;
+      pathD = `M${x1},${y1} C${x1+bulge},${y1} ${x2+bulge},${y2} ${x2},${y2}`;
+    } else {
+      if (sc < dc) { x1=src.svgX+COL_W/2; x2=dst.svgX-COL_W/2; }
+      else         { x1=src.svgX-COL_W/2; x2=dst.svgX+COL_W/2; }
+      const dx=(x2-x1)*0.4;
+      pathD = `M${x1},${y1} C${x1+dx},${y1} ${x2-dx},${y2} ${x2},${y2}`;
+    }
+    const eg=svgEl('g',{class:`svg-edge svg-edge-type-${edge.type}`});
+    eg.dataset.src=edge.srcId; eg.dataset.dst=edge.dstId; eg.dataset.type=edge.type;
+    const p=svgEl('path',{
+      d:pathD, stroke:color,'stroke-width':1.5,fill:'none',opacity:0.75,
+      'marker-end':`url(#ah-${edge.type})`
+    });
+    eg.appendChild(p); eL.appendChild(eg); edge.svgEl=eg;
+  }
+
+  // Nodes
+  for (const n of g.nodes.values()) {
+    const c=TYPE_COLORS[n.type]||TYPE_COLORS.control;
+    const x=n.svgX-COL_W/2, y=n.svgY;
+    const ng=svgEl('g',{class:'svg-node'}); ng.dataset.id=n.id;
+
+    const rect=svgEl('rect',{x,y,width:COL_W,height:NODE_H,rx:NODE_RX,fill:c.fill,stroke:c.stroke,'stroke-width':1.5,class:'svg-node-rect'});
+    ng.appendChild(rect);
+    const titleEl=svgEl('title'); titleEl.textContent=n.displayName; ng.appendChild(titleEl);
+
+    const ico=svgEl('text',{x:x+10,y:y+NODE_H/2+1,'dominant-baseline':'middle','font-size':14}); ico.textContent=TYPE_ICONS[n.type]||'?';
+    ng.appendChild(ico);
+
+    const mx=22;
+    const lbl=svgEl('text',{x:x+30,y:y+NODE_H/2-5,'dominant-baseline':'middle','font-size':10.5,'font-family':'system-ui,sans-serif',fill:'#f9fafb','font-weight':600});
+    lbl.textContent=n.displayName.length>mx?n.displayName.slice(0,mx-1)+'…':n.displayName;
+    ng.appendChild(lbl);
+
+    const sub=svgEl('text',{x:x+30,y:y+NODE_H/2+9,'dominant-baseline':'middle','font-size':8.5,'font-family':'system-ui,sans-serif',fill:c.stroke});
+    sub.textContent=TYPE_LABELS[n.type]||n.type; ng.appendChild(sub);
+
+    ng.addEventListener('mouseenter',()=>{ if(selId!==n.id) hlNode(n.id,'hover'); });
+    ng.addEventListener('mouseleave',()=>{ if(selId!==n.id) clearHL(); else hlNode(selId,'select'); });
+    ng.addEventListener('click',()=>selNode(n.id,'card'));
+
+    nL.appendChild(ng); n.svgEl=ng;
+  }
+
+  // Click background to deselect
+  svg.addEventListener('click', e => {
+    if (e.target===svg||e.target===eL||e.target===nL) { selId=null; clearHL(); }
+  });
+}
+
+function renderCards(g) {
+  const panel = document.getElementById('card-panel');
+  const hdr   = document.getElementById('card-panel-header');
+  panel.innerHTML=''; panel.appendChild(hdr);
+
+  // Build screen/control-by-app maps for inline grouping under their parent canvas app
+  const cardScreensByApp = new Map();
+  for (const id of (g.byType.get('screen')||[])) {
+    const sep = id.indexOf('::scr::');
+    if (sep !== -1) {
+      const pid = id.slice(0, sep);
+      if (!cardScreensByApp.has(pid)) cardScreensByApp.set(pid,[]);
+      cardScreensByApp.get(pid).push(g.nodes.get(id));
+    }
+  }
+  for (const screens of cardScreensByApp.values()) screens.sort((a,b)=>a.displayName.localeCompare(b.displayName));
+
+  const cardControlsByApp = new Map();
+  for (const id of (g.byType.get('control')||[])) {
+    const sep = id.indexOf('::ctrl::');
+    if (sep !== -1) {
+      const pid = id.slice(0, sep);
+      if (!cardControlsByApp.has(pid)) cardControlsByApp.set(pid,[]);
+      cardControlsByApp.get(pid).push(g.nodes.get(id));
+    }
+  }
+  for (const ctrls of cardControlsByApp.values()) ctrls.sort((a,b)=>a.displayName.localeCompare(b.displayName));
+
+  const childNodeIds = new Set([
+    ...[...cardScreensByApp.values()].flat().map(n=>n?.id),
+    ...[...cardControlsByApp.values()].flat().map(n=>n?.id),
+  ]);
+
+  const sorted=[];
+  for (const type of NODE_TYPES_ORDER) {
+    if (type==='screen'||type==='control') continue; // rendered inline under their parent app below
+    const ids=g.byType.get(type)||[];
+    const ns=ids.map(id=>g.nodes.get(id)).filter(Boolean);
+    ns.sort((a,b)=>a.displayName.localeCompare(b.displayName));
+    if (type==='canvasapp') {
+      for (const app of ns) {
+        sorted.push(app);
+        for (const scr  of (cardScreensByApp.get(app.id)||[])) { if(scr)  sorted.push(scr); }
+        for (const ctrl of (cardControlsByApp.get(app.id)||[])) { if(ctrl) sorted.push(ctrl); }
+      }
+    } else {
+      sorted.push(...ns);
+    }
+  }
+  // Orphan screens/controls (no parent app found)
+  for (const id of (g.byType.get('screen')||[])) {
+    if (!childNodeIds.has(id)) { const n=g.nodes.get(id); if(n) sorted.push(n); }
+  }
+  for (const id of (g.byType.get('control')||[])) {
+    if (!childNodeIds.has(id)) { const n=g.nodes.get(id); if(n) sorted.push(n); }
+  }
+
+  const outM=new Map(), inM=new Map();
+  for (const e of g.edges) {
+    if(!outM.has(e.srcId)) outM.set(e.srcId,[]);
+    outM.get(e.srcId).push(e);
+    if(!inM.has(e.dstId)) inM.set(e.dstId,[]);
+    inM.get(e.dstId).push(e);
+  }
+
+  for (const n of sorted) {
+    const card=document.createElement('div');
+    card.className='node-card'+((n.type==='screen'||n.type==='control')&&childNodeIds.has(n.id)?' card-screen-child':'');
+    card.dataset.id=n.id;
+
+    const hd=document.createElement('div'); hd.className='card-header';
+    hd.innerHTML=`<span class="card-icon">${TYPE_ICONS[n.type]||'?'}</span>
+      <span class="card-name" title="${esc(n.displayName)}">${esc(n.displayName)}</span>
+      <span class="card-type-badge">${esc(TYPE_LABELS[n.type]||n.type)}</span>`;
+    card.appendChild(hd);
+
+    if (n.filePath) {
+      const fp=document.createElement('div'); fp.className='card-path';
+      fp.title=n.filePath; fp.textContent=n.filePath; card.appendChild(fp);
+    }
+
+    if (n.type==='datasource' && n.siteUrl) {
+      const site=document.createElement('div'); site.className='card-site';
+      site.textContent='🌐 '+extractSiteName(n.siteUrl);
+      site.title=n.siteUrl; card.appendChild(site);
+    }
+
+    if (n.sizeOnly) {
+      const sz=document.createElement('div'); sz.className='card-size';
+      sz.textContent=`⚠️ Large: ${(n.sizeBytes/1024).toFixed(0)} KB`; card.appendChild(sz);
+    } else {
+      const rels=document.createElement('div'); rels.className='card-rels';
+      const outEdges=outM.get(n.id)||[];
+      const inEdges =inM.get(n.id)||[];
+
+      const outByT=new Map();
+      for (const e of outEdges) { if(!outByT.has(e.type)) outByT.set(e.type,[]); outByT.get(e.type).push(e); }
+      for (const [type,edges] of outByT) appendRelGroup(rels,g,edges,type,false);
+
+      const inByT=new Map();
+      for (const e of inEdges) { if(!inByT.has(e.type)) inByT.set(e.type,[]); inByT.get(e.type).push(e); }
+      for (const [type,edges] of inByT) appendRelGroup(rels,g,edges,type,true);
+
+      if (rels.children.length) card.appendChild(rels);
+    }
+
+    card.addEventListener('mouseenter',()=>{ if(selId!==n.id) hlNode(n.id,'hover'); });
+    card.addEventListener('mouseleave',()=>{ if(selId!==n.id) clearHL(); else hlNode(selId,'select'); });
+    card.addEventListener('click',()=>selNode(n.id,'svg'));
+
+    panel.appendChild(card); n.cardEl=card;
+  }
+
+  renderLegend(g);
+}
+
+function appendRelGroup(container, g, edges, type, incoming) {
+  const color=EDGE_COLORS[type]||'#6b7280';
+  const label=EDGE_LABELS[type]||type;
+  const grp=document.createElement('div'); grp.className='card-rel-group';
+  const lbl=document.createElement('span'); lbl.className='card-rel-label';
+  lbl.style.color=color;
+  lbl.textContent=incoming?`← ${label}`:`${label} →`;
+  grp.appendChild(lbl);
+  const links=document.createElement('div'); links.className='card-rel-links';
+  for (const e of edges) {
+    const peer=g.nodes.get(incoming?e.srcId:e.dstId); if(!peer) continue;
+    const lk=document.createElement('span'); lk.className='rel-link';
+    lk.textContent=peer.displayName; lk.title=peer.id;
+    lk.addEventListener('click',ev=>{ev.stopPropagation();selNode(peer.id,'both');});
+    links.appendChild(lk);
+  }
+  if (!links.children.length) return;
+  grp.appendChild(links); container.appendChild(grp);
+}
+
+function renderLegend(g) {
+  const used=new Set(g.edges.map(e=>e.type));
+  const leg=document.getElementById('legend'); leg.innerHTML='';
+  for (const [type,color] of Object.entries(EDGE_COLORS)) {
+    if (!used.has(type)) continue;
+    const item=document.createElement('div'); item.className='legend-item';
+    item.innerHTML=`<div class="legend-line" style="background:${color}"></div><span>${EDGE_LABELS[type]}</span>`;
+    leg.appendChild(item);
+  }
+}
+
+// ── Cross-Highlighting ─────────────────────────────────────────────────────────
+function hlNode(id, mode) {
+  if (!G) return;
+  clearHLClasses();
+  const n=G.nodes.get(id); if(!n) return;
+  const peerIds=new Set(), peerEdges=new Set();
+  for (const e of G.edges) {
+    if (e.srcId===id||e.dstId===id) {
+      peerIds.add(e.srcId); peerIds.add(e.dstId); peerEdges.add(e);
+    }
+  }
+  if(n.svgEl)  n.svgEl.classList.add(mode==='hover'?'svg-hovered':'svg-selected');
+  if(n.cardEl) n.cardEl.classList.add(mode==='hover'?'card-hovered':'card-selected');
+  for (const [nid,nd] of G.nodes) {
+    if(nid===id) continue;
+    if(nd.svgEl) nd.svgEl.classList.add(peerIds.has(nid)?'svg-peer':'svg-dimmed');
+  }
+  for (const e of G.edges) {
+    if(!e.svgEl) continue;
+    e.svgEl.classList.add(peerEdges.has(e)?'edge-highlighted':'edge-dimmed');
+  }
+}
+
+function clearHLClasses() {
+  if (!G) return;
+  for (const n of G.nodes.values()) {
+    if(n.svgEl)  n.svgEl.classList.remove('svg-hovered','svg-selected','svg-peer','svg-dimmed');
+    if(n.cardEl) n.cardEl.classList.remove('card-hovered','card-selected');
+  }
+  for (const e of G.edges) {
+    if(e.svgEl) e.svgEl.classList.remove('edge-highlighted','edge-dimmed');
+  }
+}
+
+function clearHL() { clearHLClasses(); }
+
+function selNode(id, scrollTo) {
+  selId=id; hlNode(id,'select');
+  const n=G?.nodes.get(id); if(!n) return;
+  if ((scrollTo==='card'||scrollTo==='both') && n.cardEl)
+    n.cardEl.scrollIntoView({behavior:'smooth',block:'nearest'});
+  if ((scrollTo==='svg'||scrollTo==='both') && n.svgEl)
+    n.svgEl.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+// ── Utilities ──────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function setLoading(on, msg='') {
+  document.getElementById('loading-overlay').classList.toggle('active',on);
+  if(msg) document.getElementById('loading-msg').textContent=msg;
+}
+function showError(msg) {
+  const el=document.getElementById('error-msg'); el.textContent=msg; el.style.display='block';
+  setLoading(false);
+}
+
+// ── Drop Zone ──────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  // Theme
+  const thBtn=document.getElementById('theme-toggle');
+  const stored=localStorage.getItem('theme');
+  if(stored) document.documentElement.setAttribute('data-theme',stored);
+  function updateThemeBtn() {
+    const dark=document.documentElement.getAttribute('data-theme')==='dark';
+    thBtn.textContent=dark?'☀️ Light':'🌙 Dark';
+  }
+  updateThemeBtn();
+  thBtn.addEventListener('click',()=>{
+    const cur=document.documentElement.getAttribute('data-theme');
+    const next=cur==='dark'?'light':'dark';
+    document.documentElement.setAttribute('data-theme',next);
+    localStorage.setItem('theme',next); updateThemeBtn();
+  });
+
+  // Reset
+  document.getElementById('reset-btn').addEventListener('click',()=>{
+    G=null; selId=null;
+    document.getElementById('main-layout').style.display='none';
+    document.getElementById('drop-zone').style.display='flex';
+    document.getElementById('error-msg').style.display='none';
+    document.getElementById('file-input').value='';
+  });
+
+  // File input
+  const fi=document.getElementById('file-input');
+  document.getElementById('browse-label').addEventListener('click',()=>fi.click());
+  fi.addEventListener('change',()=>{ if(fi.files[0]) handle(fi.files[0]); });
+
+  // Drag-and-drop
+  const dz=document.getElementById('drop-zone');
+  dz.addEventListener('dragover',e=>{ e.preventDefault(); dz.classList.add('drag-over'); });
+  dz.addEventListener('dragleave',()=>dz.classList.remove('drag-over'));
+  dz.addEventListener('drop',e=>{
+    e.preventDefault(); dz.classList.remove('drag-over');
+    if(e.dataTransfer.files[0]) handle(e.dataTransfer.files[0]);
+  });
+
+  async function handle(file) {
+    document.getElementById('error-msg').style.display='none';
+    try { await processFile(file); }
+    catch(err) { console.error(err); showError('Error: '+err.message); }
+  }
+});
+</script>
+</body>
+</html>
