@@ -54,6 +54,7 @@ html,body { width:100%; height:100%; overflow:hidden; font-family:var(--font-san
   color:var(--text-main); transition:background 0.15s;
 }
 .export-menu button:hover { background:var(--btn-hover); }
+#ctx-download-btn:hover { background:var(--btn-hover); }
 
 .zoom-btn {
   width:28px; height:28px; border-radius:50%; border:1px solid var(--glass-border);
@@ -140,6 +141,10 @@ html,body { width:100%; height:100%; overflow:hidden; font-family:var(--font-san
 <body>
 
 <div id="loading-overlay"><div id="loading-msg">Parsing...</div></div>
+
+<div id="node-ctx-menu" class="glass-panel" style="position:fixed;display:none;z-index:300;min-width:150px;overflow:hidden;border-radius:10px;">
+  <button id="ctx-download-btn" style="display:block;width:100%;padding:8px 16px;text-align:left;border:none;background:none;cursor:pointer;font-size:var(--text-sm);font-family:var(--font-sans);color:var(--text-main);">⬇ Download file</button>
+</div>
 
 <div id="drop-zone">
   <div id="drop-area">
@@ -821,6 +826,7 @@ async function processFile(file) {
   else if (type==='msapp')       await processMsapp(zip,'app.msapp',g);
   else throw new Error('Unrecognized package. Expected a Power Platform solution ZIP, app package ZIP, or .msapp file.');
   setLoading(true,'Rendering…');
+  state.zip = zip;
   renderAll(g, file.name);
   setLoading(false);
 }
@@ -919,7 +925,7 @@ function computeLayout(g) {
 
 // ── Rendering ──────────────────────────────────────────────────────────────────
 const state = {
-  G: null, selId: null,
+  G: null, selId: null, zip: null,
   tx: 0, ty: 0, scale: 1,
   _dragging: false, _dragMoved: false,
   _dragStartX: 0, _dragStartY: 0, _dragStartTx: 0, _dragStartTy: 0,
@@ -1104,6 +1110,9 @@ function renderSvg(g) {
     ng.addEventListener('mouseenter',()=>{ if(state.selId!==n.id) hlNode(n.id,'hover'); });
     ng.addEventListener('mouseleave',()=>{ if(state.selId!==n.id) clearHL(); else hlNode(state.selId,'select'); });
     ng.addEventListener('click',()=>selNode(n.id,'svg'));
+    if ((n.type === 'flow' || n.type === 'screen') && n.filePath) {
+      ng.addEventListener('contextmenu', e => { e.preventDefault(); showCtxMenu(e.clientX, e.clientY, n.id); });
+    }
 
     nL.appendChild(ng); n.svgEl=ng;
   }
@@ -1264,11 +1273,50 @@ function downloadBlob(blob, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+// ── Node File Download ────────────────────────────────────────────────────────
+async function downloadNode(id) {
+  const n = state.G?.nodes.get(id);
+  if (!n || !n.filePath || !state.zip) return;
+  let sourceZip = state.zip;
+  if (n.type === 'screen') {
+    const appId = n.id.split('::scr::')[0];
+    const appNode = state.G.nodes.get(appId);
+    const msappPath = appNode?.filePath;
+    if (msappPath && msappPath !== 'app.msapp') {
+      const msappEntry = findE(state.zip, msappPath);
+      if (!msappEntry) return;
+      const msappBytes = await extractEntry(state.zip, msappEntry);
+      sourceZip = parseZip(msappBytes.buffer);
+    }
+  }
+  const entry = findE(sourceZip, n.filePath);
+  if (!entry) return;
+  const bytes = await extractEntry(sourceZip, entry);
+  const ext = n.filePath.split('.').pop() || 'json';
+  const mime = ext === 'yaml' ? 'text/yaml' : 'application/json';
+  const filename = n.displayName.replace(/[^a-z0-9_\-. ]/gi,'_') + '.' + ext;
+  downloadBlob(new Blob([bytes], {type: mime}), filename);
+}
+
+function showCtxMenu(x, y, nodeId) {
+  const menu = document.getElementById('node-ctx-menu');
+  const btn  = document.getElementById('ctx-download-btn');
+  btn.onclick = () => { hideCtxMenu(); downloadNode(nodeId); };
+  // Keep menu on screen
+  menu.style.left = Math.min(x, window.innerWidth  - 160) + 'px';
+  menu.style.top  = Math.min(y, window.innerHeight - 48)  + 'px';
+  menu.style.display = 'block';
+}
+
+function hideCtxMenu() {
+  document.getElementById('node-ctx-menu').style.display = 'none';
+}
+
 // ── Drop Zone ──────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   // Reset
   document.getElementById('reset-btn').addEventListener('click',()=>{
-    state.G=null; state.selId=null;
+    state.G=null; state.selId=null; state.zip=null;
     state.tx=0; state.ty=0; state.scale=1;
     state._dragging=false; state._dragMoved=false;
     document.getElementById('main-layout').style.display='none';
@@ -1284,7 +1332,9 @@ document.addEventListener('DOMContentLoaded', () => {
     e.stopPropagation();
     exportMenu.classList.toggle('open');
   });
-  document.addEventListener('click', () => exportMenu.classList.remove('open'));
+  document.addEventListener('click', () => { exportMenu.classList.remove('open'); hideCtxMenu(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') hideCtxMenu(); });
+  document.addEventListener('contextmenu', e => { if (!e.target.closest('.svg-node')) hideCtxMenu(); });
   document.getElementById('export-svg-btn').addEventListener('click', () => { exportMenu.classList.remove('open'); exportSvg(); });
   document.getElementById('export-png-btn').addEventListener('click', () => { exportMenu.classList.remove('open'); exportPng(); });
 
