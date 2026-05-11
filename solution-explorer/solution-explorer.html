@@ -202,7 +202,7 @@ const TYPE_LABELS = {canvasapp:'Canvas App',flow:'Flow',datasource:'Data Source'
 const EDGE_COLORS = {
   'app-calls-flow':'#3b82f6',
   'flow-calls-flow':'#8b5cf6',
-  'flow-reads-data':'#f59e0b',
+  'flow-reads-data':'#f43f5e',
   'app-uses-data':'#10b981',
   'screen-uses-data':'#06b6d4',
   'screen-calls-flow':'#38bdf8',
@@ -444,15 +444,21 @@ function walkActions(actions, flowId, g) {
       if (api.includes('sharepoint')) {
         const tbl     = a.inputs?.parameters?.table;
         const dataset = a.inputs?.parameters?.dataset;
-        const fallback = tbl || dataset;
+        // Skip dynamic Power Automate expressions — they're runtime values, not real identifiers
+        const isDynamic = v => typeof v === 'string' && v.trimStart().startsWith('@');
+        const staticTbl     = isDynamic(tbl)     ? null : tbl;
+        const staticDataset = isDynamic(dataset) ? null : dataset;
+        const fallback = staticTbl || staticDataset;
         if (fallback) {
           const dsid = guid(fallback)||fallback;
-          getOrCreate(g,'datasource',dsid,{displayName:fallback, siteUrl:tbl ? (dataset||'') : ''});
+          getOrCreate(g,'datasource',dsid,{displayName:fallback, siteUrl:staticTbl ? (staticDataset||'') : ''});
           addEdge(g,flowId,dsid,'flow-reads-data');
         }
       }
       if (api.includes('commondataservice')) {
-        const entityName = (a.inputs?.parameters?.entityName||'').toLowerCase();
+        const rawEntityName = a.inputs?.parameters?.entityName || '';
+        const entityName = typeof rawEntityName === 'string' && !rawEntityName.trimStart().startsWith('@')
+          ? rawEntityName.toLowerCase() : '';
         if (entityName) {
           const displayName = g.cdsEntityMap?.get(entityName) || entityName;
           getOrCreate(g,'dataverse',entityName,{displayName, filePath:entityName});
@@ -629,6 +635,8 @@ async function processMsapp(msZip, path, g) {
     if (/^Src\//i.test(entry.name) && entry.name.endsWith('.pa.yaml'))
       yamlScreens.add(entry.name.replace(/^Src\//i,'').replace('.pa.yaml',''));
   }
+  // Legacy apps have no Src/*.pa.yaml — Controls/*.json TopParent entries ARE the screens
+  const isLegacyApp = yamlScreens.size === 0;
 
   for (const entry of msZip.entries) {
     if (SKIP_BY_NAME.has(entry.name)) continue;
@@ -637,13 +645,15 @@ async function processMsapp(msZip, path, g) {
         const topName = await extractTopParentName(msZip, entry);
         if (topName && yamlScreens.has(topName)) continue;
         const displayName = topName || entry.name.replace(/^Controls\//i,'').replace('.json','');
-        const cid = `${appId}::ctrl::${topName || entry.name}`;
-        getOrCreate(g,'control',cid,{displayName, filePath:entry.name, sizeOnly:true, sizeBytes:entry.uncompSize});
+        const nodeType = isLegacyApp ? 'screen' : 'control';
+        const cid = `${appId}${isLegacyApp ? '::scr::' : '::ctrl::'}${topName || entry.name}`;
+        getOrCreate(g, nodeType, cid, {displayName, filePath:entry.name, sizeOnly:true, sizeBytes:entry.uncompSize});
       } else {
         const cj = await extractJson(msZip, entry.name);
         if (cj?.TopParent?.Name && !yamlScreens.has(cj.TopParent.Name)) {
-          const cid=`${appId}::ctrl::${cj.TopParent.Name}`;
-          getOrCreate(g,'control',cid,{displayName:cj.TopParent.Name,filePath:entry.name});
+          const nodeType = isLegacyApp ? 'screen' : 'control';
+          const cid = `${appId}${isLegacyApp ? '::scr::' : '::ctrl::'}${cj.TopParent.Name}`;
+          getOrCreate(g, nodeType, cid, {displayName:cj.TopParent.Name, filePath:entry.name});
         }
       }
     }
