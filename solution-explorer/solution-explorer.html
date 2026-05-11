@@ -141,7 +141,6 @@ html,body { width:100%; height:100%; overflow:hidden; font-family:var(--font-san
 
 <div id="loading-overlay"><div id="loading-msg">Parsing...</div></div>
 
-
 <div id="drop-zone">
   <div id="drop-area">
     <div class="drop-icon">📦</div>
@@ -196,7 +195,9 @@ const SKIP_BY_NAME = new Set([
   'Src/_EditorState.pa.yaml','Src\\_EditorState.pa.yaml',
 ]);
 
-const NODE_TYPES_ORDER = ['canvasapp','flow','datasource','dataverse','control','screen','envvar'];
+const ZIP_EOCD_SIG = 0x06054b50;
+const ZIP_CD_SIG   = 0x02014b50;
+
 const TYPE_ICONS = {canvasapp:'',flow:'≋',datasource:'📋',dataverse:'🔷',control:'🧩',screen:'🖥️',envvar:'⚙'};
 const TYPE_LABELS = {canvasapp:'Canvas App',flow:'Flow',datasource:'Data Source',dataverse:'Dataverse Table',control:'Control',screen:'Screen',envvar:'Environment Variable'};
 
@@ -271,7 +272,7 @@ function parseZip(buf) {
 
   let eocd = -1;
   for (let i = bytes.length - 22; i >= 0; i--) {
-    if (view.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+    if (view.getUint32(i, true) === ZIP_EOCD_SIG) { eocd = i; break; }
   }
   if (eocd < 0) throw new Error('Not a valid ZIP file');
 
@@ -286,7 +287,7 @@ function parseZip(buf) {
   const entries = [], map = new Map();
   let pos = cdOffset;
   for (let i = 0; i < cdCount; i++) {
-    if (view.getUint32(pos, true) !== 0x02014b50) break;
+    if (view.getUint32(pos, true) !== ZIP_CD_SIG) break;
     const method    = view.getUint16(pos + 10, true);
     const compSize  = view.getUint32(pos + 20, true);
     const uncompSize= view.getUint32(pos + 24, true);
@@ -326,6 +327,8 @@ async function decompressBytes(raw, method) {
 
 async function extractEntry(zip, entry) {
   const {view, bytes} = zip;
+  if (entry.localOff + 30 > bytes.length)
+    throw new Error(`ZIP entry '${entry.name}' has an invalid local header offset`);
   const fnLen    = view.getUint16(entry.localOff + 26, true);
   const extraLen = view.getUint16(entry.localOff + 28, true);
   const start    = entry.localOff + 30 + fnLen + extraLen;
@@ -367,12 +370,13 @@ async function extractTopParentName(zip, entry) {
     const ds = new DecompressionStream('deflate-raw');
     const writer = ds.writable.getWriter();
     const reader = ds.readable.getReader();
+    const decoder = new TextDecoder('utf-8');
     writer.write(raw); writer.close();
     let total = 0;
     while (total < 4096) {
       const {done, value} = await reader.read();
       if (done) break;
-      text += new TextDecoder('utf-8').decode(value);
+      text += decoder.decode(value, {stream: true});
       total += value.length;
     }
     reader.cancel().catch(() => {});
@@ -431,8 +435,8 @@ async function detectType(zip) {
 }
 
 // ── Flow Definition ────────────────────────────────────────────────────────────
-function walkActions(actions, flowId, g) {
-  if (!actions || typeof actions !== 'object') return;
+function walkActions(actions, flowId, g, depth = 0) {
+  if (!actions || typeof actions !== 'object' || depth > 30) return;
   for (const a of Object.values(actions)) {
     if (!a) continue;
     const type = a.type || '';
@@ -467,11 +471,11 @@ function walkActions(actions, flowId, g) {
         }
       }
     }
-    if (a.actions) walkActions(a.actions,flowId,g);
-    if (a.else?.actions) walkActions(a.else.actions,flowId,g);
-    if (a.cases) for (const c of Object.values(a.cases)) if (c.actions) walkActions(c.actions,flowId,g);
-    if (a.foreach) walkActions(a.foreach,flowId,g);
-    if (a.branches) for (const b of Object.values(a.branches)) if (b.actions) walkActions(b.actions,flowId,g);
+    if (a.actions) walkActions(a.actions,flowId,g,depth+1);
+    if (a.else?.actions) walkActions(a.else.actions,flowId,g,depth+1);
+    if (a.cases) for (const c of Object.values(a.cases)) if (c.actions) walkActions(c.actions,flowId,g,depth+1);
+    if (a.foreach) walkActions(a.foreach,flowId,g,depth+1);
+    if (a.branches) for (const b of Object.values(a.branches)) if (b.actions) walkActions(b.actions,flowId,g,depth+1);
   }
 }
 
@@ -921,7 +925,7 @@ function computeLayout(g) {
 
 // ── Rendering ──────────────────────────────────────────────────────────────────
 const state = {
-  G: null, selId: null, zip: null,
+  G: null, selId: null, zip: null, fname: null,
   tx: 0, ty: 0, scale: 1,
   _dragging: false, _dragMoved: false,
   _dragStartX: 0, _dragStartY: 0, _dragStartTx: 0, _dragStartTy: 0,
@@ -989,7 +993,7 @@ function onDocMouseup() {
 }
 
 function renderAll(g, fname) {
-  state.G = g; state.selId = null;
+  state.G = g; state.selId = null; state.fname = fname || null;
   document.getElementById('drop-zone').style.display = 'none';
   document.getElementById('main-layout').style.display = 'flex';
   document.getElementById('solution-name').textContent = g.solutionName || '';
@@ -1191,6 +1195,10 @@ function showError(msg) {
   const el=document.getElementById('error-msg'); el.textContent=msg; el.style.display='block';
   setLoading(false);
 }
+function showToast(msg, durationMs=2500) {
+  setLoading(true, msg);
+  setTimeout(() => setLoading(false), durationMs);
+}
 
 // ── Export ────────────────────────────────────────────────────────────────────
 function buildExportSvg() {
@@ -1260,12 +1268,12 @@ function exportPng() {
     URL.revokeObjectURL(url);
     canvas.toBlob(png => downloadBlob(png, exportFilename('png')), 'image/png');
   };
-  img.onerror = () => { URL.revokeObjectURL(url); alert('PNG export failed — try SVG instead.'); };
+  img.onerror = () => { URL.revokeObjectURL(url); showToast('PNG export failed — try SVG instead.'); };
   img.src = url;
 }
 
 function exportFilename(ext) {
-  const name = (state.G?.solutionName || 'solution-explorer')
+  const name = (state.G?.solutionName || state.fname?.replace(/\.[^.]+$/,'') || 'solution-explorer')
     .replace(/[^a-z0-9_\-. ]/gi,'_').replace(/\s+/g,'-').toLowerCase();
   return `${name}.${ext}`;
 }
@@ -1286,11 +1294,12 @@ function buildSharePointListUrl(n) {
 }
 
 function showCopyFeedback(nodeEl, x, y) {
+  nodeEl.querySelector('.copy-feedback')?.remove();
   const fb = svgEl('text', {
     x: x + COL_W/2, y: y + NODE_H/2,
     'text-anchor':'middle','dominant-baseline':'middle',
     'font-size':12,'font-weight':700,'font-family':'system-ui,sans-serif',
-    fill:'#fff', 'pointer-events':'none',
+    fill:'#fff', 'pointer-events':'none', class:'copy-feedback',
   });
   fb.textContent = '✓ URL Copied!';
   nodeEl.appendChild(fb);
@@ -1317,13 +1326,13 @@ async function downloadNode(id) {
     const msappPath = appNode?.filePath;
     if (msappPath && msappPath !== 'app.msapp') {
       const msappEntry = findE(state.zip, msappPath);
-      if (!msappEntry) return;
+      if (!msappEntry) { showToast('Could not locate app package in ZIP.'); return; }
       const msappBytes = await extractEntry(state.zip, msappEntry);
       sourceZip = parseZip(msappBytes.buffer);
     }
   }
   const entry = findE(sourceZip, n.filePath);
-  if (!entry) return;
+  if (!entry) { showToast('File not found in package.'); return; }
   const bytes = await extractEntry(sourceZip, entry);
   const ext = n.filePath.split('.').pop() || 'json';
   const mime = ext === 'yaml' ? 'text/yaml' : 'application/json';
@@ -1336,7 +1345,7 @@ async function downloadNode(id) {
 document.addEventListener('DOMContentLoaded', () => {
   // Reset
   document.getElementById('reset-btn').addEventListener('click',()=>{
-    state.G=null; state.selId=null; state.zip=null;
+    state.G=null; state.selId=null; state.zip=null; state.fname=null;
     state.tx=0; state.ty=0; state.scale=1;
     state._dragging=false; state._dragMoved=false;
     document.getElementById('main-layout').style.display='none';
