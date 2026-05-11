@@ -1087,7 +1087,15 @@ function renderSvg(g) {
     const titleEl=svgEl('title'); titleEl.textContent=n.displayName; ng.appendChild(titleEl);
 
     const ico=svgEl('text',{x:x+12,y:y+NODE_H/2+1,'dominant-baseline':'middle','font-size':18,fill:c.icon||''}); ico.textContent=TYPE_ICONS[n.type]??'?';
-    ng.appendChild(ico);
+    if (n.type === 'datasource' && buildSharePointListUrl(n)) {
+      const icoG = svgEl('g'); icoG.style.cursor = 'pointer';
+      const icoHit = svgEl('rect',{x:x+4,y:y+NODE_H/2-13,width:28,height:28,fill:'transparent'});
+      icoG.appendChild(icoHit); icoG.appendChild(ico);
+      icoG.addEventListener('click', e => { e.stopPropagation(); copySharePointUrl(n, ng, x, y); });
+      ng.appendChild(icoG);
+    } else {
+      ng.appendChild(ico);
+    }
 
     const lbl=svgEl('text',{x:x+36,y:y+NODE_H/2-7,'dominant-baseline':'middle','font-size':13,'font-family':'system-ui,sans-serif',fill:c.text||'#f9fafb','font-weight':600});
     lbl.textContent=n.displayName.length>NODE_LABEL_MAX_CHARS?n.displayName.slice(0,NODE_LABEL_MAX_CHARS-1)+'…':n.displayName;
@@ -1271,6 +1279,33 @@ function downloadBlob(blob, filename) {
   document.body.appendChild(a); a.click();
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// ── SharePoint URL Copy ───────────────────────────────────────────────────────
+function buildSharePointListUrl(n) {
+  if (!n.siteUrl?.startsWith('https://')) return null;
+  return n.siteUrl.replace(/\/$/, '') + '/Lists/' + encodeURIComponent(n.displayName) + '/AllItems.aspx';
+}
+
+function showCopyFeedback(nodeEl, x, y) {
+  const fb = svgEl('text', {
+    x: x + COL_W/2, y: y + NODE_H/2,
+    'text-anchor':'middle','dominant-baseline':'middle',
+    'font-size':12,'font-weight':700,'font-family':'system-ui,sans-serif',
+    fill:'#fff', 'pointer-events':'none',
+  });
+  fb.textContent = '✓ Copied!';
+  nodeEl.appendChild(fb);
+  setTimeout(() => fb.remove(), 1500);
+}
+
+async function copySharePointUrl(n, nodeEl, x, y) {
+  const url = buildSharePointListUrl(n);
+  if (!url) return;
+  try {
+    await navigator.clipboard.writeText(url);
+    showCopyFeedback(nodeEl, x, y);
+  } catch { /* clipboard unavailable (non-https context) */ }
 }
 
 // ── Node File Download ────────────────────────────────────────────────────────
