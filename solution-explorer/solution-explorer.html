@@ -195,9 +195,9 @@ const SKIP_BY_NAME = new Set([
   'Src/_EditorState.pa.yaml','Src\\_EditorState.pa.yaml',
 ]);
 
-const NODE_TYPES_ORDER = ['canvasapp','flow','datasource','dataverse','control','screen'];
-const TYPE_ICONS = {canvasapp:'',flow:'≋',datasource:'📋',dataverse:'🔷',control:'🧩',screen:'🖥️'};
-const TYPE_LABELS = {canvasapp:'Canvas App',flow:'Flow',datasource:'Data Source',dataverse:'Dataverse Table',control:'Control',screen:'Screen'};
+const NODE_TYPES_ORDER = ['canvasapp','flow','datasource','dataverse','control','screen','envvar'];
+const TYPE_ICONS = {canvasapp:'',flow:'≋',datasource:'📋',dataverse:'🔷',control:'🧩',screen:'🖥️',envvar:'⚙'};
+const TYPE_LABELS = {canvasapp:'Canvas App',flow:'Flow',datasource:'Data Source',dataverse:'Dataverse Table',control:'Control',screen:'Screen',envvar:'Environment Variable'};
 
 const EDGE_COLORS = {
   'app-calls-flow':'#3b82f6',
@@ -206,6 +206,9 @@ const EDGE_COLORS = {
   'app-uses-data':'#10b981',
   'screen-uses-data':'#06b6d4',
   'screen-calls-flow':'#38bdf8',
+  'flow-uses-envvar':'#f97316',
+  'app-uses-envvar':'#fb923c',
+  'screen-uses-envvar':'#fdba74',
 };
 const EDGE_LABELS = {
   'app-calls-flow':'Calls flow',
@@ -214,6 +217,9 @@ const EDGE_LABELS = {
   'app-uses-data':'Uses data',
   'screen-uses-data':'Screen uses data',
   'screen-calls-flow':'Screen calls flow',
+  'flow-uses-envvar':'Flow uses config',
+  'app-uses-envvar':'App uses config',
+  'screen-uses-envvar':'Screen uses config',
 };
 
 const SVG_PAD_X = 72, SVG_PAD_Y = 72;
@@ -223,8 +229,8 @@ const GROUP_PAD_X = 10, GROUP_PAD_Y = 8;
 const GROUP_GAP = 20, GROUP_LABEL_H = 14;
 const ZOOM_MIN = 0.05, ZOOM_MAX = 4, FIT_PAD = 24;
 
-const COL_MAP = {datasource:0,dataverse:0,flow:1,canvasapp:2,control:2,screen:2};
-const COL_LABELS = ['Data Sources','Flows','Apps'];
+const COL_MAP = {datasource:0,dataverse:0,envvar:0,flow:1,canvasapp:2,control:2,screen:2};
+const COL_LABELS = ['Data & Config','Flows','Apps'];
 
 const TYPE_COLORS = {
   canvasapp:  {fill:'#2d0e2b',stroke:'#902D87'},
@@ -233,9 +239,18 @@ const TYPE_COLORS = {
   dataverse:  {fill:'#00B050',stroke:'#22d3ee',text:'#002510'},
   control:    {fill:'#1a1a2e',stroke:'#6b7280'},
   screen:     {fill:'#D973BD',stroke:'#902D87',text:'#3d1535'},
+  envvar:     {fill:'#1c1400',stroke:'#d97706',text:'#fef3c7'},
 };
 
 // ── Utilities (early) ─────────────────────────────────────────────────────────
+const ENV_VAR_TYPE_LABELS = {
+  '100000000':'Text','100000001':'Decimal','100000002':'Boolean',
+  '100000003':'JSON','100000004':'Data Source','100000005':'Secret',
+};
+function envVarTypeLabel(typeCode) {
+  return ENV_VAR_TYPE_LABELS[typeCode] || 'Environment Variable';
+}
+
 function extractSiteName(url) {
   if (!url) return '';
   try {
@@ -367,7 +382,7 @@ async function extractTopParentName(zip, entry) {
 
 // ── Data Model ─────────────────────────────────────────────────────────────────
 function createGraph() {
-  return {nodes:new Map(), edges:[], edgeSet:new Set(), pkgToGuid:new Map(), byType:new Map(), flowNameToId:new Map(), cdsEntityMap:new Map()};
+  return {nodes:new Map(), edges:[], edgeSet:new Set(), pkgToGuid:new Map(), byType:new Map(), flowNameToId:new Map(), cdsEntityMap:new Map(), envVarSchemaNames:new Map()};
 }
 
 function guid(s) {
@@ -470,6 +485,19 @@ async function processFlowDef(path, json, g, hintGuid) {
   if (name && name !== fid) g.flowNameToId.set(name, fid);
 
   walkActions(props.definition?.actions || props.actions || {}, node.id, g);
+
+  // Environment variable references: parameters whose metadata.schemaName matches a known env var schema
+  // Format: "DisplayName (schemaName)" key with metadata.schemaName = "schemaName"
+  const params = props.definition?.parameters || props.parameters || {};
+  for (const [, val] of Object.entries(params)) {
+    const schemaName = val?.metadata?.schemaName;
+    if (schemaName) {
+      const evId = schemaName.toLowerCase();
+      getOrCreate(g, 'envvar', evId, {displayName: schemaName});
+      g.envVarSchemaNames.set(evId, evId);
+      addEdge(g, node.id, evId, 'flow-uses-envvar');
+    }
+  }
 }
 
 // ── YAML Data Source Scanner ───────────────────────────────────────────────────
@@ -541,7 +569,21 @@ async function processMsapp(msZip, path, g) {
   }
 
   const dsFile = await extractJson(msZip,'References/DataSources.json');
-  if (dsFile?.DataSources) processMsappDS(dsFile.DataSources,appId,g);
+  if (dsFile?.DataSources) {
+    processMsappDS(dsFile.DataSources,appId,g);
+    // Detect environment-variable-backed data source references
+    for (const ds of dsFile.DataSources) {
+      const evRef = ds.EnvironmentVariableReference || ds.environmentVariableReference;
+      if (evRef) {
+        const evId = (evRef.EnvironmentVariableId || evRef.environmentVariableId || '').toLowerCase();
+        if (evId) {
+          getOrCreate(g, 'envvar', evId, {displayName: evId});
+          g.envVarSchemaNames.set(evId, evId);
+          addEdge(g, appId, evId, 'app-uses-envvar');
+        }
+      }
+    }
+  }
 
   // Screen-level data source and flow edges from pa.yaml formula scanning
   const dsNameToId = new Map();
@@ -571,6 +613,14 @@ async function processMsapp(msZip, path, g) {
     for (const name of scanYamlWithPatterns(text, flowPatterns)) {
       getOrCreate(g,'screen',screenId,{displayName:screenName});
       addEdge(g, screenId, flowNameToId.get(name), 'screen-calls-flow');
+    }
+    // Scan for Power Fx environment variable references: EnvironmentVariables.publisher_varname
+    for (const [, evName] of text.matchAll(/\bEnvironmentVariables\.([a-zA-Z_][a-zA-Z0-9_]*)/g)) {
+      const evId = evName.toLowerCase();
+      getOrCreate(g, 'envvar', evId, {displayName: evId});
+      g.envVarSchemaNames.set(evId, evId);
+      getOrCreate(g, 'screen', screenId, {displayName: screenName});
+      addEdge(g, screenId, evId, 'screen-uses-envvar');
     }
   }
 
@@ -651,6 +701,49 @@ async function processSolution(zip, g) {
       if (logicalName && displayName) g.cdsEntityMap.set(logicalName, displayName);
     }
 
+    // Environment variable definitions — try both XML conventions used by different exporters
+    for (const ev of dom.querySelectorAll('EnvironmentVariableDefinitions EnvironmentVariableDefinition')) {
+      const schemaName = ev.getAttribute('schemaname') || ev.getAttribute('SchemaName')
+                      || ev.querySelector('SchemaName')?.textContent?.trim()
+                      || ev.querySelector('schemaname')?.textContent?.trim();
+      const displayName = ev.querySelector('displaynames displayname')?.getAttribute('description')
+                       || ev.querySelector('DisplayNames LocalizedName')?.getAttribute('description')
+                       || ev.querySelector('DisplayName')?.textContent?.trim()
+                       || schemaName;
+      const typeCode = ev.querySelector('type')?.textContent?.trim()
+                    || ev.querySelector('Type')?.textContent?.trim()
+                    || ev.getAttribute('type');
+      if (schemaName) {
+        const evId = schemaName.toLowerCase();
+        getOrCreate(g, 'envvar', evId, {displayName: displayName || schemaName, envVarType: typeCode});
+        g.envVarSchemaNames.set(evId, evId);
+      }
+    }
+
+  }
+
+  // Fallback: scan environmentvariabledefinitions/ folder for individual definition XML files
+  for (const entry of zip.entries) {
+    if (/^environmentvariabledefinitions\//i.test(entry.name) && entry.name.endsWith('.xml')) {
+      const txt = await extractText(zip, entry.name);
+      if (!txt) continue;
+      const evDom = new DOMParser().parseFromString(txt, 'text/xml');
+      const schemaName = evDom.documentElement?.getAttribute('schemaname')
+                      || evDom.documentElement?.getAttribute('SchemaName')
+                      || evDom.querySelector('SchemaName')?.textContent?.trim();
+      const displayName = evDom.querySelector('displayname')?.getAttribute('default')
+                       || evDom.querySelector('displayname label')?.getAttribute('description')
+                       || evDom.querySelector('DisplayName label')?.getAttribute('description')
+                       || schemaName;
+      const typeCode = evDom.querySelector('type')?.textContent?.trim()
+                    || evDom.querySelector('Type')?.textContent?.trim()
+                    || evDom.documentElement?.getAttribute('type');
+      if (schemaName) {
+        const evId = schemaName.toLowerCase();
+        getOrCreate(g, 'envvar', evId, {displayName: displayName || schemaName, envVarType: typeCode});
+        g.envVarSchemaNames.set(evId, evId);
+      }
+    }
   }
 
   for (const entry of zip.entries) {
@@ -981,7 +1074,9 @@ function renderSvg(g) {
     ng.appendChild(lbl);
 
     const sub=svgEl('text',{x:x+36,y:y+NODE_H/2+10,'dominant-baseline':'middle','font-size':11,'font-family':'system-ui,sans-serif',fill:c.text||'#f9fafb'});
-    sub.textContent=(n.type==='datasource'&&n.siteUrl)?extractSiteName(n.siteUrl):(TYPE_LABELS[n.type]||n.type); ng.appendChild(sub);
+    sub.textContent=(n.type==='datasource'&&n.siteUrl)?extractSiteName(n.siteUrl)
+      :(n.type==='envvar')?envVarTypeLabel(n.envVarType)
+      :(TYPE_LABELS[n.type]||n.type); ng.appendChild(sub);
 
     ng.addEventListener('mouseenter',()=>{ if(state.selId!==n.id) hlNode(n.id,'hover'); });
     ng.addEventListener('mouseleave',()=>{ if(state.selId!==n.id) clearHL(); else hlNode(state.selId,'select'); });
