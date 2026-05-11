@@ -54,7 +54,6 @@ html,body { width:100%; height:100%; overflow:hidden; font-family:var(--font-san
   color:var(--text-main); transition:background 0.15s;
 }
 .export-menu button:hover { background:var(--btn-hover); }
-#ctx-download-btn:hover { background:var(--btn-hover); }
 
 .zoom-btn {
   width:28px; height:28px; border-radius:50%; border:1px solid var(--glass-border);
@@ -142,9 +141,6 @@ html,body { width:100%; height:100%; overflow:hidden; font-family:var(--font-san
 
 <div id="loading-overlay"><div id="loading-msg">Parsing...</div></div>
 
-<div id="node-ctx-menu" class="glass-panel" style="position:fixed;display:none;z-index:300;min-width:150px;overflow:hidden;border-radius:10px;">
-  <button id="ctx-download-btn" style="display:block;width:100%;padding:8px 16px;text-align:left;border:none;background:none;cursor:pointer;font-size:var(--text-sm);font-family:var(--font-sans);color:var(--text-main);">⬇ Download file</button>
-</div>
 
 <div id="drop-zone">
   <div id="drop-area">
@@ -1088,10 +1084,16 @@ function renderSvg(g) {
 
     const ico=svgEl('text',{x:x+12,y:y+NODE_H/2+1,'dominant-baseline':'middle','font-size':18,fill:c.icon||''}); ico.textContent=TYPE_ICONS[n.type]??'?';
     if (n.type === 'datasource' && buildSharePointListUrl(n)) {
-      const icoG = svgEl('g'); icoG.style.cursor = 'pointer';
+      const icoG = svgEl('g'); icoG.style.cursor = 'crosshair';
       const icoHit = svgEl('rect',{x:x+4,y:y+NODE_H/2-13,width:28,height:28,fill:'transparent'});
       icoG.appendChild(icoHit); icoG.appendChild(ico);
       icoG.addEventListener('click', e => { e.stopPropagation(); copySharePointUrl(n, ng, x, y); });
+      ng.appendChild(icoG);
+    } else if ((n.type === 'flow' || n.type === 'screen') && n.filePath) {
+      const icoG = svgEl('g'); icoG.style.cursor = 'crosshair';
+      const icoHit = svgEl('rect',{x:x+4,y:y+NODE_H/2-13,width:28,height:28,fill:'transparent'});
+      icoG.appendChild(icoHit); icoG.appendChild(ico);
+      icoG.addEventListener('click', e => { e.stopPropagation(); downloadNode(n.id); });
       ng.appendChild(icoG);
     } else {
       ng.appendChild(ico);
@@ -1118,10 +1120,6 @@ function renderSvg(g) {
     ng.addEventListener('mouseenter',()=>{ if(state.selId!==n.id) hlNode(n.id,'hover'); });
     ng.addEventListener('mouseleave',()=>{ if(state.selId!==n.id) clearHL(); else hlNode(state.selId,'select'); });
     ng.addEventListener('click',()=>selNode(n.id,'svg'));
-    if ((n.type === 'flow' || n.type === 'screen') && n.filePath) {
-      ng.addEventListener('contextmenu', e => { e.preventDefault(); showCtxMenu(e.clientX, e.clientY, n.id); });
-    }
-
     nL.appendChild(ng); n.svgEl=ng;
   }
 
@@ -1294,7 +1292,7 @@ function showCopyFeedback(nodeEl, x, y) {
     'font-size':12,'font-weight':700,'font-family':'system-ui,sans-serif',
     fill:'#fff', 'pointer-events':'none',
   });
-  fb.textContent = '✓ Copied!';
+  fb.textContent = '✓ URL Copied!';
   nodeEl.appendChild(fb);
   setTimeout(() => fb.remove(), 1500);
 }
@@ -1333,19 +1331,6 @@ async function downloadNode(id) {
   downloadBlob(new Blob([bytes], {type: mime}), filename);
 }
 
-function showCtxMenu(x, y, nodeId) {
-  const menu = document.getElementById('node-ctx-menu');
-  const btn  = document.getElementById('ctx-download-btn');
-  btn.onclick = () => { hideCtxMenu(); downloadNode(nodeId); };
-  // Keep menu on screen
-  menu.style.left = Math.min(x, window.innerWidth  - 160) + 'px';
-  menu.style.top  = Math.min(y, window.innerHeight - 48)  + 'px';
-  menu.style.display = 'block';
-}
-
-function hideCtxMenu() {
-  document.getElementById('node-ctx-menu').style.display = 'none';
-}
 
 // ── Drop Zone ──────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -1367,9 +1352,7 @@ document.addEventListener('DOMContentLoaded', () => {
     e.stopPropagation();
     exportMenu.classList.toggle('open');
   });
-  document.addEventListener('click', () => { exportMenu.classList.remove('open'); hideCtxMenu(); });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') hideCtxMenu(); });
-  document.addEventListener('contextmenu', e => { if (!e.target.closest('.svg-node')) hideCtxMenu(); });
+  document.addEventListener('click', () => { exportMenu.classList.remove('open'); });
   document.getElementById('export-svg-btn').addEventListener('click', () => { exportMenu.classList.remove('open'); exportSvg(); });
   document.getElementById('export-png-btn').addEventListener('click', () => { exportMenu.classList.remove('open'); exportPng(); });
 
