@@ -682,7 +682,9 @@ async function processSolution(zip, g) {
       const wid  = guid(wf.getAttribute('WorkflowId'));
       const name = wf.getAttribute('Name') || wid;
       const jf   = wf.querySelector('JsonFileName')?.textContent?.trim() || '';
-      if (wid) { getOrCreate(g,'flow',wid,{displayName:name,filePath:jf}); if (name && name !== wid) g.flowNameToId.set(name, wid); }
+      const stateCode = wf.querySelector('StateCode')?.textContent?.trim();
+      const isActive = stateCode !== '0';
+      if (wid) { getOrCreate(g,'flow',wid,{displayName:name,filePath:jf,isActive}); if (name && name !== wid) g.flowNameToId.set(name, wid); }
     }
 
     for (const ca of dom.querySelectorAll('CanvasApps CanvasApp')) {
@@ -1072,7 +1074,9 @@ function renderSvg(g) {
     const x=n.svgX-COL_W/2, y=n.svgY;
     const ng=svgEl('g',{class:'svg-node'}); ng.dataset.id=n.id;
 
-    const rect=svgEl('rect',{x,y,width:COL_W,height:NODE_H,rx:NODE_RX,fill:c.fill,stroke:c.stroke,'stroke-width':1.5,class:'svg-node-rect'});
+    const rectAttrs = {x,y,width:COL_W,height:NODE_H,rx:NODE_RX,fill:c.fill,stroke:c.stroke,'stroke-width':1.5,class:'svg-node-rect'};
+    if (n.type === 'flow' && n.isActive === false) { rectAttrs['stroke-dasharray'] = '5 3'; ng.style.opacity = '0.5'; }
+    const rect=svgEl('rect',rectAttrs);
     ng.appendChild(rect);
     const titleEl=svgEl('title'); titleEl.textContent=n.displayName; ng.appendChild(titleEl);
 
@@ -1087,6 +1091,15 @@ function renderSvg(g) {
     sub.textContent=(n.type==='datasource'&&n.siteUrl)?extractSiteName(n.siteUrl)
       :(n.type==='envvar')?envVarTypeLabel(n.envVarType)
       :(TYPE_LABELS[n.type]||n.type); ng.appendChild(sub);
+
+    if (n.type === 'flow' && n.isActive === false) {
+      const badgeX = x + COL_W - 38, badgeY = y + 6, badgeW = 32, badgeH = 16;
+      const badgeBg = svgEl('rect',{x:badgeX,y:badgeY,width:badgeW,height:badgeH,rx:4,fill:'#dc2626'});
+      ng.appendChild(badgeBg);
+      const badgeTxt = svgEl('text',{x:badgeX+badgeW/2,y:badgeY+badgeH/2+1,'text-anchor':'middle','dominant-baseline':'middle','font-size':9,'font-weight':700,'font-family':'system-ui,sans-serif',fill:'#fff','letter-spacing':'0.05em'});
+      badgeTxt.textContent='OFF';
+      ng.appendChild(badgeTxt);
+    }
 
     ng.addEventListener('mouseenter',()=>{ if(state.selId!==n.id) hlNode(n.id,'hover'); });
     ng.addEventListener('mouseleave',()=>{ if(state.selId!==n.id) clearHL(); else hlNode(state.selId,'select'); });
