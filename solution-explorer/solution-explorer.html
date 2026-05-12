@@ -524,10 +524,10 @@ async function processFlowDef(path, json, g, hintGuid) {
 }
 
 // ── YAML Data Source Scanner ───────────────────────────────────────────────────
-function buildYamlPatterns(names, suffix = '') {
+function buildYamlPatterns(names, suffix = '', prefix = '=\\s*') {
   return [...names].map(name => ({
     name,
-    re: new RegExp('=\\s*' + name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + suffix, 'i'),
+    re: new RegExp(prefix + name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + suffix, 'i'),
   }));
 }
 
@@ -620,7 +620,7 @@ async function processMsapp(msZip, path, g) {
   }
   // Pre-compile regexes once before scanning all YAML files
   const dsPatterns   = buildYamlPatterns(dsNameToId.keys(), '\\b');
-  const flowPatterns = buildYamlPatterns(flowNameToId.keys(), '\\.Run\\b');
+  const flowPatterns = buildYamlPatterns(flowNameToId.keys(), '\\.Run\\b', '');
   for (const entry of msZip.entries) {
     if (SKIP_BY_NAME.has(entry.name)) continue;
     if (!/^Src\//i.test(entry.name) || !entry.name.endsWith('.pa.yaml')) continue;
