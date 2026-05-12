@@ -621,6 +621,8 @@ async function processMsapp(msZip, path, g) {
   // Pre-compile regexes once before scanning all YAML files
   const dsPatterns   = buildYamlPatterns(dsNameToId.keys(), '\\b');
   const flowPatterns = buildYamlPatterns(flowNameToId.keys(), '\\.Run\\b', '');
+  const flowAliasCIMap = new Map();
+  for (const [name, id] of flowNameToId) flowAliasCIMap.set(name.toLowerCase(), id);
   for (const entry of msZip.entries) {
     if (SKIP_BY_NAME.has(entry.name)) continue;
     if (!/^Src\//i.test(entry.name) || !entry.name.endsWith('.pa.yaml')) continue;
@@ -673,8 +675,9 @@ async function processMsapp(msZip, path, g) {
           getOrCreate(g, nodeType, cid, {displayName:cj.TopParent.Name, filePath:entry.name});
           if (isLegacyApp) {
             const scriptText = JSON.stringify(cj);
-            for (const name of scanYamlWithPatterns(scriptText, flowPatterns)) {
-              addEdge(g, cid, flowNameToId.get(name), 'screen-calls-flow');
+            for (const [, alias] of scriptText.matchAll(/\b([A-Za-z_]\w*)\.Run\s*\(/g)) {
+              const fid = flowNameToId.get(alias) || flowAliasCIMap.get(alias.toLowerCase());
+              if (fid) addEdge(g, cid, fid, 'screen-calls-flow');
             }
             for (const name of scanYamlWithPatterns(scriptText, dsPatterns)) {
               addEdge(g, cid, dsNameToId.get(name), 'screen-uses-data');
