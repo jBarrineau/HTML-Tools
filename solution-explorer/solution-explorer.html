@@ -64,6 +64,16 @@ html,body { width:100%; height:100%; overflow:hidden; font-family:var(--font-san
 }
 .zoom-btn:hover { background:var(--btn-hover); }
 
+.toggle-btn {
+  padding:5px 12px; border-radius:20px; border:1px solid rgba(148,163,184,0.35);
+  background:rgba(255,255,255,0.70); color:var(--text-muted); cursor:pointer;
+  font-size:var(--text-xs); font-family:var(--font-sans);
+  backdrop-filter:blur(var(--glass-blur)); transition:background 0.2s,opacity 0.2s;
+  white-space:nowrap;
+}
+.toggle-btn:hover { background:var(--btn-hover); }
+.toggle-btn--off { opacity:0.45; text-decoration:line-through; }
+
 #drop-zone {
   position:fixed; inset:0; display:flex; flex-direction:column;
   align-items:center; justify-content:center; gap:16px;
@@ -159,6 +169,8 @@ html,body { width:100%; height:100%; overflow:hidden; font-family:var(--font-san
     <div id="svg-panel-header">
       <span id="solution-name" style="font-weight:600;color:var(--text-main);"></span>
       <div id="legend"></div>
+      <button id="toggle-envvar-btn"   class="toggle-btn" style="display:none">⚙ Env Vars</button>
+      <button id="toggle-inactive-btn" class="toggle-btn" style="display:none">≋ Inactive Flows</button>
       <div class="export-wrap">
         <button id="export-btn">Export ▾</button>
         <div class="export-menu" id="export-menu">
@@ -831,6 +843,38 @@ async function processFile(file) {
   setLoading(false);
 }
 
+// ── Visible Graph View ─────────────────────────────────────────────────────────
+function buildVisibleGraph(g, filters) {
+  const hiddenIds = new Set();
+  for (const [id, n] of g.nodes) {
+    if (!filters.showEnvVars && n.type === 'envvar') hiddenIds.add(id);
+    if (!filters.showInactiveFlows && n.type === 'flow' && n.isActive === false) hiddenIds.add(id);
+  }
+  const nodes = new Map();
+  for (const [id, n] of g.nodes) { if (!hiddenIds.has(id)) nodes.set(id, n); }
+  const byType = new Map();
+  for (const [type, ids] of g.byType) {
+    const filtered = ids.filter(id => !hiddenIds.has(id));
+    if (filtered.length) byType.set(type, filtered);
+  }
+  const edges = g.edges.filter(e => !hiddenIds.has(e.srcId) && !hiddenIds.has(e.dstId));
+  return { ...g, nodes, byType, edges };
+}
+
+function rerender() {
+  if (!state.G) return;
+  for (const n of state.G.nodes.values()) n.svgEl = null;
+  for (const e of state.G.edges) e.svgEl = null;
+  const vg = buildVisibleGraph(state.G, state);
+  computeLayout(vg);
+  renderSvg(vg);
+  renderLegend(vg);
+  state.G.svgW = vg.svgW; state.G.svgH = vg.svgH;
+  if (state.selId && vg.nodes.has(state.selId)) hlNode(state.selId, 'select');
+  else state.selId = null;
+  requestAnimationFrame(fitToView);
+}
+
 // ── SVG Layout ─────────────────────────────────────────────────────────────────
 function computeLayout(g) {
   // sideCols holds only columns 0 (data) and 1 (flows); col 2 (apps) is laid out separately below
@@ -929,6 +973,8 @@ const state = {
   tx: 0, ty: 0, scale: 1,
   _dragging: false, _dragMoved: false,
   _dragStartX: 0, _dragStartY: 0, _dragStartTx: 0, _dragStartTy: 0,
+  showEnvVars: true,
+  showInactiveFlows: true,
 };
 
 function applyTransform() {
@@ -994,12 +1040,18 @@ function onDocMouseup() {
 
 function renderAll(g, fname) {
   state.G = g; state.selId = null; state.fname = fname || null;
+  state.showEnvVars = true; state.showInactiveFlows = true;
   document.getElementById('drop-zone').style.display = 'none';
   document.getElementById('main-layout').style.display = 'flex';
   document.getElementById('solution-name').textContent = g.solutionName || '';
-  computeLayout(g);
-  renderSvg(g);
-  renderLegend(g);
+  for (const n of g.nodes.values()) n.svgEl = null;
+  for (const e of g.edges) e.svgEl = null;
+  const vg = buildVisibleGraph(g, state);
+  computeLayout(vg);
+  renderSvg(vg);
+  renderLegend(vg);
+  g.svgW = vg.svgW; g.svgH = vg.svgH;
+  renderVisibilityControls(g);
   requestAnimationFrame(fitToView);
 }
 
@@ -1140,6 +1192,18 @@ function renderLegend(g) {
     item.appendChild(line); item.appendChild(label);
     leg.appendChild(item);
   }
+}
+
+function renderVisibilityControls(g) {
+  const hasEnvVars = (g.byType.get('envvar') || []).length > 0;
+  const hasInactiveFlows = (g.byType.get('flow') || [])
+    .some(id => { const n = g.nodes.get(id); return n && n.isActive === false; });
+  const envBtn      = document.getElementById('toggle-envvar-btn');
+  const inactiveBtn = document.getElementById('toggle-inactive-btn');
+  envBtn.style.display      = hasEnvVars       ? '' : 'none';
+  inactiveBtn.style.display = hasInactiveFlows ? '' : 'none';
+  envBtn.classList.toggle('toggle-btn--off',      !state.showEnvVars);
+  inactiveBtn.classList.toggle('toggle-btn--off', !state.showInactiveFlows);
 }
 
 // ── Cross-Highlighting ─────────────────────────────────────────────────────────
@@ -1337,6 +1401,18 @@ async function downloadNode(id) {
 
 // ── Drop Zone ──────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+  // Visibility toggles
+  document.getElementById('toggle-envvar-btn').addEventListener('click', () => {
+    state.showEnvVars = !state.showEnvVars;
+    document.getElementById('toggle-envvar-btn').classList.toggle('toggle-btn--off', !state.showEnvVars);
+    rerender();
+  });
+  document.getElementById('toggle-inactive-btn').addEventListener('click', () => {
+    state.showInactiveFlows = !state.showInactiveFlows;
+    document.getElementById('toggle-inactive-btn').classList.toggle('toggle-btn--off', !state.showInactiveFlows);
+    rerender();
+  });
+
   // Reset
   document.getElementById('reset-btn').addEventListener('click',()=>{
     state.G=null; state.selId=null; state.zip=null; state.fname=null;
