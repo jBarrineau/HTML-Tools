@@ -1087,13 +1087,7 @@ function renderSvg(g) {
     const titleEl=svgEl('title'); titleEl.textContent=n.displayName; ng.appendChild(titleEl);
 
     const ico=svgEl('text',{x:x+12,y:y+NODE_H/2+1,'dominant-baseline':'middle','font-size':18,fill:c.icon||''}); ico.textContent=TYPE_ICONS[n.type]??'?';
-    if (n.type === 'datasource' && buildSharePointListUrl(n)) {
-      const icoG = svgEl('g'); icoG.style.cursor = 'crosshair';
-      const icoHit = svgEl('rect',{x:x+4,y:y+NODE_H/2-13,width:28,height:28,fill:'transparent'});
-      icoG.appendChild(icoHit); icoG.appendChild(ico);
-      icoG.addEventListener('click', e => { e.stopPropagation(); copySharePointUrl(n, ng, x, y); });
-      ng.appendChild(icoG);
-    } else if ((n.type === 'flow' || n.type === 'screen') && n.filePath) {
+    if ((n.type === 'flow' || n.type === 'screen') && n.filePath) {
       const icoG = svgEl('g'); icoG.style.cursor = 'crosshair';
       const icoHit = svgEl('rect',{x:x+4,y:y+NODE_H/2-13,width:28,height:28,fill:'transparent'});
       icoG.appendChild(icoHit); icoG.appendChild(ico);
