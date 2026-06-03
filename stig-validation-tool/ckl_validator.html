@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>STIG CKL Validator</title>
+<style>
+:root {
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+  --text-xs: 0.75rem; --text-sm: 0.875rem; --text-base: 1rem;
+  --text-lg: 1.125rem; --text-xl: 1.25rem; --text-2xl: 1.5rem;
+  --bg-app: linear-gradient(135deg, #e8edf5 0%, #cdd6e8 100%);
+  --bg-blob-1: #b8cce4; --bg-blob-2: #c5d3e8;
+  --glass-bg: rgba(255,255,255,0.55);
+  --glass-border: rgba(255,255,255,0.7);
+  --glass-shadow: 0 8px 32px 0 rgba(26,58,110,0.10);
+  --glass-blur: 12px;
+  --text-main: #111827; --text-muted: #4b5563; --text-subtle: #9ca3af;
+  --btn-bg: rgba(26,58,110,0.9); --btn-text: #fff; --btn-hover: rgba(26,58,110,1);
+  --c-pass: #166534; --c-pass-bg: #dcfce7; --c-pass-border: #86efac;
+  --c-fail: #991b1b; --c-fail-bg: #fee2e2; --c-fail-border: #fca5a5;
+  --c-warn: #92400e; --c-warn-bg: #fef3c7; --c-warn-border: #fcd34d;
+  --c-info: #1e40af; --c-info-bg: #dbeafe; --c-info-border: #93c5fd;
+  --tab-bg: rgba(255,255,255,0.28); --tab-active: rgba(255,255,255,0.65);
+  --tab-border: rgba(26,58,110,0.18);
+  --dz-bg: rgba(255,255,255,0.35); --dz-border: rgba(26,58,110,0.28);
+  --dz-active-bg: rgba(37,99,235,0.08); --dz-active-border: rgba(37,99,235,0.55);
+  --seg-open: #dc2626; --seg-naf: #16a34a; --seg-nr: #d97706; --seg-na: #6b7280;
+}
+[data-theme="dark"] {
+  --bg-app: linear-gradient(135deg, #0d1b2e 0%, #1a2f4e 50%, #1e3a5f 100%);
+  --bg-blob-1: #1e3a6e; --bg-blob-2: #0f3460;
+  --glass-bg: rgba(13,25,45,0.65);
+  --glass-border: rgba(255,255,255,0.10);
+  --glass-shadow: 0 8px 32px 0 rgba(0,0,0,0.40);
+  --glass-blur: 16px;
+  --text-main: #f0f4f8; --text-muted: #94a3b8; --text-subtle: #64748b;
+  --btn-bg: rgba(37,99,235,0.85); --btn-text: #fff; --btn-hover: rgba(37,99,235,1);
+  --c-pass: #86efac; --c-pass-bg: rgba(22,101,52,0.3); --c-pass-border: rgba(134,239,172,0.3);
+  --c-fail: #fca5a5; --c-fail-bg: rgba(153,27,27,0.3); --c-fail-border: rgba(252,165,165,0.3);
+  --c-warn: #fcd34d; --c-warn-bg: rgba(146,64,14,0.3); --c-warn-border: rgba(252,211,77,0.3);
+  --c-info: #93c5fd; --c-info-bg: rgba(30,64,175,0.3); --c-info-border: rgba(147,197,253,0.3);
+  --tab-bg: rgba(13,25,45,0.38); --tab-active: rgba(13,25,45,0.78);
+  --tab-border: rgba(255,255,255,0.13);
+  --dz-bg: rgba(13,25,45,0.38); --dz-border: rgba(147,197,253,0.28);
+  --dz-active-bg: rgba(37,99,235,0.15); --dz-active-border: rgba(37,99,235,0.6);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{min-height:100%}
+body{
+  font-family:var(--font-sans);background:var(--bg-app);
+  color:var(--text-main);line-height:1.5;
+  -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+  min-height:100vh;padding:1rem;
+}
+body::before,body::after{
+  content:'';position:fixed;border-radius:50%;filter:blur(90px);
+  opacity:0.35;z-index:-1;pointer-events:none;
+}
+body::before{width:480px;height:480px;background:var(--bg-blob-1);top:-120px;left:-120px}
+body::after{width:380px;height:380px;background:var(--bg-blob-2);bottom:-100px;right:-100px}
+.glass{
+  background:var(--glass-bg);
+  backdrop-filter:blur(var(--glass-blur));
+  -webkit-backdrop-filter:blur(var(--glass-blur));
+  border:1px solid var(--glass-border);
+  box-shadow:var(--glass-shadow);
+  border-radius:16px;
+}
+.wrap{max-width:1160px;margin:0 auto}
+/* Header */
+.hdr{display:flex;align-items:center;justify-content:space-between;padding:1.1rem 1.4rem;margin-bottom:1.25rem}
+.hdr-left{display:flex;align-items:center;gap:.8rem}
+.hdr-left h1{font-size:var(--text-2xl);font-weight:700;letter-spacing:-.02em}
+.hdr-left p{font-size:var(--text-sm);color:var(--text-muted);margin-top:.1rem}
+#theme-btn{
+  background:var(--glass-bg);border:1px solid var(--glass-border);
+  border-radius:50%;width:38px;height:38px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--text-main);transition:background .2s,color .2s;
+  backdrop-filter:blur(var(--glass-blur));
+}
+#theme-btn:hover{background:var(--btn-bg);color:var(--btn-text)}
+/* Buttons */
+.btn{
+  display:inline-flex;align-items:center;gap:.4rem;
+  padding:.48rem 1rem;border-radius:8px;font-size:var(--text-sm);
+  font-weight:500;cursor:pointer;border:none;font-family:var(--font-sans);
+  transition:background .2s,color .2s;
+}
+.btn-primary{background:var(--btn-bg);color:var(--btn-text)}
+.btn-primary:hover{background:var(--btn-hover)}
+.btn-ghost{
+  background:var(--glass-bg);color:var(--text-main);
+  border:1px solid var(--glass-border);
+  backdrop-filter:blur(var(--glass-blur));
+}
+.btn-ghost:hover{background:var(--btn-bg);color:var(--btn-text)}
+/* Drop zone */
+.dz{
+  background:var(--dz-bg);
+  backdrop-filter:blur(var(--glass-blur));
+  -webkit-backdrop-filter:blur(var(--glass-blur));
+  border:2px dashed var(--dz-border);border-radius:16px;
+  padding:2.8rem 2rem;text-align:center;cursor:pointer;
+  transition:background .2s,border-color .2s;margin-bottom:1.25rem;
+}
+.dz.over,.dz:hover{background:var(--dz-active-bg);border-color:var(--dz-active-border)}
+.dz h2{font-size:var(--text-lg);font-weight:600;margin-bottom:.4rem}
+.dz p{font-size:var(--text-sm);color:var(--text-muted);margin-bottom:1.1rem}
+.dz code{background:var(--glass-bg);padding:.1rem .35rem;border-radius:4px;font-size:.8rem}
+#file-input{display:none}
+/* Tabs */
+.tabs-wrap{display:none}
+.tabs-hdr{display:flex;gap:.2rem;overflow-x:auto;padding-bottom:0;scrollbar-width:thin}
+.tab{
+  display:flex;align-items:center;gap:.45rem;
+  padding:.55rem .9rem;background:var(--tab-bg);
+  border:1px solid var(--tab-border);border-bottom:none;
+  border-radius:10px 10px 0 0;cursor:pointer;
+  font-size:var(--text-sm);font-weight:500;color:var(--text-muted);
+  white-space:nowrap;transition:background .15s;max-width:230px;
+}
+.tab.active{background:var(--tab-active);color:var(--text-main);backdrop-filter:blur(var(--glass-blur))}
+.tab-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.tab-dot.pass{background:#16a34a}.tab-dot.fail{background:#dc2626}.tab-dot.loading{background:#d97706}
+.tab-name{overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+.tab-x{
+  flex-shrink:0;width:17px;height:17px;display:flex;align-items:center;
+  justify-content:center;border-radius:4px;font-size:14px;line-height:1;
+  opacity:.5;transition:opacity .15s,background .15s;
+}
+.tab-x:hover{opacity:1;background:rgba(220,38,38,.15);color:#dc2626}
+.tabs-body{
+  background:var(--tab-active);
+  backdrop-filter:blur(var(--glass-blur));
+  -webkit-backdrop-filter:blur(var(--glass-blur));
+  border:1px solid var(--glass-border);
+  border-radius:0 16px 16px 16px;
+  box-shadow:var(--glass-shadow);padding:1.4rem;
+}
+/* Results panel */
+.rp>*+*{margin-top:1.1rem}
+/* Validation result row */
+.val-row{
+  display:flex;align-items:center;gap:1rem;
+  padding:.9rem 1.2rem;border-radius:12px;border:1px solid;
+}
+.val-row.pass{background:var(--c-pass-bg);border-color:var(--c-pass-border);color:var(--c-pass)}
+.val-row.fail{background:var(--c-fail-bg);border-color:var(--c-fail-border);color:var(--c-fail)}
+.badge{
+  display:inline-flex;align-items:center;gap:.35rem;
+  padding:.3rem .75rem;border-radius:6px;font-size:var(--text-sm);
+  font-weight:700;letter-spacing:.05em;flex-shrink:0;
+}
+.badge.pass{background:#166534;color:#dcfce7}
+.badge.fail{background:#991b1b;color:#fee2e2}
+.val-text strong{display:block;font-size:var(--text-base);margin-bottom:.1rem}
+.val-text span{font-size:var(--text-sm);opacity:.85}
+/* Struct errors */
+.errs{background:var(--c-fail-bg);border:1px solid var(--c-fail-border);border-radius:12px;overflow:hidden}
+.errs-hdr{
+  padding:.6rem 1.1rem;font-size:var(--text-xs);font-weight:700;
+  letter-spacing:.07em;text-transform:uppercase;color:var(--c-fail);
+  border-bottom:1px solid var(--c-fail-border);
+}
+.err-list{padding:.6rem 1.1rem}
+.err-item{
+  display:flex;align-items:flex-start;gap:.45rem;
+  padding:.35rem 0;font-size:var(--text-sm);color:var(--c-fail);
+  border-bottom:1px solid var(--c-fail-border);
+}
+.err-item:last-child{border-bottom:none}
+.err-item::before{content:'×';font-weight:700;flex-shrink:0;margin-top:.1rem}
+/* Section header */
+.sec-hdr{
+  font-size:var(--text-xs);font-weight:700;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--text-muted);margin-bottom:.4rem;
+}
+/* Info grid */
+.info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:.9rem}
+.info-card{
+  background:var(--glass-bg);border:1px solid var(--glass-border);
+  border-radius:12px;padding:.9rem 1.1rem;
+  backdrop-filter:blur(var(--glass-blur));
+}
+.ic-title{
+  font-size:var(--text-xs);font-weight:700;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--text-muted);
+  margin-bottom:.65rem;padding-bottom:.45rem;border-bottom:1px solid var(--glass-border);
+}
+.ir{display:grid;grid-template-columns:130px 1fr;gap:.2rem .5rem;align-items:baseline;padding:.18rem 0}
+.il{font-size:var(--text-xs);font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em}
+.iv{font-size:var(--text-sm);color:var(--text-main);word-break:break-all}
+.iv.empty{color:var(--text-subtle);font-style:italic}
+.stig-sep{margin-top:.9rem;padding-top:.9rem;border-top:1px solid var(--glass-border)}
+.stig-sub{font-size:var(--text-xs);font-weight:600;color:var(--text-muted);margin-bottom:.3rem}
+/* Status summary */
+.ss{
+  background:var(--glass-bg);border:1px solid var(--glass-border);
+  border-radius:12px;padding:.9rem 1.1rem;
+  backdrop-filter:blur(var(--glass-blur));
+}
+.ss-hdr{
+  display:flex;align-items:center;justify-content:space-between;
+  font-size:var(--text-xs);font-weight:700;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--text-muted);
+  margin-bottom:.9rem;padding-bottom:.45rem;border-bottom:1px solid var(--glass-border);
+}
+.ss-total{font-size:var(--text-sm);font-weight:600;color:var(--text-main);text-transform:none;letter-spacing:0}
+.bar-track{
+  height:26px;border-radius:6px;overflow:hidden;
+  display:flex;margin-bottom:.7rem;background:rgba(0,0,0,.05);
+}
+.seg{
+  display:flex;align-items:center;justify-content:center;
+  font-size:var(--text-xs);font-weight:600;color:#fff;
+  transition:width .4s ease;overflow:hidden;white-space:nowrap;
+}
+.seg-open{background:var(--seg-open)}.seg-naf{background:var(--seg-naf)}
+.seg-nr{background:var(--seg-nr)}.seg-na{background:var(--seg-na)}
+.legend{display:flex;flex-wrap:wrap;gap:.65rem}
+.li{display:flex;align-items:center;gap:.35rem;font-size:var(--text-sm)}
+.ldot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+.lct{font-weight:700;color:var(--text-main)}.llb{color:var(--text-muted)}
+/* Issues */
+.issues>*+*{margin-top:.65rem}
+details.issue-block{
+  background:var(--glass-bg);border:1px solid var(--glass-border);
+  border-radius:12px;overflow:hidden;
+  backdrop-filter:blur(var(--glass-blur));
+}
+details.issue-block[open] summary{border-bottom:1px solid var(--glass-border)}
+details.issue-block summary{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:.8rem 1.1rem;cursor:pointer;list-style:none;user-select:none;
+}
+details.issue-block summary::-webkit-details-marker{display:none}
+.sum-left{display:flex;align-items:center;gap:.7rem}
+.iicon{
+  width:28px;height:28px;border-radius:8px;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.iicon.warn{background:var(--c-warn-bg);color:var(--c-warn);border:1px solid var(--c-warn-border)}
+.iicon.err{background:var(--c-fail-bg);color:var(--c-fail);border:1px solid var(--c-fail-border)}
+.iicon.info{background:var(--c-info-bg);color:var(--c-info);border:1px solid var(--c-info-border)}
+.ititle{font-size:var(--text-sm);font-weight:600;color:var(--text-main)}
+.isub{font-size:var(--text-xs);color:var(--text-muted);margin-top:.1rem}
+.sum-right{display:flex;align-items:center;gap:.65rem}
+.icnt{
+  padding:.18rem .55rem;border-radius:100px;
+  font-size:var(--text-xs);font-weight:700;
+}
+.icnt.warn{background:var(--c-warn-bg);color:var(--c-warn);border:1px solid var(--c-warn-border)}
+.icnt.err{background:var(--c-fail-bg);color:var(--c-fail);border:1px solid var(--c-fail-border)}
+.icnt.info{background:var(--c-info-bg);color:var(--c-info);border:1px solid var(--c-info-border)}
+.chev{color:var(--text-muted);transition:transform .2s;flex-shrink:0}
+details[open] .chev{transform:rotate(180deg)}
+.ilist{padding:.65rem 1.1rem}
+.iitem{
+  display:flex;align-items:flex-start;gap:.65rem;
+  padding:.5rem 0;border-bottom:1px solid var(--glass-border);
+  font-size:var(--text-sm);
+}
+.iitem:last-child{border-bottom:none}
+.vid{
+  font-weight:600;font-size:var(--text-xs);padding:.18rem .45rem;
+  border-radius:4px;flex-shrink:0;font-family:monospace;
+}
+.vid.warn{background:var(--c-warn-bg);color:var(--c-warn)}
+.vid.err{background:var(--c-fail-bg);color:var(--c-fail)}
+.vid.info{background:var(--c-info-bg);color:var(--c-info)}
+.idesc{color:var(--text-muted);line-height:1.4}
+/* All clear */
+.all-clear{
+  display:flex;align-items:center;gap:.7rem;
+  padding:.85rem 1.1rem;background:var(--c-pass-bg);
+  border:1px solid var(--c-pass-border);border-radius:12px;
+  font-size:var(--text-sm);color:var(--c-pass);font-weight:500;
+}
+/* Export */
+.export-row{display:flex;justify-content:flex-end;padding-top:.3rem}
+/* Empty state */
+.empty{text-align:center;padding:2.5rem 2rem;color:var(--text-muted);font-size:var(--text-base)}
+/* Scrollbars */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--glass-border);border-radius:3px}
+@media(max-width:640px){
+  .info-grid{grid-template-columns:1fr}
+  .legend{gap:.4rem}
+  body{padding:.65rem}
+  .hdr{flex-direction:column;align-items:flex-start;gap:.65rem}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hdr glass">
+    <div class="hdr-left">
+      <svg width="34" height="34" viewBox="0 0 34 34" fill="none">
+        <path d="M17 2L4 7.5v8c0 8.28 5.6 15.5 13 17.5 7.4-2 13-9.22 13-17.5v-8L17 2z" fill="rgba(26,58,110,0.85)"/>
+        <path d="M11.5 17.5l4 4 7.5-8" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <div>
+        <h1>STIG CKL Validator</h1>
+        <p>DoD STIG Checklist — Structural &amp; Data Quality Validation</p>
+      </div>
+    </div>
+    <button id="theme-btn" title="Toggle theme" aria-label="Toggle theme">
+      <svg id="ico-sun" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+      <svg id="ico-moon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+    </button>
+  </header>
+
+  <div class="dz" id="dz">
+    <svg width="44" height="44" viewBox="0 0 44 44" fill="none" stroke="currentColor" stroke-width="1.4" opacity="0.45" style="margin-bottom:.8rem">
+      <path d="M26 3H12a4 4 0 0 0-4 4v30a4 4 0 0 0 4 4h20a4 4 0 0 0 4-4V15L26 3z" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M26 3v12h12M22 26v-8M18 22l4-4 4 4" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <h2>Drop CKL Files Here</h2>
+    <p>Drag and drop one or more <code>.ckl</code> checklist files, or click to browse</p>
+    <button class="btn btn-primary" id="browse-btn" type="button">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      Select Files
+    </button>
+    <input type="file" id="file-input" accept=".ckl" multiple>
+  </div>
+
+  <div class="tabs-wrap" id="tabs-wrap">
+    <div class="tabs-hdr" id="tabs-hdr"></div>
+    <div class="tabs-body" id="tabs-body">
+      <div id="results-mount"></div>
+    </div>
+  </div>
+
+</div>
+<script>
+(function(){
+'use strict';
+
+// ── State ──────────────────────────────────────────────────────────────────
+const store = new Map(); // id -> {name, status:'loading'|'pass'|'fail', result}
+let active = null, seq = 0;
+
+// ── Theme ──────────────────────────────────────────────────────────────────
+const themeBtn = document.getElementById('theme-btn');
+const icoSun   = document.getElementById('ico-sun');
+const icoMoon  = document.getElementById('ico-moon');
+
+function applyTheme(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  icoSun.style.display  = t === 'dark' ? 'none' : '';
+  icoMoon.style.display = t === 'dark' ? '' : 'none';
+}
+applyTheme(localStorage.getItem('theme') || 'light');
+themeBtn.addEventListener('click', () => {
+  const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  localStorage.setItem('theme', next);
+  applyTheme(next);
+});
+
+// ── Drop zone ──────────────────────────────────────────────────────────────
+const dz        = document.getElementById('dz');
+const fileInput = document.getElementById('file-input');
+
+document.getElementById('browse-btn').addEventListener('click', e => { e.stopPropagation(); fileInput.click(); });
+dz.addEventListener('click', () => fileInput.click());
+dz.addEventListener('dragover',  e => { e.preventDefault(); dz.classList.add('over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('over'));
+dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('over'); loadFiles(e.dataTransfer.files); });
+fileInput.addEventListener('change', () => { loadFiles(fileInput.files); fileInput.value = ''; });
+
+function loadFiles(list) {
+  Array.from(list).forEach(f => {
+    if (!f.name.toLowerCase().endsWith('.ckl')) return;
+    const id = ++seq;
+    store.set(id, { name: f.name, status: 'loading', result: null });
+    if (active === null) active = id;
+    renderTabs();
+    renderResult();
+
+    const fr = new FileReader();
+    fr.onload = ev => {
+      const r = processFile(f.name, ev.target.result);
+      const entry = store.get(id);
+      entry.result = r;
+      entry.status = r.structuralValid ? 'pass' : 'fail';
+      if (active === id) renderResult();
+      renderTabs();
+    };
+    fr.onerror = () => {
+      const entry = store.get(id);
+      entry.status = 'fail';
+      entry.result = { fileError: 'Failed to read file.', structuralValid: false, structuralErrors: [] };
+      if (active === id) renderResult();
+      renderTabs();
+    };
+    fr.readAsText(f);
+  });
+}
+
+// ── XML helpers ────────────────────────────────────────────────────────────
+function kids(parent, tag) {
+  const out = [];
+  for (const c of parent.children) if (c.tagName === tag) out.push(c);
+  return out;
+}
+function kid(parent, tag) {
+  for (const c of parent.children) if (c.tagName === tag) return c;
+  return null;
+}
+function txt(el) { return el ? el.textContent.trim() : ''; }
+function descendant(el, tag) { return el.getElementsByTagName(tag)[0] || null; }
+
+// ── Validation ─────────────────────────────────────────────────────────────
+function processFile(filename, content) {
+  const r = {
+    filename, validatedAt: new Date().toISOString(),
+    structuralValid: false, structuralErrors: [],
+    assetInfo: null, stigInfos: [],
+    statusCounts: { Open:0, NotAFinding:0, Not_Reviewed:0, Not_Applicable:0 },
+    totalVulns: 0,
+    issues: { notReviewed:[], openNoDetails:[], overrideNoJustify:[] },
+  };
+  const errs = r.structuralErrors;
+
+  // Parse
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(content, 'text/xml');
+
+  // Detect parse error
+  const pe = doc.getElementsByTagName('parsererror')[0];
+  if (pe || (doc.documentElement && doc.documentElement.tagName === 'parsererror')) {
+    errs.push('XML is not well-formed — parse error detected.');
+    return r;
+  }
+
+  const root = doc.documentElement;
+  if (root.tagName !== 'CHECKLIST') {
+    errs.push(`Root element must be <CHECKLIST>; found <${root.tagName}>.`);
+    return r;
+  }
+
+  // ASSET
+  const asset = kid(root, 'ASSET');
+  if (!asset) {
+    errs.push('Missing required <ASSET> element.');
+  } else {
+    for (const t of ['ROLE','ASSET_TYPE','HOST_NAME','HOST_IP','HOST_MAC','HOST_FQDN','TECH_AREA','TARGET_KEY']) {
+      if (!kid(asset, t)) errs.push(`<ASSET> is missing required child: <${t}>`);
+    }
+  }
+
+  // STIGS
+  const stigs = kid(root, 'STIGS');
+  if (!stigs) {
+    errs.push('Missing required <STIGS> element.');
+  } else {
+    const iSTIGs = kids(stigs, 'iSTIG');
+    if (!iSTIGs.length) {
+      errs.push('<STIGS> must contain at least one <iSTIG>.');
+    } else {
+      const REQUIRED_ATTRS = ['Vuln_Num','Severity','Rule_ID','STIG_ID','Rule_Title','Vuln_Discuss','Check_Content','Fix_Text','CCI_REF'];
+      const VALID_STATUS   = new Set(['Open','NotAFinding','Not_Reviewed','Not_Applicable']);
+      const REQUIRED_ELEMS = ['STATUS','FINDING_DETAILS','COMMENTS','SEVERITY_OVERRIDE','SEVERITY_JUSTIFICATION'];
+
+      iSTIGs.forEach((iSTIG, si) => {
+        const iL = `<iSTIG>[${si+1}]`;
+
+        // STIG_INFO
+        const stigInfo = kid(iSTIG, 'STIG_INFO');
+        if (!stigInfo) {
+          errs.push(`${iL}: Missing required <STIG_INFO>.`);
+        } else {
+          const siDatas = kids(stigInfo, 'SI_DATA');
+          if (!siDatas.length) {
+            errs.push(`${iL} <STIG_INFO>: Must contain at least one <SI_DATA>.`);
+          } else {
+            siDatas.forEach((sd, di) => {
+              if (!kid(sd, 'SID_NAME')) errs.push(`${iL} <SI_DATA>[${di+1}]: Missing <SID_NAME>.`);
+              if (!kid(sd, 'SID_DATA')) errs.push(`${iL} <SI_DATA>[${di+1}]: Missing <SID_DATA>.`);
+            });
+          }
+        }
+
+        // VULNs
+        const vulns = kids(iSTIG, 'VULN');
+        if (!vulns.length) {
+          errs.push(`${iL}: Must contain at least one <VULN>.`);
+        } else {
+          vulns.forEach((vuln, vi) => {
+            // Identify the VULN
+            let vulnNum = '', ruleId = '';
+            kids(vuln, 'STIG_DATA').forEach(sd => {
+              const n = txt(kid(sd,'VULN_ATTRIBUTE'));
+              const v = txt(kid(sd,'ATTRIBUTE_DATA'));
+              if (n === 'Vuln_Num') vulnNum = v;
+              if (n === 'Rule_ID')  ruleId  = v;
+            });
+            const vL = vulnNum ? `VULN ${vulnNum}` : (ruleId ? `VULN [${ruleId}]` : `VULN [#${vi+1}]`);
+
+            // STIG_DATA structure
+            const stigDatas = kids(vuln, 'STIG_DATA');
+            if (!stigDatas.length) {
+              errs.push(`${iL} ${vL}: Must have at least one <STIG_DATA>.`);
+            } else {
+              stigDatas.forEach((sd, di) => {
+                if (!kid(sd,'VULN_ATTRIBUTE')) errs.push(`${iL} ${vL} <STIG_DATA>[${di+1}]: Missing <VULN_ATTRIBUTE>.`);
+                if (!kid(sd,'ATTRIBUTE_DATA')) errs.push(`${iL} ${vL} <STIG_DATA>[${di+1}]: Missing <ATTRIBUTE_DATA>.`);
+              });
+              const present = new Set(stigDatas.map(sd => txt(kid(sd,'VULN_ATTRIBUTE'))));
+              for (const req of REQUIRED_ATTRS) {
+                if (!present.has(req)) errs.push(`${iL} ${vL}: Missing required VULN_ATTRIBUTE: "${req}".`);
+              }
+            }
+
+            // Required elements
+            for (const t of REQUIRED_ELEMS) {
+              if (!kid(vuln, t)) errs.push(`${iL} ${vL}: Missing required element: <${t}>.`);
+            }
+
+            // STATUS value
+            const statusEl = kid(vuln, 'STATUS');
+            if (statusEl) {
+              const sv = txt(statusEl);
+              if (!VALID_STATUS.has(sv))
+                errs.push(`${iL} ${vL}: Invalid STATUS "${sv}". Must be one of: Open, NotAFinding, Not_Reviewed, Not_Applicable.`);
+            }
+          });
+        }
+      });
+    }
+  }
+
+  r.structuralValid = errs.length === 0;
+  if (!r.structuralValid) return r;
+
+  // ── Extract asset info ───────────────────────────────────────────────────
+  r.assetInfo = {
+    hostName:  txt(kid(asset,'HOST_NAME')),
+    hostIp:    txt(kid(asset,'HOST_IP')),
+    hostFqdn:  txt(kid(asset,'HOST_FQDN')),
+    hostMac:   txt(kid(asset,'HOST_MAC')),
+    assetType: txt(kid(asset,'ASSET_TYPE')),
+    role:      txt(kid(asset,'ROLE')),
+    techArea:  txt(kid(asset,'TECH_AREA')),
+    targetKey: txt(kid(asset,'TARGET_KEY')),
+  };
+
+  // ── Extract STIG info ────────────────────────────────────────────────────
+  kids(stigs, 'iSTIG').forEach((iSTIG, idx) => {
+    const fields = {};
+    const stigInfo = kid(iSTIG, 'STIG_INFO');
+    if (stigInfo) {
+      kids(stigInfo, 'SI_DATA').forEach(sd => {
+        const n = txt(kid(sd,'SID_NAME'));
+        const v = txt(kid(sd,'SID_DATA'));
+        if (n) fields[n] = v;
+      });
+    }
+    r.stigInfos.push({ index: idx+1, fields });
+  });
+
+  // ── Data quality ─────────────────────────────────────────────────────────
+  const allVulns = Array.from(doc.getElementsByTagName('VULN'));
+  r.totalVulns = allVulns.length;
+
+  allVulns.forEach(vuln => {
+    const attrs = {};
+    Array.from(vuln.getElementsByTagName('STIG_DATA')).forEach(sd => {
+      // only direct children of this VULN
+      if (sd.parentNode !== vuln) return;
+      const n = txt(kid(sd,'VULN_ATTRIBUTE'));
+      const v = txt(kid(sd,'ATTRIBUTE_DATA'));
+      if (n) attrs[n] = v;
+    });
+
+    const id       = attrs['Vuln_Num'] || attrs['Rule_ID'] || 'Unknown';
+    const vulnNum  = attrs['Vuln_Num'] || '';
+    const ruleId   = attrs['Rule_ID']  || '';
+    const status   = txt(kid(vuln,'STATUS'));
+    const details  = txt(kid(vuln,'FINDING_DETAILS'));
+    const override = txt(kid(vuln,'SEVERITY_OVERRIDE'));
+    const justify  = txt(kid(vuln,'SEVERITY_JUSTIFICATION'));
+
+    if (status in r.statusCounts) r.statusCounts[status]++;
+
+    if (status === 'Not_Reviewed')
+      r.issues.notReviewed.push({ id, vulnNum, ruleId });
+    if (status === 'Open' && !details)
+      r.issues.openNoDetails.push({ id, vulnNum, ruleId });
+    if (override && !justify)
+      r.issues.overrideNoJustify.push({ id, vulnNum, ruleId, override });
+  });
+
+  return r;
+}
+
+// ── Render tabs ────────────────────────────────────────────────────────────
+function renderTabs() {
+  const wrap = document.getElementById('tabs-wrap');
+  const hdr  = document.getElementById('tabs-hdr');
+
+  if (!store.size) { wrap.style.display = 'none'; return; }
+  wrap.style.display = '';
+
+  let html = '';
+  store.forEach((entry, id) => {
+    const a = id === active ? ' active' : '';
+    html += `<div class="tab${a}" data-id="${id}">
+      <span class="tab-dot ${entry.status}"></span>
+      <span class="tab-name" title="${esc(entry.name)}">${esc(entry.name)}</span>
+      <span class="tab-x" data-close="${id}">×</span>
+    </div>`;
+  });
+  hdr.innerHTML = html;
+
+  hdr.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', e => {
+      const closeId = e.target.dataset.close;
+      if (closeId) { closeTab(parseInt(closeId)); return; }
+      active = parseInt(tab.dataset.id);
+      renderTabs();
+      renderResult();
+    });
+  });
+}
+
+function closeTab(id) {
+  store.delete(id);
+  if (active === id) {
+    const keys = [...store.keys()];
+    active = keys.length ? keys[keys.length - 1] : null;
+  }
+  renderTabs();
+  renderResult();
+}
+
+// ── Render result ──────────────────────────────────────────────────────────
+function renderResult() {
+  const mount = document.getElementById('results-mount');
+  if (!active || !store.has(active)) {
+    mount.innerHTML = '<div class="empty">No file selected.</div>';
+    return;
+  }
+  const { status, result } = store.get(active);
+  if (status === 'loading') {
+    mount.innerHTML = '<div class="empty">Loading and validating…</div>';
+    return;
+  }
+  if (result && result.fileError) {
+    mount.innerHTML = `<div class="val-row fail"><span class="badge fail">ERROR</span><div class="val-text"><strong>File Error</strong><span>${esc(result.fileError)}</span></div></div>`;
+    return;
+  }
+  mount.innerHTML = buildResultHTML(result);
+  mount.querySelector('#export-btn')?.addEventListener('click', () => doExport(result));
+}
+
+// ── HTML builder ───────────────────────────────────────────────────────────
+function buildResultHTML(r) {
+  const parts = [];
+  const pass = r.structuralValid;
+
+  // Validation banner
+  parts.push(`<div class="val-row ${pass?'pass':'fail'}">
+    <span class="badge ${pass?'pass':'fail'}">
+      ${pass
+        ? `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> PASS`
+        : `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> FAIL`}
+    </span>
+    <div class="val-text">
+      <strong>${pass ? 'Structural Validation Passed' : 'Structural Validation Failed'}</strong>
+      <span>${pass
+        ? `${esc(r.filename)} — all required elements are present and correctly structured.`
+        : `${r.structuralErrors.length} structural error${r.structuralErrors.length!==1?'s':''} found in ${esc(r.filename)}.`
+      }</span>
+    </div>
+  </div>`);
+
+  // Error list
+  if (!pass && r.structuralErrors.length) {
+    parts.push(`<div class="errs">
+      <div class="errs-hdr">Structural Errors (${r.structuralErrors.length})</div>
+      <div class="err-list">${r.structuralErrors.map(e=>`<div class="err-item">${esc(e)}</div>`).join('')}</div>
+    </div>`);
+  }
+
+  // Asset + STIG info
+  if (r.assetInfo) {
+    const a = r.assetInfo;
+    parts.push(`<div class="sec-hdr">Asset &amp; STIG Information</div>
+    <div class="info-grid">
+      <div class="info-card">
+        <div class="ic-title">Asset Metadata</div>
+        ${ir('Hostname',   a.hostName)}
+        ${ir('IP Address', a.hostIp)}
+        ${ir('FQDN',       a.hostFqdn)}
+        ${ir('MAC Address',a.hostMac)}
+        ${ir('Asset Type', a.assetType)}
+        ${ir('Role',       a.role)}
+        ${ir('Tech Area',  a.techArea)}
+        ${ir('Target Key', a.targetKey)}
+      </div>
+      <div class="info-card">
+        <div class="ic-title">STIG Identity</div>
+        ${r.stigInfos.map((si,i)=>`
+          <div class="${i>0?'stig-sep':''}">
+            ${r.stigInfos.length>1?`<div class="stig-sub">STIG #${si.index}</div>`:''}
+            ${stigRows(si.fields)}
+          </div>`).join('')}
+      </div>
+    </div>`);
+  }
+
+  // Status summary
+  if (r.structuralValid && r.totalVulns > 0) {
+    const c = r.statusCounts, tot = r.totalVulns;
+    const pct = n => tot ? (n/tot*100).toFixed(1) : '0';
+    const w   = n => tot ? n/tot*100 : 0;
+    parts.push(`<div class="sec-hdr">Finding Status Summary</div>
+    <div class="ss">
+      <div class="ss-hdr">
+        <span>Status Distribution</span>
+        <span class="ss-total">${tot} Total Findings</span>
+      </div>
+      <div class="bar-track">
+        ${c.Open        > 0 ? `<div class="seg seg-open" style="width:${w(c.Open)}%">${c.Open>4?c.Open:''}</div>`:''}
+        ${c.NotAFinding > 0 ? `<div class="seg seg-naf"  style="width:${w(c.NotAFinding)}%">${c.NotAFinding>4?c.NotAFinding:''}</div>`:''}
+        ${c.Not_Reviewed> 0 ? `<div class="seg seg-nr"   style="width:${w(c.Not_Reviewed)}%">${c.Not_Reviewed>4?c.Not_Reviewed:''}</div>`:''}
+        ${c.Not_Applicable>0? `<div class="seg seg-na"   style="width:${w(c.Not_Applicable)}%">${c.Not_Applicable>4?c.Not_Applicable:''}</div>`:''}
+      </div>
+      <div class="legend">
+        ${li('seg-open', c.Open,         'Open',           pct(c.Open))}
+        ${li('seg-naf',  c.NotAFinding,  'Not a Finding',  pct(c.NotAFinding))}
+        ${li('seg-nr',   c.Not_Reviewed, 'Not Reviewed',   pct(c.Not_Reviewed))}
+        ${li('seg-na',   c.Not_Applicable,'Not Applicable',pct(c.Not_Applicable))}
+      </div>
+    </div>`);
+  }
+
+  // Data quality
+  if (r.structuralValid) {
+    const dq = r.issues;
+    const total = dq.notReviewed.length + dq.openNoDetails.length + dq.overrideNoJustify.length;
+    parts.push(`<div class="sec-hdr">Data Quality Checks</div><div class="issues">`);
+    if (!total) {
+      parts.push(`<div class="all-clear">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        All data quality checks passed — no issues found.
+      </div>`);
+    } else {
+      if (dq.notReviewed.length)
+        parts.push(issueBlock('warn',
+          'Incomplete Reviews',
+          `${dq.notReviewed.length} finding${dq.notReviewed.length!==1?'s':''} with status Not_Reviewed`,
+          dq.notReviewed.map(i=>({ id:i.id, desc:'STATUS is Not_Reviewed — review has not been completed for this finding.' })),
+          ICONS.warn));
+
+      if (dq.openNoDetails.length)
+        parts.push(issueBlock('err',
+          'Open Findings Without Details',
+          `${dq.openNoDetails.length} Open finding${dq.openNoDetails.length!==1?'s':''} missing FINDING_DETAILS`,
+          dq.openNoDetails.map(i=>({ id:i.id, desc:'STATUS is Open but FINDING_DETAILS is empty — documentation is required for all open findings.' })),
+          ICONS.err));
+
+      if (dq.overrideNoJustify.length)
+        parts.push(issueBlock('info',
+          'Severity Override Without Justification',
+          `${dq.overrideNoJustify.length} finding${dq.overrideNoJustify.length!==1?'s':''} missing SEVERITY_JUSTIFICATION`,
+          dq.overrideNoJustify.map(i=>({ id:i.id, desc:`SEVERITY_OVERRIDE is set to "${esc(i.override)}" but SEVERITY_JUSTIFICATION is empty.` })),
+          ICONS.info));
+    }
+    parts.push('</div>');
+  }
+
+  // Export
+  parts.push(`<div class="export-row">
+    <button class="btn btn-primary" id="export-btn" type="button">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Export JSON Report
+    </button>
+  </div>`);
+
+  return `<div class="rp">${parts.join('')}</div>`;
+}
+
+const ICONS = {
+  warn: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+  err:  `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`,
+  info: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`,
+};
+
+function issueBlock(type, title, sub, items, icon) {
+  const typeMap = { warn:'warn', err:'err', info:'info' };
+  const t = typeMap[type];
+  return `<details class="issue-block">
+    <summary>
+      <div class="sum-left">
+        <div class="iicon ${t}">${icon}</div>
+        <div><div class="ititle">${title}</div><div class="isub">${sub}</div></div>
+      </div>
+      <div class="sum-right">
+        <span class="icnt ${t}">${items.length}</span>
+        <svg class="chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+    </summary>
+    <div class="ilist">${items.map(it=>`<div class="iitem">
+      <span class="vid ${t}">${esc(it.id)}</span>
+      <span class="idesc">${it.desc}</span>
+    </div>`).join('')}</div>
+  </details>`;
+}
+
+function ir(label, value) {
+  const empty = !value;
+  return `<div class="ir"><span class="il">${esc(label)}</span><span class="iv${empty?' empty':''}">${empty?'<em>—</em>':esc(value)}</span></div>`;
+}
+
+function li(cls, count, label, pct) {
+  return `<div class="li"><span class="ldot ${cls}"></span><span class="lct">${count}</span><span class="llb">${label} (${pct}%)</span></div>`;
+}
+
+const STIG_PRIORITY = ['version','release','title','description','filename','uuid','classification','releaseinfo','stigid','benchmark_date'];
+function stigRows(fields) {
+  const keys = Object.keys(fields);
+  if (!keys.length) return ir('—', '');
+  const sorted = [...STIG_PRIORITY.filter(p => keys.some(k=>k.toLowerCase()===p)),
+                  ...keys.filter(k=>!STIG_PRIORITY.includes(k.toLowerCase())).sort()]
+    .reduce((acc,p)=>{
+      const match = keys.find(k=>k.toLowerCase()===p.toLowerCase())||p;
+      if (match && fields[match]!==undefined && !acc.includes(match)) acc.push(match);
+      return acc;
+    },[]);
+  return sorted.slice(0,14).map(k=>ir(k, fields[k])).join('');
+}
+
+// ── Export ─────────────────────────────────────────────────────────────────
+function doExport(r) {
+  const payload = {
+    file: r.filename,
+    validatedAt: r.validatedAt,
+    structuralValidation: {
+      passed: r.structuralValid,
+      errorCount: r.structuralErrors.length,
+      errors: r.structuralErrors,
+    },
+    assetInfo: r.assetInfo || null,
+    stigInfo: r.stigInfos.map(si=>({ stig: si.index, ...si.fields })),
+    totalVulns: r.totalVulns,
+    statusCounts: r.statusCounts,
+    dataQualityIssues: {
+      notReviewed: { count: r.issues.notReviewed.length, findings: r.issues.notReviewed },
+      openWithoutFindingDetails: { count: r.issues.openNoDetails.length, findings: r.issues.openNoDetails },
+      severityOverrideWithoutJustification: { count: r.issues.overrideNoJustify.length, findings: r.issues.overrideNoJustify },
+    },
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type:'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = Object.assign(document.createElement('a'), {
+    href: url,
+    download: r.filename.replace(/\.ckl$/i,'') + '_validation_report.json',
+  });
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ── Utility ────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s??'')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+})();
+</script>
+</body>
+</html>
