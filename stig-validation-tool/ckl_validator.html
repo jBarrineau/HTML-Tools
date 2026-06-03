@@ -604,7 +604,7 @@ function renderTabs() {
   const hdr  = document.getElementById('tabs-hdr');
 
   if (!store.size) { wrap.style.display = 'none'; return; }
-  wrap.style.display = '';
+  wrap.style.display = 'block';
 
   let html = '';
   store.forEach((entry, id) => {
