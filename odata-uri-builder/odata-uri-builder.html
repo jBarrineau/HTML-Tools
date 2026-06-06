@@ -692,16 +692,36 @@
     </div>
   </div>
 
-  <!-- ── 6. $top ── -->
+  <!-- ── 6. Paging ── -->
   <div class="input-card" id="sec-top">
     <div class="input-card-header">
-      <span class="input-card-icon">🔢</span>
-      <span class="input-card-label">$top</span>
+      <span class="input-card-icon">📄</span>
+      <span class="input-card-label">Paging</span>
       <span id="bdg-top" class="card-badge"></span>
     </div>
     <div class="input-card-body">
-      <input type="number" id="topInput" min="1" max="5000" placeholder="e.g. 100" oninput="updateURI()" />
-      <div class="hint">Limits the number of items returned.</div>
+      <input type="number" id="topInput" min="1" max="5000" placeholder="$top — e.g. 100" oninput="updateURI()" />
+      <input type="number" id="skipInput" min="0" placeholder="$skip — e.g. 500" oninput="updateURI()" />
+      <div class="hint">$top limits results; $skip offsets the start for pagination.</div>
+    </div>
+  </div>
+
+  </div><!-- end card-row -->
+
+  <!-- ── Row 4: $expand ── -->
+  <div class="card-row">
+
+  <div class="input-card" id="sec-expand">
+    <div class="input-card-header">
+      <span class="input-card-icon">⤵</span>
+      <span class="input-card-label">$expand</span>
+      <span id="bdg-expand" class="card-badge"></span>
+    </div>
+    <div class="input-card-body">
+      <input type="text" id="expandInput"
+        placeholder="e.g. Author,Editor/Name"
+        oninput="updateURI()" />
+      <div class="hint">Expand lookup or person fields. Comma-separated; use / for sub-fields (e.g. Author/Title,Editor/Name).</div>
     </div>
   </div>
 
@@ -1116,25 +1136,33 @@ function updateURI() {
   const filter  = buildFilter();
   const orderby = getOrderby();
   const top     = document.getElementById('topInput').value.trim();
+  const skip    = document.getElementById('skipInput').value.trim();
+  const expand  = document.getElementById('expandInput').value.trim()
+                    .replace(/\s*,\s*/g, ',').replace(/,$/, '');
 
   // Badges
   const selCount = select ? select.split(',').filter(Boolean).length : 0;
-  setBadge('bdg-select',  selCount > 0  ? selCount + ' col' + (selCount > 1 ? 's' : '') : null);
+  setBadge('bdg-select',  selCount > 0 ? selCount + ' col' + (selCount > 1 ? 's' : '') : null);
   setBadge('bdg-orderby', orderby || null);
-  setBadge('bdg-top',     top ? '≤ ' + top : null);
+  const pagingBadge = [top ? '≤' + top : '', skip ? '+' + skip : ''].filter(Boolean).join(' ');
+  setBadge('bdg-top',    pagingBadge || null);
+  const expCount = expand ? expand.split(',').filter(Boolean).length : 0;
+  setBadge('bdg-expand', expCount > 0 ? expCount + ' field' + (expCount > 1 ? 's' : '') : null);
 
   const base = `_api/web/lists/getbytitle('${title || 'YourListTitle'}')/items`;
 
   const params = [];
   if (select)  params.push('$select='  + select);
+  if (expand)  params.push('$expand='  + expand);
   if (filter)  params.push('$filter='  + filter);
   if (orderby) params.push('$orderby=' + orderby);
   if (top)     params.push('$top='     + top);
+  if (skip)    params.push('$skip='    + skip);
 
   const uri = params.length ? base + '?' + params.join('&') : base;
 
   document.getElementById('uriOutput').value = uri;
-  renderBreakdown(title, base, select, filter, orderby, top);
+  renderBreakdown(title, base, select, expand, filter, orderby, top, skip);
 }
 
 function getListTitle() {
@@ -1162,15 +1190,17 @@ function getOrderby() {
 }
 
 /* ── BREAKDOWN ───────────────────────────────────────────── */
-function renderBreakdown(title, base, select, filter, orderby, top) {
+function renderBreakdown(title, base, select, expand, filter, orderby, top, skip) {
   const el = document.getElementById('breakdown');
 
   const rows = [
     { k: 'Base',      v: base },
     { k: '$select',   v: select  || null },
+    { k: '$expand',   v: expand  || null },
     { k: '$filter',   v: filter  || null },
     { k: '$orderby',  v: orderby || null },
     { k: '$top',      v: top     || null },
+    { k: '$skip',     v: skip    || null },
   ];
 
   el.innerHTML = '';
