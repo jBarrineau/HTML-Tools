@@ -603,7 +603,7 @@
         placeholder="https://tenant.sharepoint.com/sites/Site/Lists/Employees/AllItems.aspx"
         oninput="onURLChange()" />
       <div id="titlePreview" class="preview-box hidden">
-        <div class="p-lbl">Extracted List Title</div>
+        <div class="p-lbl">List Reference</div>
         <div class="p-val" id="titleValue"></div>
       </div>
       <div class="hint">The list title is extracted automatically from the URL.</div>
@@ -784,6 +784,7 @@
 let parsedColumns = [];
 let filterCounter = 0;
 let parseTimer    = null;
+let listPath      = '';   // server-relative path e.g. /sites/MySite/Lists/MyList
 
 /* ── SECTION TOGGLE ─────────────────────────────────────── */
 function toggleSection(id) {
@@ -792,32 +793,52 @@ function toggleSection(id) {
 
 /* ── URL EXTRACTION ─────────────────────────────────────── */
 function onURLChange() {
-  const url   = document.getElementById('urlInput').value.trim();
-  const title = extractTitle(url);
-  const prev  = document.getElementById('titlePreview');
-  const bdg   = document.getElementById('bdg-url');
+  const url  = document.getElementById('urlInput').value.trim();
+  const prev = document.getElementById('titlePreview');
 
-  if (title) {
-    document.getElementById('titleValue').textContent = title;
+  listPath = extractListPath(url);
+
+  // Badge shows the short list name; preview shows the full reference
+  const display  = listPath || extractTitle(url);
+  const badgeVal = listPath ? listPath.replace(/.*\/[Ll]ists\//, '') : display;
+
+  if (display) {
+    document.getElementById('titleValue').textContent = display;
     prev.classList.remove('hidden');
-    setBadge('bdg-url', title);
+    setBadge('bdg-url', badgeVal);
   } else {
+    document.getElementById('titleValue').textContent = '';
     prev.classList.add('hidden');
     setBadge('bdg-url', null);
   }
   updateURI();
 }
 
+// Returns the server-relative list path (/sites/X/Lists/Y) from a full URL.
+// Used to build GetList() URIs, which are immune to display-name vs URL-name mismatches.
+function extractListPath(url) {
+  if (!url) return '';
+  // Already a GetList() call — pull the path out directly
+  let m = url.match(/GetList\s*\(\s*['"]([^'"]+)['"]\s*\)/i);
+  if (m) return decodeURIComponent(m[1]);
+  // Skip REST API URLs (_api/) — they use getbytitle() syntax, handled by extractTitle()
+  if (/_api\//i.test(url)) return '';
+  // Full SharePoint URL: strip protocol+host, then match /sites/X/Lists/Y or /Lists/Y
+  const path = url.replace(/^https?:\/\/[^\/]+/, '');
+  m = path.match(/((?:\/(?:sites|teams)\/[^\/]+)?\/[Ll]ists\/[^\/\?#]+)/i);
+  return m ? decodeURIComponent(m[1].replace(/\+/g, ' ')) : '';
+}
+
 function extractTitle(url) {
   if (!url) return '';
-  // /Lists/ListName/  or  /Lists/ListName?
-  let m = url.match(/\/[Ll]ists\/([^\/\?#]+)/);
-  if (m) return decodeURIComponent(m[1].replace(/\+/g, ' '));
   // getbytitle('Name')
-  m = url.match(/getbytitle\s*\(\s*['"]([^'"]+)['"]\s*\)/i);
+  let m = url.match(/getbytitle\s*\(\s*['"]([^'"]+)['"]\s*\)/i);
   if (m) return m[1];
-  // listTitle=Name
+  // listTitle=Name query param
   m = url.match(/[?&]listTitle=([^&]+)/i);
+  if (m) return decodeURIComponent(m[1].replace(/\+/g, ' '));
+  // /Lists/ListName/ — fallback only; prefer extractListPath for full URLs
+  m = url.match(/\/[Ll]ists\/([^\/\?#]+)/);
   if (m) return decodeURIComponent(m[1].replace(/\+/g, ' '));
   return '';
 }
@@ -1149,7 +1170,9 @@ function updateURI() {
   const expCount = expand ? expand.split(',').filter(Boolean).length : 0;
   setBadge('bdg-expand', expCount > 0 ? expCount + ' field' + (expCount > 1 ? 's' : '') : null);
 
-  const base = `_api/web/lists/getbytitle('${title || 'YourListTitle'}')/items`;
+  const base = listPath
+    ? `_api/web/GetList('${listPath}')/items`
+    : `_api/web/lists/getbytitle('${title || 'YourListTitle'}')/items`;
 
   const params = [];
   if (select)  params.push('$select='  + select);
