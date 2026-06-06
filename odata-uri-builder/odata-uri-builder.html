@@ -552,6 +552,20 @@
 
     .hidden { display: none !important; }
 
+    .card-badge {
+      display: none;
+      margin-left: auto;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 20px;
+      background: color-mix(in srgb, var(--accent-2) 15%, transparent);
+      color: var(--accent-2);
+      border: 1px solid color-mix(in srgb, var(--accent-2) 30%, transparent);
+      white-space: nowrap;
+    }
+    .card-badge.on { display: inline-block; }
+
     @media (max-width: 820px) {
       body { flex-direction: column; height: auto; overflow: auto; }
       .output-panel { width: 100%; min-width: 0; border-left: none; border-top: 1px solid var(--line); }
@@ -582,6 +596,7 @@
     <div class="input-card-header">
       <span class="input-card-icon">🔗</span>
       <span class="input-card-label">List URL</span>
+      <span id="bdg-url" class="card-badge"></span>
     </div>
     <div class="input-card-body">
       <input type="text" id="urlInput"
@@ -600,6 +615,7 @@
     <div class="input-card-header">
       <span class="input-card-icon">📋</span>
       <span class="input-card-label">Sample JSON</span>
+      <span id="bdg-json" class="card-badge"></span>
     </div>
     <div class="input-card-body">
       <textarea id="jsonInput"
@@ -620,6 +636,7 @@
     <div class="input-card-header">
       <span class="input-card-icon">☑</span>
       <span class="input-card-label">$select</span>
+      <span id="bdg-select" class="card-badge"></span>
     </div>
     <div class="input-card-body">
       <div id="selectCBPanel" class="hidden">
@@ -643,6 +660,7 @@
     <div class="input-card-header">
       <span class="input-card-icon">🔍</span>
       <span class="input-card-label">$filter</span>
+      <span id="bdg-filter" class="card-badge"></span>
     </div>
     <div class="input-card-body">
       <div id="filterRows"></div>
@@ -660,6 +678,7 @@
     <div class="input-card-header">
       <span class="input-card-icon">↕</span>
       <span class="input-card-label">$orderby</span>
+      <span id="bdg-orderby" class="card-badge"></span>
     </div>
     <div class="input-card-body">
       <select id="orderbyColSel" onchange="syncOrderby(this)" style="display:none;">
@@ -678,6 +697,7 @@
     <div class="input-card-header">
       <span class="input-card-icon">🔢</span>
       <span class="input-card-label">$top</span>
+      <span id="bdg-top" class="card-badge"></span>
     </div>
     <div class="input-card-body">
       <input type="number" id="topInput" min="1" max="5000" placeholder="e.g. 100" oninput="updateURI()" />
@@ -1058,9 +1078,10 @@ function buildFilter() {
     if (type === 'numeric') {
       expr = `${col} ${op} ${val}`;
     } else if (type === 'string') {
-      if      (op === 'startswith')  expr = `startswith(${col}, '${val}')`;
-      else if (op === 'substringof') expr = `substringof('${val}', ${col})`;
-      else                           expr = `${col} ${op} '${val}'`;
+      const esc = val.replace(/'/g, "''");
+      if      (op === 'startswith')  expr = `startswith(${col}, '${esc}')`;
+      else if (op === 'substringof') expr = `substringof('${esc}', ${col})`;
+      else                           expr = `${col} ${op} '${esc}'`;
     } else if (type === 'datetime') {
       const fn = card.querySelector('.f-dtfn').value;
       expr = `${fn}(${col}) ${op} ${val}`;
