@@ -709,8 +709,8 @@
     </div>
     <div class="input-card-body">
       <input type="number" id="topInput" min="1" max="5000" placeholder="$top — e.g. 100" oninput="updateURI()" />
-      <input type="number" id="skipInput" min="0" placeholder="$skip — e.g. 500" oninput="updateURI()" />
-      <div class="hint">$top limits results; $skip offsets the start for pagination.</div>
+      <input type="number" id="skiptokenInput" min="1" placeholder="$skiptoken p_ID — e.g. 2" oninput="updateURI()" />
+      <div class="hint">$top limits results. $skiptoken resumes from a p_ID — copy it from the <code>link rel="next"</code> in the previous response. ($skip is not supported by SharePoint list items.)</div>
     </div>
   </div>
 
@@ -1272,16 +1272,19 @@ function updateURI() {
   const select  = getSelectValue();
   const filter  = buildFilter();
   const orderby = getOrderby();
-  const top     = document.getElementById('topInput').value.trim();
-  const skip    = document.getElementById('skipInput').value.trim();
-  const expand  = document.getElementById('expandInput').value.trim()
-                    .replace(/\s*,\s*/g, ',').replace(/,$/, '');
+  const top          = document.getElementById('topInput').value.trim();
+  const skiptokenPID = document.getElementById('skiptokenInput').value.trim();
+  const expand       = document.getElementById('expandInput').value.trim()
+                         .replace(/\s*,\s*/g, ',').replace(/,$/, '');
+
+  // $skiptoken full value: Paged=TRUE&p_ID=N (URL-encoded for the URI)
+  const skiptoken    = skiptokenPID ? 'Paged%3DTRUE%26p_ID%3D' + encodeURIComponent(skiptokenPID) : '';
 
   // Badges
   const selCount = select ? select.split(',').filter(Boolean).length : 0;
   setBadge('bdg-select',  selCount > 0 ? selCount + ' col' + (selCount > 1 ? 's' : '') : null);
   setBadge('bdg-orderby', orderby || null);
-  const pagingBadge = [top ? '≤' + top : '', skip ? '+' + skip : ''].filter(Boolean).join(' ');
+  const pagingBadge = [top ? '≤' + top : '', skiptokenPID ? 'p_ID=' + skiptokenPID : ''].filter(Boolean).join(' ');
   setBadge('bdg-top',    pagingBadge || null);
   const expCount = expand ? expand.split(',').filter(Boolean).length : 0;
   setBadge('bdg-expand', expCount > 0 ? expCount + ' field' + (expCount > 1 ? 's' : '') : null);
@@ -1291,17 +1294,17 @@ function updateURI() {
     : `_api/web/lists/getbytitle('${title || 'YourListTitle'}')/items`;
 
   const params = [];
-  if (select)  params.push('$select='  + select);
-  if (expand)  params.push('$expand='  + expand);
-  if (filter)  params.push('$filter='  + filter);
-  if (orderby) params.push('$orderby=' + orderby);
-  if (top)     params.push('$top='     + top);
-  if (skip)    params.push('$skip='    + skip);
+  if (select)    params.push('$select='    + select);
+  if (expand)    params.push('$expand='    + expand);
+  if (filter)    params.push('$filter='    + filter);
+  if (orderby)   params.push('$orderby='   + orderby);
+  if (top)       params.push('$top='       + top);
+  if (skiptoken) params.push('$skiptoken=' + skiptoken);
 
   const uri = params.length ? base + '?' + params.join('&') : base;
 
   document.getElementById('uriOutput').value = uri;
-  renderBreakdown(title, base, select, expand, filter, orderby, top, skip);
+  renderBreakdown(title, base, select, expand, filter, orderby, top, skiptokenPID ? 'Paged=TRUE&p_ID=' + skiptokenPID : '');
 }
 
 function getListTitle() {
@@ -1329,17 +1332,17 @@ function getOrderby() {
 }
 
 /* ── BREAKDOWN ───────────────────────────────────────────── */
-function renderBreakdown(title, base, select, expand, filter, orderby, top, skip) {
+function renderBreakdown(title, base, select, expand, filter, orderby, top, skiptoken) {
   const el = document.getElementById('breakdown');
 
   const rows = [
-    { k: 'Base',      v: base },
-    { k: '$select',   v: select  || null },
-    { k: '$expand',   v: expand  || null },
-    { k: '$filter',   v: filter  || null },
-    { k: '$orderby',  v: orderby || null },
-    { k: '$top',      v: top     || null },
-    { k: '$skip',     v: skip    || null },
+    { k: 'Base',         v: base      },
+    { k: '$select',      v: select    || null },
+    { k: '$expand',      v: expand    || null },
+    { k: '$filter',      v: filter    || null },
+    { k: '$orderby',     v: orderby   || null },
+    { k: '$top',         v: top       || null },
+    { k: '$skiptoken',   v: skiptoken || null },
   ];
 
   el.innerHTML = '';
