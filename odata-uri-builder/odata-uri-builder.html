@@ -741,14 +741,14 @@
 <aside class="output-panel">
 
   <div class="output-panel-header">
-    <h1>Generated OData URI</h1>
-    <p>Paste this into the <strong>Send an HTTP request to SharePoint</strong> action → <em>URI</em> field in Power Automate.</p>
+    <h1>Built URL</h1>
+    <p>Full URL — open in browser or use the path after <em>/sites/…</em> as the <strong>URI</strong> in Power Automate.</p>
   </div>
 
   <!-- URI output -->
   <div class="output-card">
     <div class="output-card-hdr">
-      <span class="card-lbl">OData URI</span>
+      <span class="card-lbl">Built URL</span>
       <button class="copy-btn" id="copyBtn" onclick="copyURI()">
         <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
           <path d="M4 2a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H4zm0 1h6a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM2 1h7.5v1H2V1zm9.5 2H11v1h1.5v9H5v-1H4v1a2 2 0 0 0 2 2h7a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"/>
@@ -757,7 +757,22 @@
       </button>
     </div>
     <textarea id="uriOutput" class="uri-output" readonly
-      placeholder="_api/web/lists/getbytitle('YourList')/items?$select=…"></textarea>
+      placeholder="https://tenant.sharepoint.com/sites/X/_api/web/GetList(…)/items?$select=…"></textarea>
+  </div>
+
+  <!-- Power Automate URI -->
+  <div class="output-card">
+    <div class="output-card-hdr">
+      <span class="card-lbl">Power Automate URI</span>
+      <button class="copy-btn" id="copyPaBtn" onclick="copyPaURI()">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M4 2a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H4zm0 1h6a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM2 1h7.5v1H2V1zm9.5 2H11v1h1.5v9H5v-1H4v1a2 2 0 0 0 2 2h7a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"/>
+        </svg>
+        Copy
+      </button>
+    </div>
+    <textarea id="paUriOutput" class="uri-output" readonly
+      placeholder="_api/web/GetList(…)/items?$select=…"></textarea>
   </div>
 
   <!-- Headers -->
@@ -1301,9 +1316,14 @@ function updateURI() {
   if (top)       params.push('$top='       + top);
   if (skiptoken) params.push('$skiptoken=' + skiptoken);
 
-  const uri = params.length ? base + '?' + params.join('&') : base;
+  const relUri = params.length ? base + '?' + params.join('&') : base;
+  const sitePath = listPath ? extractSitePath(listPath) : '';
+  const fullUrl = listOrigin
+    ? `${listOrigin}${sitePath}/${relUri}`
+    : relUri;
 
-  document.getElementById('uriOutput').value = uri;
+  document.getElementById('uriOutput').value = fullUrl;
+  document.getElementById('paUriOutput').value = relUri;
   renderBreakdown(title, base, select, expand, filter, orderby, top, skiptokenPID ? 'Paged=TRUE&p_ID=' + skiptokenPID : '');
 }
 
@@ -1366,6 +1386,31 @@ function copyURI() {
   if (!uri) return;
 
   const btn = document.getElementById('copyBtn');
+
+  const doSuccess = () => {
+    btn.textContent = '✓ Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.innerHTML = `
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M4 2a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H4zm0 1h6a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM2 1h7.5v1H2V1zm9.5 2H11v1h1.5v9H5v-1H4v1a2 2 0 0 0 2 2h7a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"/>
+        </svg> Copy`;
+      btn.classList.remove('copied');
+    }, 2200);
+  };
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(uri).then(doSuccess).catch(() => legacyCopy(uri, doSuccess));
+  } else {
+    legacyCopy(uri, doSuccess);
+  }
+}
+
+function copyPaURI() {
+  const uri = document.getElementById('paUriOutput').value;
+  if (!uri) return;
+
+  const btn = document.getElementById('copyPaBtn');
 
   const doSuccess = () => {
     btn.textContent = '✓ Copied!';
