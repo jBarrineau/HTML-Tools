@@ -606,23 +606,31 @@
         <div class="p-lbl">List Reference</div>
         <div class="p-val" id="titleValue"></div>
       </div>
+      <div id="fetchUrlPreview" class="preview-box hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;">
+          <div class="p-lbl" style="margin-bottom:0;">Browser Fetch URL</div>
+          <button id="copyFetchBtn" class="btn-link" onclick="copyFetchUrl()" style="font-size:11px;">Copy</button>
+        </div>
+        <div class="p-val" id="fetchUrlValue" style="font-family:var(--mono);font-size:11px;color:var(--accent-3);word-break:break-all;"></div>
+        <div class="hint" style="margin-top:5px;">Open in a browser tab where you're logged into SharePoint → paste the response into <strong>Sample Response</strong>.</div>
+      </div>
       <div class="hint">The list title is extracted automatically from the URL.</div>
     </div>
   </div>
 
-  <!-- ── 2. Sample JSON ── -->
+  <!-- ── 2. Sample Response ── -->
   <div class="input-card" id="sec-json">
     <div class="input-card-header">
       <span class="input-card-icon">📋</span>
-      <span class="input-card-label">Sample JSON</span>
+      <span class="input-card-label">Sample Response</span>
       <span id="bdg-json" class="card-badge"></span>
     </div>
     <div class="input-card-body">
       <textarea id="jsonInput"
-        placeholder='Paste a single JSON item from the list response here (e.g. body["value"][0])…'
+        placeholder='Paste the SharePoint REST response here — JSON (body["value"][0]) or XML (Atom feed)…'
         onpaste="scheduleParse()"></textarea>
       <div id="jsonStatus" class="status-msg"></div>
-      <div class="hint">Internal SharePoint metadata keys are filtered out automatically.</div>
+      <div class="hint">JSON and XML (Atom) accepted. SharePoint metadata keys are filtered out automatically.</div>
     </div>
   </div>
 
@@ -785,6 +793,7 @@ let parsedColumns = [];
 let filterCounter = 0;
 let parseTimer    = null;
 let listPath      = '';   // server-relative path e.g. /sites/MySite/Lists/MyList
+let listOrigin    = '';   // protocol + host e.g. https://tenant.sharepoint.com
 
 /* ── SECTION TOGGLE ─────────────────────────────────────── */
 function toggleSection(id) {
@@ -796,7 +805,8 @@ function onURLChange() {
   const url  = document.getElementById('urlInput').value.trim();
   const prev = document.getElementById('titlePreview');
 
-  listPath = extractListPath(url);
+  listPath   = extractListPath(url);
+  listOrigin = extractOrigin(url);
 
   // Badge shows the short list name; preview shows the full reference
   const display  = listPath || extractTitle(url);
@@ -811,6 +821,7 @@ function onURLChange() {
     prev.classList.add('hidden');
     setBadge('bdg-url', null);
   }
+  updateFetchUrl();
   updateURI();
 }
 
@@ -843,6 +854,66 @@ function extractTitle(url) {
   return '';
 }
 
+function extractOrigin(url) {
+  if (!url) return '';
+  const m = url.match(/^(https?:\/\/[^\/]+)/i);
+  return m ? m[1] : '';
+}
+
+/* ── FETCH URL ───────────────────────────────────────────── */
+function extractSitePath(listPathStr) {
+  // /sites/X/Lists/Y → /sites/X   or   /Lists/Y → ''
+  const m = listPathStr.match(/(.*?)\/[Ll]ists\//);
+  return m ? m[1] : '';
+}
+
+function updateFetchUrl() {
+  const box = document.getElementById('fetchUrlPreview');
+  const val = document.getElementById('fetchUrlValue');
+
+  let fetchUrl = '';
+  if (listOrigin && listPath) {
+    const sitePath = extractSitePath(listPath);
+    fetchUrl = `${listOrigin}${sitePath}/_api/web/GetList('${listPath}')/items?$top=2`;
+  } else if (listOrigin) {
+    const rawUrl = document.getElementById('urlInput').value.trim();
+    const title  = extractTitle(rawUrl);
+    if (title) {
+      const rawPath = rawUrl.replace(/^https?:\/\/[^\/]+/, '');
+      const sitePath = extractSitePath(rawPath);
+      const esc = title.replace(/'/g, "''");
+      fetchUrl = `${listOrigin}${sitePath}/_api/web/lists/getbytitle('${esc}')/items?$top=2`;
+    }
+  }
+
+  if (fetchUrl) {
+    val.textContent = fetchUrl;
+    box.classList.remove('hidden');
+  } else {
+    val.textContent = '';
+    box.classList.add('hidden');
+  }
+}
+
+function copyFetchUrl() {
+  const url = document.getElementById('fetchUrlValue').textContent;
+  if (!url) return;
+
+  const btn = document.getElementById('copyFetchBtn');
+  const reset = () => { btn.textContent = 'Copy'; };
+
+  const doSuccess = () => {
+    btn.textContent = '✓ Copied!';
+    setTimeout(reset, 2000);
+  };
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(doSuccess).catch(() => legacyCopy(url, doSuccess));
+  } else {
+    legacyCopy(url, doSuccess);
+  }
+}
+
 /* ── JSON PARSING ───────────────────────────────────────── */
 const META_KEYS = new Set([
   '__metadata','odata.type','odata.id','odata.etag','odata.editLink',
@@ -866,22 +937,29 @@ function isMetaKey(k) {
 
 function scheduleParse() {
   clearTimeout(parseTimer);
-  parseTimer = setTimeout(parseJSON, 350);
+  parseTimer = setTimeout(parseSample, 350);
 }
 
-function parseJSON() {
+function parseSample() {
   const raw    = document.getElementById('jsonInput').value.trim();
   const status = document.getElementById('jsonStatus');
 
-  if (!raw) { showStatus(status, 'No JSON detected.', 'err'); return; }
+  if (!raw) { showStatus(status, 'No content detected.', 'err'); return; }
 
+  if (raw.startsWith('<')) {
+    parseAsXML(raw, status);
+  } else {
+    parseAsJSON(raw, status);
+  }
+}
+
+function parseAsJSON(raw, status) {
   let obj;
   try {
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
       obj = parsed[0];
     } else if (parsed && typeof parsed === 'object') {
-      // Support {value:[...]} envelope
       obj = (parsed.value && Array.isArray(parsed.value)) ? parsed.value[0] : parsed;
     }
   } catch (e) {
@@ -900,11 +978,43 @@ function parseJSON() {
     return;
   }
 
+  applyColumns(keys, status, 'JSON');
+}
+
+function parseAsXML(raw, status) {
+  const M_NS = 'http://schemas.microsoft.com/ado/2007/08/dataservices/metadata';
+
+  const doc = new DOMParser().parseFromString(raw, 'application/xml');
+  if (doc.querySelector('parsererror')) {
+    showStatus(status, '✕ Invalid XML — could not parse.', 'err');
+    return;
+  }
+
+  const propNodes = doc.getElementsByTagNameNS(M_NS, 'properties');
+  if (!propNodes.length) {
+    showStatus(status, '✕ No <m:properties> found — is this a SharePoint REST response?', 'err');
+    return;
+  }
+
+  const keys = [];
+  for (const child of propNodes[0].children) {
+    if (!isMetaKey(child.localName)) keys.push(child.localName);
+  }
+
+  if (keys.length === 0) {
+    showStatus(status, '✕ No usable columns found after filtering metadata.', 'err');
+    return;
+  }
+
+  applyColumns(keys, status, 'XML');
+}
+
+function applyColumns(keys, status, fmt) {
   parsedColumns = keys.slice().sort((a, b) => a.localeCompare(b));
   renderCheckboxes(parsedColumns);
   updateAllColumnDropdowns();
   setBadge('bdg-json', parsedColumns.length + ' cols');
-  showStatus(status, '✓ Found ' + parsedColumns.length + ' columns.', 'ok');
+  showStatus(status, `✓ Found ${parsedColumns.length} columns (${fmt}).`, 'ok');
   updateURI();
 }
 
