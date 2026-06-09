@@ -69,6 +69,7 @@
       resize: vertical;
       outline: none;
       transition: border-color 0.15s;
+      tab-size: 4;
     }
 
     textarea:focus { border-color: #6366f1; }
@@ -108,6 +109,7 @@
       word-break: break-all;
       overflow-y: auto;
       line-height: 1.7;
+      tab-size: 4;
     }
 
     /* Highlight categories */
@@ -155,12 +157,60 @@
       color: #f9a8d4;
     }
 
-    .tooltip {
+    /* non-standard whitespace */
+    .hi-whitespace {
+      background: #ea580c33;
+      outline: 2px solid #ea580c;
+      color: #fdba74;
+    }
+
+    /* show-whitespace mode symbols */
+    .ws-space  { color: #64748b; }
+    .ws-tab    { color: #818cf8; }
+    .ws-lf     { color: #22d3ee; font-size: 0.75em; vertical-align: middle; }
+    .ws-cr     { color: #f87171; font-size: 0.65em; vertical-align: middle; font-weight: 700; }
+    .ws-crlf   { color: #f87171; font-size: 0.65em; vertical-align: middle; font-weight: 700; }
+
+    .btn-toggle {
+      padding: 7px 16px;
+      border-radius: 6px;
+      border: 1px solid #4b5563;
+      cursor: pointer;
+      font-size: 0.82rem;
+      font-weight: 600;
+      background: transparent;
+      color: #94a3b8;
+      transition: all 0.15s;
+    }
+    .btn-toggle:hover { background: #2d3148; color: #e2e8f0; }
+    .btn-toggle.active { background: #1e3a5f; border-color: #3b82f6; color: #93c5fd; }
+
+    .ws-breakdown {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      font-size: 0.78rem;
+      margin-top: 4px;
+      padding-top: 8px;
+      border-top: 1px solid #2d3148;
+    }
+
+    .ws-stat {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      background: #0f1117;
+      border: 1px solid #2d3148;
+      border-radius: 5px;
+      padding: 4px 10px;
+      color: #94a3b8;
+    }
+
+    .ws-label { color: #64748b; margin-right: 2px; }
+
+    #float-tooltip {
       display: none;
-      position: absolute;
-      bottom: calc(100% + 6px);
-      left: 50%;
-      transform: translateX(-50%);
+      position: fixed;
       background: #1e2130;
       border: 1px solid #4b5563;
       border-radius: 6px;
@@ -168,13 +218,11 @@
       font-size: 0.73rem;
       color: #e2e8f0;
       white-space: nowrap;
-      z-index: 100;
+      z-index: 1000;
       pointer-events: none;
       font-family: 'Segoe UI', system-ui, sans-serif;
       box-shadow: 0 4px 12px #00000066;
     }
-
-    .hi:hover .tooltip { display: block; }
 
     .stats-bar {
       display: flex;
@@ -199,12 +247,13 @@
       flex-shrink: 0;
     }
 
-    .dot-invisible { background: #7c3aed; }
-    .dot-bidi      { background: #dc2626; }
-    .dot-homoglyph { background: #d97706; }
-    .dot-control   { background: #0891b2; }
-    .dot-nonascii  { background: #16a34a; }
-    .dot-private   { background: #db2777; }
+    .dot-invisible  { background: #7c3aed; }
+    .dot-bidi       { background: #dc2626; }
+    .dot-homoglyph  { background: #d97706; }
+    .dot-control    { background: #0891b2; }
+    .dot-nonascii   { background: #16a34a; }
+    .dot-private    { background: #db2777; }
+    .dot-whitespace { background: #ea580c; }
 
     .legend {
       display: flex;
@@ -226,12 +275,13 @@
       flex-shrink: 0;
     }
 
-    .swatch-invisible { background: #7c3aed; }
-    .swatch-bidi      { background: #dc2626; }
-    .swatch-homoglyph { background: #d97706; }
-    .swatch-control   { background: #0891b2; }
-    .swatch-nonascii  { background: #16a34a; }
-    .swatch-private   { background: #db2777; }
+    .swatch-invisible  { background: #7c3aed; }
+    .swatch-bidi       { background: #dc2626; }
+    .swatch-homoglyph  { background: #d97706; }
+    .swatch-control    { background: #0891b2; }
+    .swatch-nonascii   { background: #16a34a; }
+    .swatch-private    { background: #db2777; }
+    .swatch-whitespace { background: #ea580c; }
 
     .findings-panel {
       grid-column: 1 / -1;
@@ -279,12 +329,13 @@
       font-weight: 700;
     }
 
-    .badge-invisible { background: #7c3aed33; color: #c4b5fd; border: 1px solid #7c3aed; }
-    .badge-bidi      { background: #dc262633; color: #fca5a5; border: 1px solid #dc2626; }
-    .badge-homoglyph { background: #d9770633; color: #fcd34d; border: 1px solid #d97706; }
-    .badge-control   { background: #0891b233; color: #67e8f9; border: 1px solid #0891b2; }
-    .badge-nonascii  { background: #16a34a33; color: #86efac; border: 1px solid #16a34a; }
-    .badge-private   { background: #db277733; color: #f9a8d4; border: 1px solid #db2777; }
+    .badge-invisible  { background: #7c3aed33; color: #c4b5fd; border: 1px solid #7c3aed; }
+    .badge-bidi       { background: #dc262633; color: #fca5a5; border: 1px solid #dc2626; }
+    .badge-homoglyph  { background: #d9770633; color: #fcd34d; border: 1px solid #d97706; }
+    .badge-control    { background: #0891b233; color: #67e8f9; border: 1px solid #0891b2; }
+    .badge-nonascii   { background: #16a34a33; color: #86efac; border: 1px solid #16a34a; }
+    .badge-private    { background: #db277733; color: #f9a8d4; border: 1px solid #db2777; }
+    .badge-whitespace { background: #ea580c33; color: #fdba74; border: 1px solid #ea580c; }
 
     .char-preview {
       font-family: 'Cascadia Code', 'Fira Mono', 'Consolas', monospace;
@@ -299,20 +350,34 @@
       font-size: 0.85rem;
       padding: 8px 0;
     }
+
+    .group-row td { cursor: pointer; user-select: none; }
+    .group-row:hover td { background: #161929; }
+    .group-toggle { color: #64748b; font-size: 0.75rem; margin-right: 6px; transition: transform 0.15s; display: inline-block; }
+    .group-row.open .group-toggle { transform: rotate(90deg); }
+    .child-row td { background: #0d1020; padding-left: 28px !important; }
+    .child-row:hover td { background: #111425; }
+    .child-row.hidden { display: none; }
+
+    .btn-success { background: #16a34a; color: #fff; }
   </style>
 </head>
 <body>
 
+<div id="float-tooltip"></div>
 <h1>Odd Character Finder</h1>
 <p class="subtitle">Detects invisible, bidirectional, homoglyph, control, and other suspicious Unicode characters in text.</p>
 
 <div class="layout">
   <!-- Input -->
   <div class="panel">
-    <div class="panel-title">Input</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;min-height:31.5px;">
+      <div class="panel-title">Input</div>
+    </div>
     <textarea id="input" placeholder="Paste or type text here…" spellcheck="false"></textarea>
     <div class="actions">
       <button class="btn-primary" onclick="analyze()">Analyze</button>
+      <button class="btn-success" id="copy-clean-btn" onclick="copyClean()" style="display:none">Copy Stripped</button>
       <button class="btn-ghost" onclick="loadSample()">Load Sample</button>
       <button class="btn-ghost" onclick="clearAll()">Clear</button>
     </div>
@@ -323,14 +388,19 @@
       <div class="legend-item"><div class="swatch swatch-control"></div>Control Character</div>
       <div class="legend-item"><div class="swatch swatch-nonascii"></div>Non-ASCII / Extended Unicode</div>
       <div class="legend-item"><div class="swatch swatch-private"></div>Private Use Area</div>
+      <div class="legend-item"><div class="swatch swatch-whitespace"></div>Non-standard Whitespace</div>
     </div>
   </div>
 
   <!-- Output -->
   <div class="panel">
-    <div class="panel-title">Highlighted Output</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <div class="panel-title">Highlighted Output</div>
+      <button class="btn-toggle" id="ws-toggle" onclick="toggleWhitespace()">Show Whitespace</button>
+    </div>
     <div id="output-box"><span style="color:#334155">Output will appear here after analysis…</span></div>
     <div id="stats-bar" class="stats-bar"></div>
+    <div id="ws-breakdown" class="ws-breakdown" style="display:none"></div>
   </div>
 
   <!-- Findings table -->
@@ -344,12 +414,13 @@
 // ─── Character Classification ────────────────────────────────────────────────
 
 const CATEGORIES = {
-  invisible: { label: 'Invisible / Zero-width', cls: 'hi-invisible', badge: 'badge-invisible', dot: 'dot-invisible' },
-  bidi:      { label: 'Bidi Override (Trojan Source)', cls: 'hi-bidi',      badge: 'badge-bidi',      dot: 'dot-bidi'      },
-  homoglyph: { label: 'Homoglyph / Lookalike',    cls: 'hi-homoglyph', badge: 'badge-homoglyph', dot: 'dot-homoglyph' },
-  control:   { label: 'Control Character',         cls: 'hi-control',   badge: 'badge-control',   dot: 'dot-control'   },
-  nonascii:  { label: 'Non-ASCII / Extended',      cls: 'hi-nonascii',  badge: 'badge-nonascii',  dot: 'dot-nonascii'  },
-  private:   { label: 'Private Use Area',          cls: 'hi-private',   badge: 'badge-private',   dot: 'dot-private'   },
+  invisible:  { label: 'Invisible / Zero-width',       cls: 'hi-invisible',  badge: 'badge-invisible',  dot: 'dot-invisible'  },
+  bidi:       { label: 'Bidi Override (Trojan Source)', cls: 'hi-bidi',       badge: 'badge-bidi',       dot: 'dot-bidi'       },
+  homoglyph:  { label: 'Homoglyph / Lookalike',         cls: 'hi-homoglyph',  badge: 'badge-homoglyph',  dot: 'dot-homoglyph'  },
+  control:    { label: 'Control Character',             cls: 'hi-control',    badge: 'badge-control',    dot: 'dot-control'    },
+  nonascii:   { label: 'Non-ASCII / Extended',          cls: 'hi-nonascii',   badge: 'badge-nonascii',   dot: 'dot-nonascii'   },
+  private:    { label: 'Private Use Area',              cls: 'hi-private',    badge: 'badge-private',    dot: 'dot-private'    },
+  whitespace: { label: 'Non-standard Whitespace',       cls: 'hi-whitespace', badge: 'badge-whitespace', dot: 'dot-whitespace' },
 };
 
 // Invisible / zero-width characters
@@ -404,6 +475,27 @@ const BIDI = new Set([
   0x2069, // Pop directional isolate
   0x200F, // Right-to-left mark
   0x061C, // Arabic letter mark
+]);
+
+// Non-standard whitespace (everything that looks like a space but isn't U+0020)
+const WHITESPACE = new Map([
+  [0x00A0, 'No-Break Space (NBSP)'],
+  [0x1680, 'Ogham Space Mark'],
+  [0x2000, 'En Quad'],
+  [0x2001, 'Em Quad'],
+  [0x2002, 'En Space'],
+  [0x2003, 'Em Space'],
+  [0x2004, 'Three-Per-Em Space'],
+  [0x2005, 'Four-Per-Em Space'],
+  [0x2006, 'Six-Per-Em Space'],
+  [0x2007, 'Figure Space'],
+  [0x2008, 'Punctuation Space'],
+  [0x2009, 'Thin Space'],
+  [0x200A, 'Hair Space'],
+  [0x202F, 'Narrow No-Break Space'],
+  [0x205F, 'Medium Mathematical Space'],
+  [0x3000, 'Ideographic Space'],
+  [0xFEFF, 'Zero-Width No-Break Space (BOM)'], // also in INVISIBLE but worth naming here
 ]);
 
 // Homoglyphs — common lookalike characters
@@ -501,6 +593,12 @@ function classifyCodePoint(cp) {
     return { cat: 'private', desc: `Private Use Area U+${cp.toString(16).toUpperCase().padStart(4,'0')} — no standard meaning` };
   }
 
+  // Non-standard whitespace
+  if (WHITESPACE.has(cp)) {
+    const name = WHITESPACE.get(cp);
+    return { cat: 'whitespace', desc: `Non-standard whitespace U+${cp.toString(16).toUpperCase().padStart(4,'0')}: ${name}` };
+  }
+
   // Homoglyph
   if (HOMOGLYPH_MAP[cp]) {
     return { cat: 'homoglyph', desc: `Homoglyph: ${HOMOGLYPH_MAP[cp]}` };
@@ -516,54 +614,150 @@ function classifyCodePoint(cp) {
 
 // ─── Analysis ─────────────────────────────────────────────────────────────────
 
+let _lastSegments = [];   // cached render segments for whitespace toggle
+let _showWhitespace = false;
+let _lastWsCounts = null;
+
+function toggleWhitespace() {
+  _showWhitespace = !_showWhitespace;
+  const btn = document.getElementById('ws-toggle');
+  btn.classList.toggle('active', _showWhitespace);
+  if (_lastSegments.length) renderOutput();
+}
+
+// Build the output HTML from cached segments
+function renderOutput() {
+  let html = '';
+  for (const seg of _lastSegments) {
+    if (seg.type === 'odd') {
+      const catInfo = CATEGORIES[seg.cat];
+      html += `<span class="hi ${catInfo.cls}" data-tip="${escAttr(seg.desc)}">`;
+      html += seg.display;
+      html += `</span>`;
+    } else if (seg.type === 'ws') {
+      // normal whitespace — only styled when toggle is on
+      if (_showWhitespace) {
+        html += seg.wsHtml;
+      } else {
+        html += seg.raw;
+      }
+    } else {
+      html += seg.raw;
+    }
+  }
+  document.getElementById('output-box').innerHTML = html || '<span style="color:#22c55e">✓ No odd characters found.</span>';
+}
+
 function analyze() {
   const text = document.getElementById('input').value;
   if (!text) {
     document.getElementById('output-box').innerHTML = '<span style="color:#334155">Nothing to analyze.</span>';
     document.getElementById('findings-container').innerHTML = '<p class="empty-state">No input provided.</p>';
     document.getElementById('stats-bar').innerHTML = '';
+    document.getElementById('ws-breakdown').style.display = 'none';
+    _lastSegments = [];
     return;
   }
 
-  const counts = { invisible: 0, bidi: 0, homoglyph: 0, control: 0, nonascii: 0, private: 0 };
-  const findings = []; // { index, char, cp, cat, desc }
+  const counts = { invisible: 0, bidi: 0, homoglyph: 0, control: 0, nonascii: 0, private: 0, whitespace: 0 };
+  const wsCounts = { spaces: 0, tabs: 0, lf: 0, cr: 0, crlf: 0 };
+  const findings = [];
+  _lastSegments = [];
 
-  let html = '';
+  // Pre-process CRLF pairs so we can count them as one unit
+  // We'll iterate code-point by code-point but peek ahead for CR+LF
+  const codePoints = [...text];
   let i = 0;
 
-  // Iterate over Unicode code points (handles surrogate pairs)
-  const codePoints = [...text]; // spread splits by code point
-  let charIndex = 0;
-
-  for (const char of codePoints) {
+  while (i < codePoints.length) {
+    const char = codePoints[i];
     const cp = char.codePointAt(0);
+
+    // CRLF — consume both as one segment
+    if (cp === 0x0D && i + 1 < codePoints.length && codePoints[i + 1].codePointAt(0) === 0x0A) {
+      wsCounts.crlf++;
+      _lastSegments.push({
+        type: 'ws',
+        raw: '\r\n',
+        wsHtml: '<span class="ws-crlf">CRLF</span>\r\n',
+      });
+      i += 2;
+      continue;
+    }
+
+    // CR alone
+    if (cp === 0x0D) {
+      wsCounts.cr++;
+      _lastSegments.push({
+        type: 'ws',
+        raw: '\r',
+        wsHtml: '<span class="ws-cr">CR</span>',
+      });
+      i++;
+      continue;
+    }
+
+    // LF
+    if (cp === 0x0A) {
+      wsCounts.lf++;
+      _lastSegments.push({
+        type: 'ws',
+        raw: '\n',
+        wsHtml: '<span class="ws-lf">↵</span>\n',
+      });
+      i++;
+      continue;
+    }
+
+    // Tab
+    if (cp === 0x09) {
+      wsCounts.tabs++;
+      _lastSegments.push({
+        type: 'ws',
+        raw: '\t',
+        wsHtml: '<span class="ws-tab">→</span>\t',
+      });
+      i++;
+      continue;
+    }
+
+    // Regular space
+    if (cp === 0x20) {
+      wsCounts.spaces++;
+      _lastSegments.push({
+        type: 'ws',
+        raw: ' ',
+        wsHtml: '<span class="ws-space">·</span>',
+      });
+      i++;
+      continue;
+    }
+
     const result = classifyCodePoint(cp);
 
     if (result) {
       counts[result.cat]++;
-      findings.push({ index: charIndex, char, cp, cat: result.cat, desc: result.desc });
+      findings.push({ char, cp, cat: result.cat, desc: result.desc, offset: i });
 
-      const catInfo = CATEGORIES[result.cat];
       const cpHex = cp.toString(16).toUpperCase().padStart(4, '0');
-      // Show a visible placeholder for truly invisible chars
       const display = (cp < 0x20 || INVISIBLE.has(cp) || BIDI.has(cp))
         ? `<span style="font-size:0.7em;vertical-align:middle">U+${cpHex}</span>`
-        : escHtml(char);
+        : result.cat === 'whitespace'
+          ? `<span style="font-size:0.75em;vertical-align:middle;opacity:0.8">·</span>`
+          : escHtml(char);
 
-      html += `<span class="hi ${catInfo.cls}" title="${escAttr(result.desc)}">`;
-      html += display;
-      html += `<span class="tooltip">${escHtml(result.desc)}</span>`;
-      html += `</span>`;
+      _lastSegments.push({ type: 'odd', cat: result.cat, desc: result.desc, display });
     } else {
-      html += escHtml(char);
+      _lastSegments.push({ type: 'plain', raw: escHtml(char) });
     }
 
-    charIndex += char.length; // byte offset (not used further but kept for reference)
+    i++;
   }
 
-  document.getElementById('output-box').innerHTML = html || '<span style="color:#22c55e">✓ No odd characters found.</span>';
+  _lastWsCounts = wsCounts;
+  renderOutput();
 
-  // Stats bar
+  // Stats bar — odd character counts
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
   let statsHtml = '';
   if (total === 0) {
@@ -578,39 +772,88 @@ function analyze() {
   }
   document.getElementById('stats-bar').innerHTML = statsHtml;
 
-  // Findings table
+  // Whitespace breakdown — always shown after analysis
+  const wsEl = document.getElementById('ws-breakdown');
+  const wsItems = [
+    { key: 'spaces', label: 'Spaces',    symbol: '·'    },
+    { key: 'tabs',   label: 'Tabs',      symbol: '→'    },
+    { key: 'lf',     label: 'LF',        symbol: '↵'    },
+    { key: 'crlf',   label: 'CRLF',      symbol: 'CRLF' },
+    { key: 'cr',     label: 'CR (bare)', symbol: 'CR'   },
+  ];
+  let wsHtml = wsItems
+    .filter(w => wsCounts[w.key] > 0)
+    .map(w => `<div class="ws-stat"><span class="ws-label">${w.label}</span><strong>${wsCounts[w.key].toLocaleString()}</strong></div>`)
+    .join('');
+  if (wsHtml) {
+    wsEl.innerHTML = wsHtml;
+    wsEl.style.display = 'flex';
+  } else {
+    wsEl.style.display = 'none';
+  }
+
+  // Show/hide copy-clean button
+  document.getElementById('copy-clean-btn').style.display = findings.length > 0 ? '' : 'none';
+
+  // Findings table — grouped by unique code point
   if (findings.length === 0) {
     document.getElementById('findings-container').innerHTML = '<p class="no-findings">✓ No suspicious characters found in this text.</p>';
   } else {
+    // Group by cp
+    const groups = new Map(); // cp → { cat, desc, char, occurrences: [{offset}] }
+    findings.forEach(f => {
+      if (!groups.has(f.cp)) groups.set(f.cp, { cat: f.cat, desc: f.desc, char: f.char, occurrences: [] });
+      groups.get(f.cp).occurrences.push(f.offset);
+    });
+
     let tableHtml = `
       <table class="findings-table">
         <thead>
           <tr>
-            <th>#</th>
+            <th></th>
             <th>Char</th>
             <th>Code Point</th>
             <th>Category</th>
             <th>Description</th>
+            <th>Count</th>
           </tr>
         </thead>
         <tbody>`;
 
-    findings.forEach((f, idx) => {
-      const catInfo = CATEGORIES[f.cat];
-      const cpHex = `U+${f.cp.toString(16).toUpperCase().padStart(4, '0')}`;
-      const charDisplay = (f.cp < 0x20 || INVISIBLE.has(f.cp) || BIDI.has(f.cp))
+    let groupIdx = 0;
+    for (const [cp, g] of groups) {
+      const catInfo = CATEGORIES[g.cat];
+      const cpHex = `U+${cp.toString(16).toUpperCase().padStart(4, '0')}`;
+      const charDisplay = (cp < 0x20 || INVISIBLE.has(cp) || BIDI.has(cp))
         ? `<em style="color:#475569">[invisible]</em>`
-        : `<span class="char-preview">${escHtml(f.char)}</span>`;
+        : g.cat === 'whitespace'
+          ? `<span class="char-preview" style="color:#fdba74">·</span>`
+          : `<span class="char-preview">${escHtml(g.char)}</span>`;
+      const gid = `g${groupIdx++}`;
+      const multi = g.occurrences.length > 1;
 
       tableHtml += `
-        <tr>
-          <td style="color:#475569">${idx + 1}</td>
+        <tr class="group-row${multi ? '' : ''}" id="${gid}-row" onclick="${multi ? `toggleGroup('${gid}')` : ''}">
+          <td><span class="group-toggle">${multi ? '▶' : ''}</span></td>
           <td>${charDisplay}</td>
           <td><code style="color:#94a3b8">${cpHex}</code></td>
           <td><span class="badge ${catInfo.badge}">${catInfo.label}</span></td>
-          <td style="color:#94a3b8">${escHtml(f.desc)}</td>
+          <td style="color:#94a3b8">${escHtml(g.desc)}</td>
+          <td style="color:#64748b">${g.occurrences.length > 1 ? `<strong style="color:#e2e8f0">×${g.occurrences.length}</strong>` : '1'}</td>
         </tr>`;
-    });
+
+      if (multi) {
+        g.occurrences.forEach((offset, i) => {
+          tableHtml += `
+            <tr class="child-row hidden" id="${gid}-child-${i}">
+              <td></td>
+              <td colspan="3" style="color:#64748b">Occurrence ${i + 1}</td>
+              <td style="color:#94a3b8">offset <code style="color:#818cf8">${offset}</code></td>
+              <td></td>
+            </tr>`;
+        });
+      }
+    }
 
     tableHtml += '</tbody></table>';
     document.getElementById('findings-container').innerHTML = tableHtml;
@@ -632,6 +875,10 @@ function clearAll() {
   document.getElementById('output-box').innerHTML = '<span style="color:#334155">Output will appear here after analysis…</span>';
   document.getElementById('findings-container').innerHTML = '<p class="empty-state">No analysis run yet.</p>';
   document.getElementById('stats-bar').innerHTML = '';
+  document.getElementById('ws-breakdown').style.display = 'none';
+  document.getElementById('copy-clean-btn').style.display = 'none';
+  _lastSegments = [];
+  _lastWsCounts = null;
 }
 
 // Sample text with a variety of malicious / odd characters
@@ -662,6 +909,12 @@ function loadSample() {
     'invis﻿ible',         // BOM / zero-width no-break space mid-string
     'word​breaker',
     '',
+    // Non-standard whitespace
+    'price: $9.99',            // NBSP between label and value
+    'hello world',             // Em space
+    'copy right notice',  // Thin spaces
+    'no break',                // Narrow no-break space
+    '',
     // Normal looking text (no flags expected)
     'This line is completely normal ASCII text.',
   ].join('\n');
@@ -670,9 +923,70 @@ function loadSample() {
   analyze();
 }
 
-// Auto-analyze on paste
+function toggleGroup(gid) {
+  const row = document.getElementById(`${gid}-row`);
+  row.classList.toggle('open');
+  let i = 0;
+  while (true) {
+    const child = document.getElementById(`${gid}-child-${i}`);
+    if (!child) break;
+    child.classList.toggle('hidden');
+    i++;
+  }
+}
+
+function copyClean() {
+  const text = document.getElementById('input').value;
+  const codePoints = [...text];
+  const cleaned = codePoints.filter(ch => {
+    const cp = ch.codePointAt(0);
+    const result = classifyCodePoint(cp);
+    return result === null || (cp === 0x20 || cp === 0x09 || cp === 0x0A || cp === 0x0D);
+  }).join('');
+  navigator.clipboard.writeText(cleaned).then(() => {
+    const btn = document.getElementById('copy-clean-btn');
+    const orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = orig; }, 1500);
+  });
+}
+
+// ─── Floating tooltip ─────────────────────────────────────────────────────────
+const floatTip = document.getElementById('float-tooltip');
+
+document.getElementById('output-box').addEventListener('mouseover', e => {
+  const el = e.target.closest('.hi[data-tip]');
+  if (!el) return;
+  floatTip.textContent = el.dataset.tip;
+  floatTip.style.display = 'block';
+});
+
+document.getElementById('output-box').addEventListener('mousemove', e => {
+  const el = e.target.closest('.hi[data-tip]');
+  if (!el) { floatTip.style.display = 'none'; return; }
+  const gap = 10;
+  const tw = floatTip.offsetWidth;
+  let x = e.clientX - tw / 2;
+  let y = e.clientY - floatTip.offsetHeight - gap;
+  // keep within viewport
+  x = Math.max(8, Math.min(x, window.innerWidth - tw - 8));
+  if (y < 8) y = e.clientY + gap;
+  floatTip.style.left = x + 'px';
+  floatTip.style.top  = y + 'px';
+});
+
+document.getElementById('output-box').addEventListener('mouseleave', () => {
+  floatTip.style.display = 'none';
+});
+
+// Auto-analyze on paste or input (debounced)
+let _debounceTimer = null;
 document.getElementById('input').addEventListener('paste', () => {
   setTimeout(analyze, 10);
+});
+document.getElementById('input').addEventListener('input', () => {
+  clearTimeout(_debounceTimer);
+  _debounceTimer = setTimeout(analyze, 400);
 });
 </script>
 </body>
