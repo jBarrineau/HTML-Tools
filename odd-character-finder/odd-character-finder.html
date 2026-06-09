@@ -617,6 +617,7 @@ function classifyCodePoint(cp) {
 let _lastSegments = [];   // cached render segments for whitespace toggle
 let _showWhitespace = false;
 let _lastWsCounts = null;
+let _rawText = null;      // raw pasted text before browser line-ending normalization
 
 function toggleWhitespace() {
   _showWhitespace = !_showWhitespace;
@@ -649,7 +650,7 @@ function renderOutput() {
 }
 
 function analyze() {
-  const text = document.getElementById('input').value;
+  const text = _rawText !== null ? _rawText : document.getElementById('input').value;
   if (!text) {
     document.getElementById('output-box').innerHTML = '<span style="color:#334155">Nothing to analyze.</span>';
     document.getElementById('findings-container').innerHTML = '<p class="empty-state">No input provided.</p>';
@@ -664,8 +665,12 @@ function analyze() {
   const findings = [];
   _lastSegments = [];
 
-  // Pre-process CRLF pairs so we can count them as one unit
-  // We'll iterate code-point by code-point but peek ahead for CR+LF
+  // Pre-scan for mixed line endings (CRLF + LF coexisting)
+  const hasCRLF = /\r\n/.test(text);
+  const hasLFOnly = /(?<!\r)\n/.test(text);
+  const mixedLineEndings = hasCRLF && hasLFOnly;
+
+  // Iterate code-point by code-point, peeking ahead for CRLF pairs
   const codePoints = [...text];
   let i = 0;
 
@@ -676,22 +681,30 @@ function analyze() {
     // CRLF — consume both as one segment
     if (cp === 0x0D && i + 1 < codePoints.length && codePoints[i + 1].codePointAt(0) === 0x0A) {
       wsCounts.crlf++;
-      _lastSegments.push({
-        type: 'ws',
-        raw: '\r\n',
-        wsHtml: '<span class="ws-crlf">CRLF</span>\r\n',
-      });
+      if (mixedLineEndings) {
+        const desc = 'CRLF line ending (\\r\\n) — mixed with LF-only lines in this text';
+        counts.whitespace++;
+        findings.push({ char: '\r\n', cp: 0x0D, cat: 'whitespace', desc, offset: i });
+        _lastSegments.push({
+          type: 'odd', cat: 'whitespace', desc,
+          display: '<span style="font-size:0.65em;vertical-align:middle;font-weight:700">CRLF</span>\r\n',
+        });
+      } else {
+        _lastSegments.push({ type: 'ws', raw: '\r\n', wsHtml: '<span class="ws-crlf">CRLF</span>\r\n' });
+      }
       i += 2;
       continue;
     }
 
-    // CR alone
+    // CR alone — always flag
     if (cp === 0x0D) {
       wsCounts.cr++;
+      const desc = 'Bare CR (\\r) — carriage return without LF; unexpected in modern text';
+      counts.control++;
+      findings.push({ char: '\r', cp: 0x0D, cat: 'control', desc, offset: i });
       _lastSegments.push({
-        type: 'ws',
-        raw: '\r',
-        wsHtml: '<span class="ws-cr">CR</span>',
+        type: 'odd', cat: 'control', desc,
+        display: '<span style="font-size:0.65em;vertical-align:middle;font-weight:700">CR</span>',
       });
       i++;
       continue;
@@ -799,11 +812,11 @@ function analyze() {
   if (findings.length === 0) {
     document.getElementById('findings-container').innerHTML = '<p class="no-findings">✓ No suspicious characters found in this text.</p>';
   } else {
-    // Group by cp
-    const groups = new Map(); // cp → { cat, desc, char, occurrences: [{offset}] }
+    // Group by char string (not just cp — e.g. bare CR vs CRLF both have cp 0x0D)
+    const groups = new Map(); // char → { cat, desc, cp, occurrences: [{offset}] }
     findings.forEach(f => {
-      if (!groups.has(f.cp)) groups.set(f.cp, { cat: f.cat, desc: f.desc, char: f.char, occurrences: [] });
-      groups.get(f.cp).occurrences.push(f.offset);
+      if (!groups.has(f.char)) groups.set(f.char, { cat: f.cat, desc: f.desc, cp: f.cp, char: f.char, occurrences: [] });
+      groups.get(f.char).occurrences.push(f.offset);
     });
 
     let tableHtml = `
@@ -821,10 +834,10 @@ function analyze() {
         <tbody>`;
 
     let groupIdx = 0;
-    for (const [cp, g] of groups) {
+    for (const [, g] of groups) {
       const catInfo = CATEGORIES[g.cat];
-      const cpHex = `U+${cp.toString(16).toUpperCase().padStart(4, '0')}`;
-      const charDisplay = (cp < 0x20 || INVISIBLE.has(cp) || BIDI.has(cp))
+      const cpHex = `U+${g.cp.toString(16).toUpperCase().padStart(4, '0')}`;
+      const charDisplay = (g.cp < 0x20 || INVISIBLE.has(g.cp) || BIDI.has(g.cp))
         ? `<em style="color:#475569">[invisible]</em>`
         : g.cat === 'whitespace'
           ? `<span class="char-preview" style="color:#fdba74">·</span>`
@@ -879,6 +892,7 @@ function clearAll() {
   document.getElementById('copy-clean-btn').style.display = 'none';
   _lastSegments = [];
   _lastWsCounts = null;
+  _rawText = null;
 }
 
 // Sample text with a variety of malicious / odd characters
@@ -981,10 +995,17 @@ document.getElementById('output-box').addEventListener('mouseleave', () => {
 
 // Auto-analyze on paste or input (debounced)
 let _debounceTimer = null;
-document.getElementById('input').addEventListener('paste', () => {
+
+document.getElementById('input').addEventListener('paste', e => {
+  const raw = e.clipboardData.getData('text/plain');
+  _rawText = raw;
+  // Let the browser insert the normalized version for display, then analyze
   setTimeout(analyze, 10);
 });
+
 document.getElementById('input').addEventListener('input', () => {
+  // Manual edits invalidate the raw paste capture
+  _rawText = null;
   clearTimeout(_debounceTimer);
   _debounceTimer = setTimeout(analyze, 400);
 });
