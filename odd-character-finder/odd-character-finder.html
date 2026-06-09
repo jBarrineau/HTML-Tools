@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Odd Character Finder</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+      color: #f8fafc;
+    }
+
+    .subtitle {
+      font-size: 0.85rem;
+      color: #64748b;
+      margin-bottom: 20px;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+    }
+
+    .panel {
+      background: #1e2130;
+      border: 1px solid #2d3148;
+      border-radius: 10px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .panel-title {
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: #94a3b8;
+    }
+
+    textarea {
+      width: 100%;
+      height: 260px;
+      background: #0f1117;
+      border: 1px solid #2d3148;
+      border-radius: 6px;
+      color: #e2e8f0;
+      font-family: 'Cascadia Code', 'Fira Mono', 'Consolas', monospace;
+      font-size: 0.85rem;
+      padding: 10px 12px;
+      resize: vertical;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    textarea:focus { border-color: #6366f1; }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      padding: 7px 16px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-size: 0.82rem;
+      font-weight: 600;
+      transition: opacity 0.15s, background 0.15s;
+    }
+
+    button:hover { opacity: 0.85; }
+
+    .btn-primary { background: #6366f1; color: #fff; }
+    .btn-ghost { background: #2d3148; color: #94a3b8; }
+    .btn-danger { background: #ef4444; color: #fff; }
+
+    #output-box {
+      width: 100%;
+      min-height: 260px;
+      background: #0f1117;
+      border: 1px solid #2d3148;
+      border-radius: 6px;
+      font-family: 'Cascadia Code', 'Fira Mono', 'Consolas', monospace;
+      font-size: 0.85rem;
+      padding: 10px 12px;
+      white-space: pre-wrap;
+      word-break: break-all;
+      overflow-y: auto;
+      line-height: 1.7;
+    }
+
+    /* Highlight categories */
+    .hi { display: inline; border-radius: 3px; cursor: pointer; position: relative; }
+
+    /* invisible / zero-width */
+    .hi-invisible {
+      background: #7c3aed33;
+      outline: 2px solid #7c3aed;
+      color: #c4b5fd;
+    }
+
+    /* bidi override */
+    .hi-bidi {
+      background: #dc262633;
+      outline: 2px solid #dc2626;
+      color: #fca5a5;
+    }
+
+    /* lookalike / homoglyph */
+    .hi-homoglyph {
+      background: #d9770633;
+      outline: 2px solid #d97706;
+      color: #fcd34d;
+    }
+
+    /* control characters */
+    .hi-control {
+      background: #0891b233;
+      outline: 2px solid #0891b2;
+      color: #67e8f9;
+    }
+
+    /* non-ascii but not specifically categorised */
+    .hi-nonascii {
+      background: #16a34a33;
+      outline: 2px solid #16a34a;
+      color: #86efac;
+    }
+
+    /* private use area */
+    .hi-private {
+      background: #db277733;
+      outline: 2px solid #db2777;
+      color: #f9a8d4;
+    }
+
+    .tooltip {
+      display: none;
+      position: absolute;
+      bottom: calc(100% + 6px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1e2130;
+      border: 1px solid #4b5563;
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 0.73rem;
+      color: #e2e8f0;
+      white-space: nowrap;
+      z-index: 100;
+      pointer-events: none;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      box-shadow: 0 4px 12px #00000066;
+    }
+
+    .hi:hover .tooltip { display: block; }
+
+    .stats-bar {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      font-size: 0.78rem;
+    }
+
+    .stat {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      background: #0f1117;
+      border: 1px solid #2d3148;
+      border-radius: 5px;
+      padding: 4px 10px;
+    }
+
+    .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .dot-invisible { background: #7c3aed; }
+    .dot-bidi      { background: #dc2626; }
+    .dot-homoglyph { background: #d97706; }
+    .dot-control   { background: #0891b2; }
+    .dot-nonascii  { background: #16a34a; }
+    .dot-private   { background: #db2777; }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      font-size: 0.75rem;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      color: #94a3b8;
+    }
+
+    .swatch {
+      width: 10px; height: 10px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    .swatch-invisible { background: #7c3aed; }
+    .swatch-bidi      { background: #dc2626; }
+    .swatch-homoglyph { background: #d97706; }
+    .swatch-control   { background: #0891b2; }
+    .swatch-nonascii  { background: #16a34a; }
+    .swatch-private   { background: #db2777; }
+
+    .findings-panel {
+      grid-column: 1 / -1;
+    }
+
+    .findings-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+
+    .findings-table th {
+      text-align: left;
+      padding: 6px 10px;
+      border-bottom: 1px solid #2d3148;
+      color: #64748b;
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 0.7rem;
+      letter-spacing: 0.05em;
+    }
+
+    .findings-table td {
+      padding: 6px 10px;
+      border-bottom: 1px solid #1a1f30;
+      vertical-align: middle;
+    }
+
+    .findings-table tr:last-child td { border-bottom: none; }
+
+    .findings-table tr:hover td { background: #161929; }
+
+    .empty-state {
+      text-align: center;
+      color: #334155;
+      padding: 30px 0;
+      font-size: 0.85rem;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      font-weight: 700;
+    }
+
+    .badge-invisible { background: #7c3aed33; color: #c4b5fd; border: 1px solid #7c3aed; }
+    .badge-bidi      { background: #dc262633; color: #fca5a5; border: 1px solid #dc2626; }
+    .badge-homoglyph { background: #d9770633; color: #fcd34d; border: 1px solid #d97706; }
+    .badge-control   { background: #0891b233; color: #67e8f9; border: 1px solid #0891b2; }
+    .badge-nonascii  { background: #16a34a33; color: #86efac; border: 1px solid #16a34a; }
+    .badge-private   { background: #db277733; color: #f9a8d4; border: 1px solid #db2777; }
+
+    .char-preview {
+      font-family: 'Cascadia Code', 'Fira Mono', 'Consolas', monospace;
+      background: #0f1117;
+      border: 1px solid #2d3148;
+      border-radius: 4px;
+      padding: 1px 6px;
+    }
+
+    .no-findings {
+      color: #22c55e;
+      font-size: 0.85rem;
+      padding: 8px 0;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Odd Character Finder</h1>
+<p class="subtitle">Detects invisible, bidirectional, homoglyph, control, and other suspicious Unicode characters in text.</p>
+
+<div class="layout">
+  <!-- Input -->
+  <div class="panel">
+    <div class="panel-title">Input</div>
+    <textarea id="input" placeholder="Paste or type text here…" spellcheck="false"></textarea>
+    <div class="actions">
+      <button class="btn-primary" onclick="analyze()">Analyze</button>
+      <button class="btn-ghost" onclick="loadSample()">Load Sample</button>
+      <button class="btn-ghost" onclick="clearAll()">Clear</button>
+    </div>
+    <div class="legend">
+      <div class="legend-item"><div class="swatch swatch-invisible"></div>Invisible / Zero-width</div>
+      <div class="legend-item"><div class="swatch swatch-bidi"></div>Bidi Override (⚠ Trojan Source)</div>
+      <div class="legend-item"><div class="swatch swatch-homoglyph"></div>Homoglyph / Lookalike</div>
+      <div class="legend-item"><div class="swatch swatch-control"></div>Control Character</div>
+      <div class="legend-item"><div class="swatch swatch-nonascii"></div>Non-ASCII / Extended Unicode</div>
+      <div class="legend-item"><div class="swatch swatch-private"></div>Private Use Area</div>
+    </div>
+  </div>
+
+  <!-- Output -->
+  <div class="panel">
+    <div class="panel-title">Highlighted Output</div>
+    <div id="output-box"><span style="color:#334155">Output will appear here after analysis…</span></div>
+    <div id="stats-bar" class="stats-bar"></div>
+  </div>
+
+  <!-- Findings table -->
+  <div class="panel findings-panel">
+    <div class="panel-title">Findings</div>
+    <div id="findings-container"><p class="empty-state">No analysis run yet.</p></div>
+  </div>
+</div>
+
+<script>
+// ─── Character Classification ────────────────────────────────────────────────
+
+const CATEGORIES = {
+  invisible: { label: 'Invisible / Zero-width', cls: 'hi-invisible', badge: 'badge-invisible', dot: 'dot-invisible' },
+  bidi:      { label: 'Bidi Override (Trojan Source)', cls: 'hi-bidi',      badge: 'badge-bidi',      dot: 'dot-bidi'      },
+  homoglyph: { label: 'Homoglyph / Lookalike',    cls: 'hi-homoglyph', badge: 'badge-homoglyph', dot: 'dot-homoglyph' },
+  control:   { label: 'Control Character',         cls: 'hi-control',   badge: 'badge-control',   dot: 'dot-control'   },
+  nonascii:  { label: 'Non-ASCII / Extended',      cls: 'hi-nonascii',  badge: 'badge-nonascii',  dot: 'dot-nonascii'  },
+  private:   { label: 'Private Use Area',          cls: 'hi-private',   badge: 'badge-private',   dot: 'dot-private'   },
+};
+
+// Invisible / zero-width characters
+const INVISIBLE = new Set([
+  0x00AD, // Soft hyphen
+  0x034F, // Combining grapheme joiner
+  0x061C, // Arabic letter mark
+  0x115F, // Hangul Choseong filler
+  0x1160, // Hangul Jungseong filler
+  0x17B4, // Khmer vowel inherent AQ
+  0x17B5, // Khmer vowel inherent AA
+  0x180B, 0x180C, 0x180D, // Mongolian free variation selectors
+  0x180E, // Mongolian vowel separator
+  0x200B, // Zero-width space
+  0x200C, // Zero-width non-joiner
+  0x200D, // Zero-width joiner
+  0x200E, // Left-to-right mark
+  0x200F, // Right-to-left mark
+  0x202A, // Left-to-right embedding
+  0x202B, // Right-to-left embedding
+  0x202C, // Pop directional formatting
+  0x202D, // Left-to-right override
+  0x202E, // Right-to-left override  ← Trojan Source (also bidi)
+  0x2060, // Word joiner
+  0x2061, // Function application
+  0x2062, // Invisible times
+  0x2063, // Invisible separator
+  0x2064, // Invisible plus
+  0x206A, // Inhibit symmetric swapping
+  0x206B, // Activate symmetric swapping
+  0x206C, // Inhibit Arabic form shaping
+  0x206D, // Activate Arabic form shaping
+  0x206E, // National digit shapes
+  0x206F, // Nominal digit shapes
+  0x3164, // Hangul filler
+  0xFEFF, // Zero-width no-break space / BOM
+  0xFFA0, // Halfwidth Hangul filler
+  0x1D159, // Musical void notehead
+  0x1D173, 0x1D174, 0x1D175, 0x1D176, 0x1D177, 0x1D178, 0x1D179, 0x1D17A, // Musical formatting
+]);
+
+// Bidi override characters (CVE-2021-42574 "Trojan Source")
+const BIDI = new Set([
+  0x202A, // Left-to-right embedding
+  0x202B, // Right-to-left embedding
+  0x202C, // Pop directional formatting
+  0x202D, // Left-to-right override
+  0x202E, // Right-to-left override
+  0x2066, // Left-to-right isolate
+  0x2067, // Right-to-left isolate
+  0x2068, // First strong isolate
+  0x2069, // Pop directional isolate
+  0x200F, // Right-to-left mark
+  0x061C, // Arabic letter mark
+]);
+
+// Homoglyphs — common lookalike characters
+const HOMOGLYPH_MAP = {
+  // Cyrillic lookalikes for Latin
+  0x0430: 'а (Cyrillic а → looks like Latin a)',
+  0x0435: 'е (Cyrillic е → looks like Latin e)',
+  0x043E: 'о (Cyrillic о → looks like Latin o)',
+  0x0440: 'р (Cyrillic р → looks like Latin p)',
+  0x0441: 'с (Cyrillic с → looks like Latin c)',
+  0x0445: 'х (Cyrillic х → looks like Latin x)',
+  0x0443: 'у (Cyrillic у → looks like Latin y)',
+  0x0410: 'А (Cyrillic А → looks like Latin A)',
+  0x0412: 'В (Cyrillic В → looks like Latin B)',
+  0x0415: 'Е (Cyrillic Е → looks like Latin E)',
+  0x041A: 'К (Cyrillic К → looks like Latin K)',
+  0x041C: 'М (Cyrillic М → looks like Latin M)',
+  0x041D: 'Н (Cyrillic Н → looks like Latin H)',
+  0x041E: 'О (Cyrillic О → looks like Latin O)',
+  0x0420: 'Р (Cyrillic Р → looks like Latin P)',
+  0x0421: 'С (Cyrillic С → looks like Latin C)',
+  0x0422: 'Т (Cyrillic Т → looks like Latin T)',
+  0x0425: 'Х (Cyrillic Х → looks like Latin X)',
+  0x0443: 'у (Cyrillic у → looks like Latin y)',
+  // Greek lookalikes
+  0x0391: 'Α (Greek Alpha → looks like Latin A)',
+  0x0392: 'Β (Greek Beta → looks like Latin B)',
+  0x0395: 'Ε (Greek Epsilon → looks like Latin E)',
+  0x0396: 'Ζ (Greek Zeta → looks like Latin Z)',
+  0x0397: 'Η (Greek Eta → looks like Latin H)',
+  0x0399: 'Ι (Greek Iota → looks like Latin I)',
+  0x039A: 'Κ (Greek Kappa → looks like Latin K)',
+  0x039C: 'Μ (Greek Mu → looks like Latin M)',
+  0x039D: 'Ν (Greek Nu → looks like Latin N)',
+  0x039F: 'Ο (Greek Omicron → looks like Latin O)',
+  0x03A1: 'Ρ (Greek Rho → looks like Latin P)',
+  0x03A4: 'Τ (Greek Tau → looks like Latin T)',
+  0x03A5: 'Υ (Greek Upsilon → looks like Latin Y)',
+  0x03A7: 'Χ (Greek Chi → looks like Latin X)',
+  0x03BF: 'ο (Greek omicron → looks like Latin o)',
+  0x03BD: 'ν (Greek nu → looks like Latin v)',
+  // Fullwidth ASCII lookalikes
+  0xFF21: 'Ａ (Fullwidth A)', 0xFF22: 'Ｂ (Fullwidth B)', 0xFF23: 'Ｃ (Fullwidth C)',
+  0xFF24: 'Ｄ (Fullwidth D)', 0xFF25: 'Ｅ (Fullwidth E)', 0xFF26: 'Ｆ (Fullwidth F)',
+  0xFF41: 'ａ (Fullwidth a)', 0xFF4F: 'ｏ (Fullwidth o)', 0xFF4C: 'ｌ (Fullwidth l)',
+  // Mathematical lookalikes
+  0x2126: 'Ω (Ohm sign → looks like Omega)',
+  0x212A: 'K (Kelvin sign → looks like K)',
+  0x212B: 'Å (Angstrom → looks like A-ring)',
+  // Other common confusables
+  0x01A0: 'Ơ (Latin O with horn)',
+  0x0D0: 'Ð (Eth)',
+  0x0131: 'ı (Dotless i)',
+  0x0406: 'І (Cyrillic І → looks like Latin I)',
+  0x04CF: 'ӏ (Cyrillic palochka → looks like l)',
+  0x1D0F: 'ᴏ (Small capital O)',
+  0x2013: '– (En dash → looks like hyphen)',
+  0x2014: '— (Em dash)',
+  0x2018: '‘ (Left single quote)',
+  0x2019: '’ (Right single quote)',
+  0x201C: '“ (Left double quote)',
+  0x201D: '” (Right double quote)',
+  0x0060: '` (Backtick)',
+  0x00B4: '´ (Acute accent → looks like apostrophe)',
+  0x02BC: 'ʼ (Modifier apostrophe)',
+  0x02B9: 'ʹ (Modifier prime)',
+  0xFE32: '︲ (Presentation form dash)',
+  0xFF0D: '－ (Fullwidth hyphen-minus)',
+};
+
+function classifyCodePoint(cp) {
+  // Skip normal printable ASCII (0x20–0x7E) and common whitespace
+  if (cp === 0x09 || cp === 0x0A || cp === 0x0D) return null; // tab, LF, CR — normal
+
+  // Control characters (C0: 0x00–0x1F, C1: 0x80–0x9F, misc)
+  if (cp < 0x20 || (cp >= 0x7F && cp <= 0x9F)) {
+    return { cat: 'control', desc: `Control character U+${cp.toString(16).toUpperCase().padStart(4,'0')}` };
+  }
+
+  // Pure ASCII printable — fine
+  if (cp >= 0x20 && cp <= 0x7E) return null;
+
+  // Bidi (check before invisible since some overlap)
+  if (BIDI.has(cp)) {
+    return { cat: 'bidi', desc: `Bidi override U+${cp.toString(16).toUpperCase().padStart(4,'0')} — can reorder visible text (Trojan Source attack)` };
+  }
+
+  // Invisible / zero-width
+  if (INVISIBLE.has(cp)) {
+    return { cat: 'invisible', desc: `Invisible/zero-width character U+${cp.toString(16).toUpperCase().padStart(4,'0')}` };
+  }
+
+  // Private Use Area
+  if ((cp >= 0xE000 && cp <= 0xF8FF) || (cp >= 0xF0000 && cp <= 0xFFFFD) || (cp >= 0x100000 && cp <= 0x10FFFD)) {
+    return { cat: 'private', desc: `Private Use Area U+${cp.toString(16).toUpperCase().padStart(4,'0')} — no standard meaning` };
+  }
+
+  // Homoglyph
+  if (HOMOGLYPH_MAP[cp]) {
+    return { cat: 'homoglyph', desc: `Homoglyph: ${HOMOGLYPH_MAP[cp]}` };
+  }
+
+  // Non-ASCII (everything else above 0x7E)
+  if (cp > 0x7E) {
+    return { cat: 'nonascii', desc: `Non-ASCII U+${cp.toString(16).toUpperCase().padStart(4,'0')} (${cp > 0xFFFF ? String.fromCodePoint(cp) : String.fromCharCode(cp)})` };
+  }
+
+  return null;
+}
+
+// ─── Analysis ─────────────────────────────────────────────────────────────────
+
+function analyze() {
+  const text = document.getElementById('input').value;
+  if (!text) {
+    document.getElementById('output-box').innerHTML = '<span style="color:#334155">Nothing to analyze.</span>';
+    document.getElementById('findings-container').innerHTML = '<p class="empty-state">No input provided.</p>';
+    document.getElementById('stats-bar').innerHTML = '';
+    return;
+  }
+
+  const counts = { invisible: 0, bidi: 0, homoglyph: 0, control: 0, nonascii: 0, private: 0 };
+  const findings = []; // { index, char, cp, cat, desc }
+
+  let html = '';
+  let i = 0;
+
+  // Iterate over Unicode code points (handles surrogate pairs)
+  const codePoints = [...text]; // spread splits by code point
+  let charIndex = 0;
+
+  for (const char of codePoints) {
+    const cp = char.codePointAt(0);
+    const result = classifyCodePoint(cp);
+
+    if (result) {
+      counts[result.cat]++;
+      findings.push({ index: charIndex, char, cp, cat: result.cat, desc: result.desc });
+
+      const catInfo = CATEGORIES[result.cat];
+      const cpHex = cp.toString(16).toUpperCase().padStart(4, '0');
+      // Show a visible placeholder for truly invisible chars
+      const display = (cp < 0x20 || INVISIBLE.has(cp) || BIDI.has(cp))
+        ? `<span style="font-size:0.7em;vertical-align:middle">U+${cpHex}</span>`
+        : escHtml(char);
+
+      html += `<span class="hi ${catInfo.cls}" title="${escAttr(result.desc)}">`;
+      html += display;
+      html += `<span class="tooltip">${escHtml(result.desc)}</span>`;
+      html += `</span>`;
+    } else {
+      html += escHtml(char);
+    }
+
+    charIndex += char.length; // byte offset (not used further but kept for reference)
+  }
+
+  document.getElementById('output-box').innerHTML = html || '<span style="color:#22c55e">✓ No odd characters found.</span>';
+
+  // Stats bar
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+  let statsHtml = '';
+  if (total === 0) {
+    statsHtml = '<span class="no-findings">✓ No suspicious characters detected.</span>';
+  } else {
+    for (const [cat, count] of Object.entries(counts)) {
+      if (count > 0) {
+        const info = CATEGORIES[cat];
+        statsHtml += `<div class="stat"><div class="dot ${info.dot}"></div>${count} ${info.label}</div>`;
+      }
+    }
+  }
+  document.getElementById('stats-bar').innerHTML = statsHtml;
+
+  // Findings table
+  if (findings.length === 0) {
+    document.getElementById('findings-container').innerHTML = '<p class="no-findings">✓ No suspicious characters found in this text.</p>';
+  } else {
+    let tableHtml = `
+      <table class="findings-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Char</th>
+            <th>Code Point</th>
+            <th>Category</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>`;
+
+    findings.forEach((f, idx) => {
+      const catInfo = CATEGORIES[f.cat];
+      const cpHex = `U+${f.cp.toString(16).toUpperCase().padStart(4, '0')}`;
+      const charDisplay = (f.cp < 0x20 || INVISIBLE.has(f.cp) || BIDI.has(f.cp))
+        ? `<em style="color:#475569">[invisible]</em>`
+        : `<span class="char-preview">${escHtml(f.char)}</span>`;
+
+      tableHtml += `
+        <tr>
+          <td style="color:#475569">${idx + 1}</td>
+          <td>${charDisplay}</td>
+          <td><code style="color:#94a3b8">${cpHex}</code></td>
+          <td><span class="badge ${catInfo.badge}">${catInfo.label}</span></td>
+          <td style="color:#94a3b8">${escHtml(f.desc)}</td>
+        </tr>`;
+    });
+
+    tableHtml += '</tbody></table>';
+    document.getElementById('findings-container').innerHTML = tableHtml;
+  }
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function escHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function escAttr(s) {
+  return s.replace(/"/g, '&quot;').replace(/&/g, '&amp;');
+}
+
+function clearAll() {
+  document.getElementById('input').value = '';
+  document.getElementById('output-box').innerHTML = '<span style="color:#334155">Output will appear here after analysis…</span>';
+  document.getElementById('findings-container').innerHTML = '<p class="empty-state">No analysis run yet.</p>';
+  document.getElementById('stats-bar').innerHTML = '';
+}
+
+// Sample text with a variety of malicious / odd characters
+function loadSample() {
+  const sample = [
+    // Bidi / Trojan Source
+    'admin‮⁦// Check if user is⁩⁦ trusted⁩',
+    '',
+    // Zero-width characters
+    'pass​word',         // zero-width space inside "password"
+    'eval‍()',            // ZWJ inside eval
+    'exec­()',            // soft hyphen in exec
+    '',
+    // Homoglyphs (Cyrillic)
+    'pаypal.com',              // Cyrillic 'а' instead of Latin 'a'
+    'gооgle.com',              // two Cyrillic 'о' instead of Latin 'o'
+    'microsрoft.com',     // Cyrillic р in microsoft
+    '',
+    // Control characters
+    'Hello\x01World',          // SOH control character
+    'foo\x08bar',              // backspace
+    'test\x1Bstring',          // ESC character
+    '',
+    // Private Use Area
+    'SecretData',
+    '',
+    // Misc invisible marks
+    'invis﻿ible',         // BOM / zero-width no-break space mid-string
+    'word​breaker',
+    '',
+    // Normal looking text (no flags expected)
+    'This line is completely normal ASCII text.',
+  ].join('\n');
+
+  document.getElementById('input').value = sample;
+  analyze();
+}
+
+// Auto-analyze on paste
+document.getElementById('input').addEventListener('paste', () => {
+  setTimeout(analyze, 10);
+});
+</script>
+</body>
+</html>
