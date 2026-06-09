@@ -880,7 +880,7 @@ function escHtml(s) {
 }
 
 function escAttr(s) {
-  return s.replace(/"/g, '&quot;').replace(/&/g, '&amp;');
+  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
 }
 
 function clearAll() {
