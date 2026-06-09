@@ -112,6 +112,13 @@
       tab-size: 4;
     }
 
+    /* Render code points strictly in logical order so pasted RTL text
+       cannot visually reorder the analysis output */
+    #output-box, #output-box span {
+      direction: ltr;
+      unicode-bidi: bidi-override;
+    }
+
     /* Highlight categories */
     .hi { display: inline; border-radius: 3px; cursor: pointer; position: relative; }
 
@@ -355,9 +362,15 @@
     .group-row:hover td { background: #161929; }
     .group-toggle { color: #64748b; font-size: 0.75rem; margin-right: 6px; transition: transform 0.15s; display: inline-block; }
     .group-row.open .group-toggle { transform: rotate(90deg); }
-    .child-row td { background: #0d1020; padding-left: 28px !important; }
+    .child-row td { background: #0d1020; padding-left: 28px !important; cursor: pointer; }
     .child-row:hover td { background: #111425; }
     .child-row.hidden { display: none; }
+
+    .hi.flash { animation: locate-flash 1.5s ease; }
+    @keyframes locate-flash {
+      0%, 50% { box-shadow: 0 0 0 3px #f8fafc; filter: brightness(1.8); }
+      100% { box-shadow: none; filter: none; }
+    }
 
     .btn-success { background: #16a34a; color: #fff; }
   </style>
@@ -377,7 +390,7 @@
     <textarea id="input" placeholder="Paste or type text here…" spellcheck="false"></textarea>
     <div class="actions">
       <button class="btn-primary" onclick="analyze()">Analyze</button>
-      <button class="btn-success" id="copy-clean-btn" onclick="copyClean()" style="display:none">Copy Stripped</button>
+      <button class="btn-success" id="copy-clean-btn" onclick="copyClean()" style="display:none" title="Copies the text with homoglyphs replaced by ASCII equivalents, odd whitespace normalized, and invisible/control characters removed">Copy Cleaned</button>
       <button class="btn-ghost" onclick="loadSample()">Load Sample</button>
       <button class="btn-ghost" onclick="clearAll()">Clear</button>
     </div>
@@ -519,7 +532,6 @@ const HOMOGLYPH_MAP = {
   0x0421: 'С (Cyrillic С → looks like Latin C)',
   0x0422: 'Т (Cyrillic Т → looks like Latin T)',
   0x0425: 'Х (Cyrillic Х → looks like Latin X)',
-  0x0443: 'у (Cyrillic у → looks like Latin y)',
   // Greek lookalikes
   0x0391: 'Α (Greek Alpha → looks like Latin A)',
   0x0392: 'Β (Greek Beta → looks like Latin B)',
@@ -564,6 +576,21 @@ const HOMOGLYPH_MAP = {
   0x02B9: 'ʹ (Modifier prime)',
   0xFE32: '︲ (Presentation form dash)',
   0xFF0D: '－ (Fullwidth hyphen-minus)',
+};
+
+// ASCII replacements for homoglyphs — used by "Copy Cleaned"
+const HOMOGLYPH_ASCII = {
+  0x0430: 'a', 0x0435: 'e', 0x043E: 'o', 0x0440: 'p', 0x0441: 'c', 0x0445: 'x', 0x0443: 'y',
+  0x0410: 'A', 0x0412: 'B', 0x0415: 'E', 0x041A: 'K', 0x041C: 'M', 0x041D: 'H', 0x041E: 'O',
+  0x0420: 'P', 0x0421: 'C', 0x0422: 'T', 0x0425: 'X',
+  0x0391: 'A', 0x0392: 'B', 0x0395: 'E', 0x0396: 'Z', 0x0397: 'H', 0x0399: 'I', 0x039A: 'K',
+  0x039C: 'M', 0x039D: 'N', 0x039F: 'O', 0x03A1: 'P', 0x03A4: 'T', 0x03A5: 'Y', 0x03A7: 'X',
+  0x03BF: 'o', 0x03BD: 'v',
+  0x2126: 'O', 0x212A: 'K', 0x212B: 'A',
+  0x01A0: 'O', 0x00D0: 'D', 0x0131: 'i', 0x0406: 'I', 0x04CF: 'l', 0x1D0F: 'o',
+  0x2013: '-', 0x2014: '-', 0x2018: "'", 0x2019: "'", 0x201C: '"', 0x201D: '"',
+  0x00B4: "'", 0x02BC: "'", 0x02B9: "'",
+  0xFE32: '-', 0xFF0D: '-',
 };
 
 function classifyCodePoint(cp) {
@@ -632,7 +659,7 @@ function renderOutput() {
   for (const seg of _lastSegments) {
     if (seg.type === 'odd') {
       const catInfo = CATEGORIES[seg.cat];
-      html += `<span class="hi ${catInfo.cls}" data-tip="${escAttr(seg.desc)}">`;
+      html += `<span class="hi ${catInfo.cls}" id="occ-${seg.fi}" data-tip="${escAttr(seg.desc)}">`;
       html += seg.display;
       html += `</span>`;
     } else if (seg.type === 'ws') {
@@ -649,13 +676,27 @@ function renderOutput() {
   document.getElementById('output-box').innerHTML = html || '<span style="color:#22c55e">✓ No odd characters found.</span>';
 }
 
-function analyze() {
+const MAX_AUTO_ANALYZE = 500000; // UTF-16 code units; above this, require explicit confirmation
+
+function analyze(force = false) {
   const text = _rawText !== null ? _rawText : document.getElementById('input').value;
   if (!text) {
     document.getElementById('output-box').innerHTML = '<span style="color:#334155">Nothing to analyze.</span>';
     document.getElementById('findings-container').innerHTML = '<p class="empty-state">No input provided.</p>';
     document.getElementById('stats-bar').innerHTML = '';
     document.getElementById('ws-breakdown').style.display = 'none';
+    _lastSegments = [];
+    return;
+  }
+
+  if (!force && text.length > MAX_AUTO_ANALYZE) {
+    document.getElementById('output-box').innerHTML =
+      `<span style="color:#fbbf24">⚠ Large input — ${text.length.toLocaleString()} characters. Analyzing may freeze this tab for a while.</span><br><br>` +
+      `<button class="btn-primary" onclick="analyze(true)">Analyze anyway</button>`;
+    document.getElementById('findings-container').innerHTML = '<p class="empty-state">Analysis skipped — input exceeds the auto-analyze limit.</p>';
+    document.getElementById('stats-bar').innerHTML = '';
+    document.getElementById('ws-breakdown').style.display = 'none';
+    document.getElementById('copy-clean-btn').style.display = 'none';
     _lastSegments = [];
     return;
   }
@@ -673,6 +714,7 @@ function analyze() {
   // Iterate code-point by code-point, peeking ahead for CRLF pairs
   const codePoints = [...text];
   let i = 0;
+  let line = 1, col = 1;
 
   while (i < codePoints.length) {
     const char = codePoints[i];
@@ -684,14 +726,15 @@ function analyze() {
       if (mixedLineEndings) {
         const desc = 'CRLF line ending (\\r\\n) — mixed with LF-only lines in this text';
         counts.whitespace++;
-        findings.push({ char: '\r\n', cp: 0x0D, cat: 'whitespace', desc, offset: i });
+        findings.push({ char: '\r\n', cp: 0x0D, cat: 'whitespace', desc, offset: i, line, col });
         _lastSegments.push({
-          type: 'odd', cat: 'whitespace', desc,
+          type: 'odd', cat: 'whitespace', desc, fi: findings.length - 1,
           display: '<span style="font-size:0.65em;vertical-align:middle;font-weight:700">CRLF</span>\r\n',
         });
       } else {
         _lastSegments.push({ type: 'ws', raw: '\r\n', wsHtml: '<span class="ws-crlf">CRLF</span>\r\n' });
       }
+      line++; col = 1;
       i += 2;
       continue;
     }
@@ -701,11 +744,12 @@ function analyze() {
       wsCounts.cr++;
       const desc = 'Bare CR (\\r) — carriage return without LF; unexpected in modern text';
       counts.control++;
-      findings.push({ char: '\r', cp: 0x0D, cat: 'control', desc, offset: i });
+      findings.push({ char: '\r', cp: 0x0D, cat: 'control', desc, offset: i, line, col });
       _lastSegments.push({
-        type: 'odd', cat: 'control', desc,
+        type: 'odd', cat: 'control', desc, fi: findings.length - 1,
         display: '<span style="font-size:0.65em;vertical-align:middle;font-weight:700">CR</span>',
       });
+      line++; col = 1;
       i++;
       continue;
     }
@@ -718,6 +762,7 @@ function analyze() {
         raw: '\n',
         wsHtml: '<span class="ws-lf">↵</span>\n',
       });
+      line++; col = 1;
       i++;
       continue;
     }
@@ -730,6 +775,7 @@ function analyze() {
         raw: '\t',
         wsHtml: '<span class="ws-tab">→</span>\t',
       });
+      col++;
       i++;
       continue;
     }
@@ -742,6 +788,7 @@ function analyze() {
         raw: ' ',
         wsHtml: '<span class="ws-space">·</span>',
       });
+      col++;
       i++;
       continue;
     }
@@ -750,7 +797,7 @@ function analyze() {
 
     if (result) {
       counts[result.cat]++;
-      findings.push({ char, cp, cat: result.cat, desc: result.desc, offset: i });
+      findings.push({ char, cp, cat: result.cat, desc: result.desc, offset: i, line, col });
 
       const cpHex = cp.toString(16).toUpperCase().padStart(4, '0');
       const display = (cp < 0x20 || INVISIBLE.has(cp) || BIDI.has(cp))
@@ -759,11 +806,12 @@ function analyze() {
           ? `<span style="font-size:0.75em;vertical-align:middle;opacity:0.8">·</span>`
           : escHtml(char);
 
-      _lastSegments.push({ type: 'odd', cat: result.cat, desc: result.desc, display });
+      _lastSegments.push({ type: 'odd', cat: result.cat, desc: result.desc, display, fi: findings.length - 1 });
     } else {
       _lastSegments.push({ type: 'plain', raw: escHtml(char) });
     }
 
+    col++;
     i++;
   }
 
@@ -813,10 +861,10 @@ function analyze() {
     document.getElementById('findings-container').innerHTML = '<p class="no-findings">✓ No suspicious characters found in this text.</p>';
   } else {
     // Group by char string (not just cp — e.g. bare CR vs CRLF both have cp 0x0D)
-    const groups = new Map(); // char → { cat, desc, cp, occurrences: [{offset}] }
-    findings.forEach(f => {
+    const groups = new Map(); // char → { cat, desc, cp, occurrences: [{offset, line, col, fi}] }
+    findings.forEach((f, fi) => {
       if (!groups.has(f.char)) groups.set(f.char, { cat: f.cat, desc: f.desc, cp: f.cp, char: f.char, occurrences: [] });
-      groups.get(f.char).occurrences.push(f.offset);
+      groups.get(f.char).occurrences.push({ offset: f.offset, line: f.line, col: f.col, fi });
     });
 
     let tableHtml = `
@@ -843,11 +891,10 @@ function analyze() {
           ? `<span class="char-preview" style="color:#fdba74">·</span>`
           : `<span class="char-preview">${escHtml(g.char)}</span>`;
       const gid = `g${groupIdx++}`;
-      const multi = g.occurrences.length > 1;
 
       tableHtml += `
-        <tr class="group-row${multi ? '' : ''}" id="${gid}-row" onclick="${multi ? `toggleGroup('${gid}')` : ''}">
-          <td><span class="group-toggle">${multi ? '▶' : ''}</span></td>
+        <tr class="group-row" id="${gid}-row" onclick="toggleGroup('${gid}')">
+          <td><span class="group-toggle">▶</span></td>
           <td>${charDisplay}</td>
           <td><code style="color:#94a3b8">${cpHex}</code></td>
           <td><span class="badge ${catInfo.badge}">${catInfo.label}</span></td>
@@ -855,17 +902,15 @@ function analyze() {
           <td style="color:#64748b">${g.occurrences.length > 1 ? `<strong style="color:#e2e8f0">×${g.occurrences.length}</strong>` : '1'}</td>
         </tr>`;
 
-      if (multi) {
-        g.occurrences.forEach((offset, i) => {
-          tableHtml += `
-            <tr class="child-row hidden" id="${gid}-child-${i}">
-              <td></td>
-              <td colspan="3" style="color:#64748b">Occurrence ${i + 1}</td>
-              <td style="color:#94a3b8">offset <code style="color:#818cf8">${offset}</code></td>
-              <td></td>
-            </tr>`;
-        });
-      }
+      g.occurrences.forEach((occ, i) => {
+        tableHtml += `
+          <tr class="child-row hidden" id="${gid}-child-${i}" onclick="locate(${occ.fi})" title="Click to locate in output">
+            <td></td>
+            <td colspan="3" style="color:#64748b">Occurrence ${i + 1}</td>
+            <td style="color:#94a3b8">line <code style="color:#818cf8">${occ.line}</code>, col <code style="color:#818cf8">${occ.col}</code> <span style="color:#475569">(offset ${occ.offset})</span></td>
+            <td style="color:#64748b">locate ↗</td>
+          </tr>`;
+      });
     }
 
     tableHtml += '</tbody></table>';
@@ -937,6 +982,16 @@ function loadSample() {
   analyze();
 }
 
+function locate(fi) {
+  const el = document.getElementById(`occ-${fi}`);
+  if (!el) return;
+  el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  el.classList.remove('flash');
+  void el.offsetWidth; // restart animation if re-clicked
+  el.classList.add('flash');
+  setTimeout(() => el.classList.remove('flash'), 1600);
+}
+
 function toggleGroup(gid) {
   const row = document.getElementById(`${gid}-row`);
   row.classList.toggle('open');
@@ -949,20 +1004,36 @@ function toggleGroup(gid) {
   }
 }
 
-function copyClean() {
-  const text = document.getElementById('input').value;
-  const codePoints = [...text];
-  const cleaned = codePoints.filter(ch => {
+// Clean text: homoglyphs → ASCII equivalents, odd whitespace → regular space,
+// invisible/bidi/control/private stripped, legitimate extended Unicode kept.
+function buildCleanedText(text) {
+  return [...text].map(ch => {
     const cp = ch.codePointAt(0);
     const result = classifyCodePoint(cp);
-    return result === null || (cp === 0x20 || cp === 0x09 || cp === 0x0A || cp === 0x0D);
+    if (!result) return ch;
+    if (result.cat === 'whitespace') return ' ';
+    if (result.cat === 'homoglyph') {
+      if (HOMOGLYPH_ASCII[cp]) return HOMOGLYPH_ASCII[cp];
+      if (cp >= 0xFF01 && cp <= 0xFF5E) return String.fromCharCode(cp - 0xFEE0); // fullwidth → ASCII
+      return '';
+    }
+    if (result.cat === 'nonascii') return ch; // é, emoji, etc. — legitimate, keep
+    return ''; // invisible, bidi, control, private
   }).join('');
-  navigator.clipboard.writeText(cleaned).then(() => {
-    const btn = document.getElementById('copy-clean-btn');
-    const orig = btn.textContent;
-    btn.textContent = 'Copied!';
+}
+
+function copyClean() {
+  const text = _rawText !== null ? _rawText : document.getElementById('input').value;
+  const cleaned = buildCleanedText(text);
+  const btn = document.getElementById('copy-clean-btn');
+  const flashBtn = msg => {
+    const orig = 'Copy Cleaned';
+    btn.textContent = msg;
     setTimeout(() => { btn.textContent = orig; }, 1500);
-  });
+  };
+  navigator.clipboard.writeText(cleaned)
+    .then(() => flashBtn('Copied!'))
+    .catch(() => flashBtn('Copy failed'));
 }
 
 // ─── Floating tooltip ─────────────────────────────────────────────────────────
