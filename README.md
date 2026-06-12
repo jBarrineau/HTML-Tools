@@ -28,6 +28,7 @@ A collection of single-page, client-side HTML tools — no installation, no depe
 
 | Tool | Description |
 |------|-------------|
+| [SP HTTP Request Builder](flow-sharepoint-api/flow-sharepoint-api.html) | Build copy-ready **Send HTTP Request to SharePoint** action inputs (Method, Uri, Headers, Body) for list item CRUD and `$batch` operations, with a visual OData query builder. |
 | [OData URI Builder](odata-uri-builder/odata-uri-builder.html) | Visually construct OData query URIs for SharePoint Online — select fields, apply filters, and configure query parameters without memorising OData syntax. |
 | [SharePoint List Schema Parser](get-sharepoint-list-schema/get-sharepoint-list-schema.html) | Step-by-step tool to extract a SharePoint list schema via the REST API and convert the XML response into compact, token-efficient JSON. |
 

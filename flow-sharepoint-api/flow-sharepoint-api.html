@@ -1,0 +1,1482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SP HTTP Request Builder — Send HTTP Request to SharePoint</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+
+      --bg:      #0b0c0f;
+      --panel:   #12141a;
+      --panel-2: #0f1116;
+      --text:    #e8eaf0;
+      --muted:   #a6adbf;
+      --line:    rgba(255, 255, 255, 0.10);
+      --line-2:  rgba(255, 255, 255, 0.16);
+
+      --accent:   #742774;
+      --accent-2: #00BCB4;
+      --accent-3: #0078D4;
+
+      --good:   #2E9E4F;
+      --warn:   #FFB900;
+      --bad:    #E8575B;
+
+      --shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+
+      --sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Courier New', monospace;
+
+      --output-w: 460px;
+      --radius: 10px;
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg:      #faf9f8;
+        --panel:   #ffffff;
+        --panel-2: #f3f2f1;
+        --text:    #201f1e;
+        --muted:   #605e5c;
+        --line:    rgba(0, 0, 0, 0.12);
+        --line-2:  rgba(0, 0, 0, 0.18);
+        --good:    #107C10;
+        --bad:     #D13438;
+        --shadow:  0 18px 50px rgba(0, 0, 0, 0.10);
+      }
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--sans);
+      font-size: 13px;
+      line-height: 1.45;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+      background:
+        radial-gradient(1200px 600px at 10% -10%, rgba(116, 39, 116, 0.18), transparent 45%),
+        radial-gradient(1200px 600px at 90% -20%, rgba(0, 188, 180, 0.16), transparent 50%),
+        var(--bg);
+      color: var(--text);
+    }
+
+    /* ─────────────────────────────────────── MAIN PANEL (left) */
+    .main-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      padding: 22px 28px 40px;
+      gap: 16px;
+      min-width: 0;
+    }
+    .main-panel::-webkit-scrollbar { width: 5px; }
+    .main-panel::-webkit-scrollbar-track { background: transparent; }
+    .main-panel::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--muted) 40%, transparent); border-radius: 3px; }
+
+    .app-header {
+      padding: 6px 2px 10px;
+      border-bottom: 1px solid var(--line);
+      margin-bottom: 4px;
+    }
+    .app-title {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: -0.2px;
+    }
+    .app-title .logo-badge {
+      width: 30px; height: 30px;
+      background: var(--accent);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 800; color: #fff;
+      flex-shrink: 0; letter-spacing: -0.5px;
+    }
+    .app-subtitle {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 5px;
+      padding-left: 39px;
+    }
+    .app-subtitle a { color: var(--accent-2); text-decoration: none; }
+    .app-subtitle a:hover { text-decoration: underline; }
+
+    /* ─────────────────────────────────────── INPUT CARDS */
+    .input-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .input-card-header {
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--line);
+      display: flex; align-items: center; gap: 8px;
+      background: color-mix(in srgb, var(--panel-2) 60%, transparent);
+    }
+    .input-card-icon { font-size: 13px; width: 18px; text-align: center; flex-shrink: 0; }
+    .input-card-label {
+      font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.6px;
+      color: var(--muted);
+    }
+    .input-card-hint { margin-left: auto; font-size: 11px; color: var(--muted); font-weight: 400; }
+    .input-card-body {
+      padding: 14px 16px;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+
+    .card-row { display: flex; gap: 16px; flex-shrink: 0; }
+    .card-row > .input-card { flex: 1; min-width: 0; }
+
+    /* ─────────────────────────────────────── FORM CONTROLS */
+    label.field-label {
+      font-size: 11px; font-weight: 600; color: var(--muted);
+      display: block; margin-bottom: 4px;
+    }
+    input[type="text"], input[type="number"], select, textarea {
+      width: 100%;
+      background: var(--panel-2);
+      border: 1px solid var(--line-2);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 12px;
+      padding: 8px 10px;
+      min-height: 34px;
+    }
+    select { font-family: var(--sans); }
+    textarea { resize: vertical; line-height: 1.5; }
+    input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible {
+      outline: 2px solid var(--accent-3);
+      outline-offset: 1px;
+    }
+    input::placeholder, textarea::placeholder { color: color-mix(in srgb, var(--muted) 65%, transparent); }
+
+    .field-group { display: flex; flex-direction: column; }
+    .form-grid { display: grid; gap: 10px; }
+    .form-grid.cols-2 { grid-template-columns: 1fr 1fr; }
+    .form-grid.cols-3 { grid-template-columns: 2fr 1fr 1fr; }
+
+    /* segmented control */
+    .segmented {
+      display: inline-flex;
+      background: var(--panel-2);
+      border: 1px solid var(--line-2);
+      border-radius: 8px;
+      overflow: hidden;
+      width: fit-content;
+    }
+    .segmented button {
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      font-family: var(--sans);
+      font-size: 12px; font-weight: 600;
+      padding: 7px 14px;
+      cursor: pointer;
+      min-height: 32px;
+      border-right: 1px solid var(--line);
+    }
+    .segmented button:last-child { border-right: none; }
+    .segmented button[aria-pressed="true"] {
+      background: var(--accent-3);
+      color: #fff;
+    }
+
+    /* operation grid */
+    .op-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+      gap: 8px;
+    }
+    .op-btn {
+      text-align: left;
+      background: var(--panel-2);
+      border: 1px solid var(--line-2);
+      border-radius: 10px;
+      color: var(--text);
+      padding: 10px 12px;
+      cursor: pointer;
+      font-family: var(--sans);
+      transition: border-color 150ms ease, background 150ms ease;
+      min-height: 44px;
+    }
+    .op-btn:hover { border-color: var(--accent-2); }
+    .op-btn[aria-pressed="true"] {
+      border-color: var(--accent-2);
+      background: color-mix(in srgb, var(--accent-2) 12%, var(--panel-2));
+    }
+    .op-btn .op-name { font-size: 12.5px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+    .op-btn .op-method {
+      font-family: var(--mono); font-size: 9.5px; font-weight: 700;
+      padding: 1px 5px; border-radius: 4px;
+      background: var(--accent-3); color: #fff;
+    }
+    .op-btn .op-method.m-get  { background: var(--accent-3); }
+    .op-btn .op-method.m-post { background: var(--accent); }
+    .op-btn .op-desc { font-size: 11px; color: var(--muted); margin-top: 3px; }
+
+    /* small buttons */
+    .btn-sm {
+      background: transparent;
+      border: 1px solid var(--line-2);
+      border-radius: 7px;
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 11.5px; font-weight: 600;
+      padding: 5px 10px;
+      cursor: pointer;
+      min-height: 28px;
+      transition: border-color 150ms ease;
+    }
+    .btn-sm:hover { border-color: var(--accent-2); }
+    .btn-icon {
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      color: var(--muted);
+      font-size: 14px;
+      cursor: pointer;
+      width: 30px; min-height: 30px;
+      flex-shrink: 0;
+    }
+    .btn-icon:hover { color: var(--bad); border-color: var(--line-2); }
+
+    /* dynamic rows (filters, orderby, fields, batch) */
+    .row-list { display: flex; flex-direction: column; gap: 8px; }
+    .dyn-row { display: flex; gap: 8px; align-items: center; }
+    .dyn-row > * { min-width: 0; }
+    .dyn-row .grow { flex: 1; }
+    .dyn-row select.compact { width: auto; flex-shrink: 0; }
+    .join-select { max-width: 70px; }
+
+    .empty-note { font-size: 11.5px; color: var(--muted); font-style: italic; }
+
+    /* batch op card */
+    .batch-op {
+      border: 1px solid var(--line-2);
+      border-radius: 10px;
+      padding: 10px 12px;
+      display: flex; flex-direction: column; gap: 8px;
+      background: color-mix(in srgb, var(--panel-2) 70%, transparent);
+    }
+    .batch-op-head { display: flex; gap: 8px; align-items: center; }
+    .batch-op-num {
+      font-family: var(--mono); font-size: 10px; font-weight: 700;
+      color: var(--muted); flex-shrink: 0; width: 18px;
+    }
+
+    /* ─────────────────────────────────────── OUTPUT PANEL (right) */
+    .output-panel {
+      width: var(--output-w);
+      min-width: var(--output-w);
+      display: flex; flex-direction: column;
+      gap: 14px;
+      padding: 22px 18px 40px;
+      overflow-y: auto;
+      border-left: 1px solid var(--line);
+      background: color-mix(in srgb, var(--panel-2) 40%, transparent);
+    }
+    .output-panel::-webkit-scrollbar { width: 5px; }
+    .output-panel::-webkit-scrollbar-track { background: transparent; }
+    .output-panel::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--muted) 40%, transparent); border-radius: 3px; }
+
+    .output-panel-header { padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+    .output-panel-header h1 { font-size: 15px; font-weight: 700; letter-spacing: -0.2px; margin: 0 0 4px; }
+    .output-panel-header p { font-size: 11.5px; color: var(--muted); margin: 0; }
+
+    .out-block { display: flex; flex-direction: column; gap: 5px; }
+    .out-block-head { display: flex; align-items: center; gap: 8px; }
+    .out-block-label {
+      font-size: 10.5px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.6px;
+      color: var(--muted);
+    }
+    .copy-btn {
+      margin-left: auto;
+      background: transparent;
+      border: 1px solid var(--line-2);
+      border-radius: 6px;
+      color: var(--muted);
+      font-family: var(--sans);
+      font-size: 10.5px; font-weight: 600;
+      padding: 3px 9px;
+      cursor: pointer;
+      min-height: 24px;
+      transition: all 150ms ease;
+    }
+    .copy-btn:hover { border-color: var(--accent-2); color: var(--text); }
+    .copy-btn.copied { border-color: var(--good); color: var(--good); }
+
+    .out-value {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      font-family: var(--mono);
+      font-size: 11.5px;
+      line-height: 1.55;
+      padding: 9px 11px;
+      white-space: pre-wrap;
+      word-break: break-all;
+      max-height: 320px;
+      overflow-y: auto;
+    }
+    .out-value.method-val { font-weight: 700; color: var(--accent-2); }
+
+    .warn-box, .note-box {
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 11.5px;
+      line-height: 1.5;
+    }
+    .warn-box {
+      background: color-mix(in srgb, var(--warn) 10%, transparent);
+      border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent);
+    }
+    .warn-box ul, .note-box ul { padding-left: 16px; display: flex; flex-direction: column; gap: 4px; }
+    .warn-box .warn-title { font-weight: 700; margin-bottom: 4px; }
+    .note-box {
+      background: color-mix(in srgb, var(--accent-3) 8%, transparent);
+      border: 1px solid color-mix(in srgb, var(--accent-3) 35%, transparent);
+    }
+    .note-box .note-title { font-weight: 700; margin-bottom: 4px; }
+    .note-box code, .warn-box code {
+      font-family: var(--mono);
+      font-size: 10.5px;
+      background: color-mix(in srgb, var(--panel-2) 80%, transparent);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 0 4px;
+      word-break: break-all;
+    }
+
+    /* toast */
+    .toast-region { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); z-index: 100; }
+    .toast {
+      background: var(--panel);
+      border: 1px solid var(--good);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 8px 16px;
+      font-size: 12px; font-weight: 600;
+      box-shadow: var(--shadow);
+    }
+
+    .hidden { display: none !important; }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+
+    @media (max-width: 980px) {
+      body { flex-direction: column; height: auto; overflow: auto; }
+      .output-panel { width: auto; min-width: 0; border-left: none; border-top: 1px solid var(--line); }
+      .card-row { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <!-- ─────────────────────────────────────── LEFT: BUILDER -->
+  <main class="main-panel" id="main-content">
+    <header class="app-header">
+      <div class="app-title">
+        <span class="logo-badge" aria-hidden="true">SP</span>
+        SP HTTP Request Builder
+      </div>
+      <p class="app-subtitle">
+        Build copy-ready inputs for the Power Automate <strong>Send HTTP Request to SharePoint</strong> action —
+        <a href="https://learn.microsoft.com/en-us/sharepoint/dev/sp-add-ins/working-with-lists-and-list-items-with-rest" target="_blank" rel="noopener">REST API docs</a> ·
+        <a href="https://learn.microsoft.com/en-us/sharepoint/dev/business-apps/power-automate/guidance/working-with-send-sp-http-request" target="_blank" rel="noopener">action guidance</a>
+      </p>
+    </header>
+
+    <!-- OPERATION -->
+    <section class="input-card" aria-labelledby="op-label">
+      <div class="input-card-header">
+        <span class="input-card-icon" aria-hidden="true">⚙</span>
+        <span class="input-card-label" id="op-label">Operation</span>
+      </div>
+      <div class="input-card-body">
+        <div class="op-grid" id="opGrid" role="group" aria-label="Choose an operation"></div>
+      </div>
+    </section>
+
+    <!-- CONNECTION -->
+    <section class="input-card" aria-labelledby="conn-label">
+      <div class="input-card-header">
+        <span class="input-card-icon" aria-hidden="true">🌐</span>
+        <span class="input-card-label" id="conn-label">Site &amp; List</span>
+      </div>
+      <div class="input-card-body">
+        <div class="field-group">
+          <label class="field-label" for="siteUrl">Site address (the action's "Site Address" field)</label>
+          <input type="text" id="siteUrl" placeholder="https://contoso.sharepoint.com/sites/YourSite" spellcheck="false" />
+        </div>
+        <div class="form-grid cols-2" id="listIdGrid">
+          <div class="field-group">
+            <label class="field-label" id="listByLabel">Identify list by</label>
+            <div class="segmented" role="group" aria-labelledby="listByLabel">
+              <button type="button" id="listByTitle" aria-pressed="true">Title</button>
+              <button type="button" id="listByGuid" aria-pressed="false">GUID</button>
+            </div>
+          </div>
+          <div class="field-group">
+            <label class="field-label" for="listValue" id="listValueLabel">List title</label>
+            <input type="text" id="listValue" placeholder="My List" spellcheck="false" />
+          </div>
+        </div>
+        <div class="field-group" id="metaGroup">
+          <label class="field-label" id="metaLabel">OData metadata level (affects headers &amp; body shape)</label>
+          <div class="segmented" role="group" aria-labelledby="metaLabel">
+            <button type="button" data-meta="nometadata" aria-pressed="true">nometadata · lean</button>
+            <button type="button" data-meta="minimalmetadata" aria-pressed="false">minimal</button>
+            <button type="button" data-meta="verbose" aria-pressed="false">verbose · classic</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ITEM / ETAG -->
+    <section class="input-card hidden" id="itemCard" aria-labelledby="item-label">
+      <div class="input-card-header">
+        <span class="input-card-icon" aria-hidden="true">#</span>
+        <span class="input-card-label" id="item-label">Item</span>
+      </div>
+      <div class="input-card-body">
+        <div class="form-grid cols-2">
+          <div class="field-group" id="itemIdGroup">
+            <label class="field-label" for="itemId">Item ID</label>
+            <input type="number" id="itemId" min="1" placeholder="1" />
+          </div>
+          <div class="field-group" id="etagGroup">
+            <label class="field-label" for="etag">IF-MATCH ETag (* = overwrite regardless of version)</label>
+            <input type="text" id="etag" value="*" spellcheck="false" />
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- QUERY OPTIONS -->
+    <section class="input-card hidden" id="queryCard" aria-labelledby="query-label">
+      <div class="input-card-header">
+        <span class="input-card-icon" aria-hidden="true">🔍</span>
+        <span class="input-card-label" id="query-label">OData Query Options</span>
+        <span class="input-card-hint">all optional</span>
+      </div>
+      <div class="input-card-body">
+        <div class="form-grid cols-2">
+          <div class="field-group">
+            <label class="field-label" for="qSelect">$select — internal field names, comma-separated</label>
+            <input type="text" id="qSelect" placeholder="Id,Title,Author/Title" spellcheck="false" />
+          </div>
+          <div class="field-group">
+            <label class="field-label" for="qExpand">$expand — lookup/person fields used in $select</label>
+            <input type="text" id="qExpand" placeholder="Author" spellcheck="false" />
+          </div>
+        </div>
+
+        <div class="field-group" id="filterSection">
+          <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
+            <span class="field-label" style="margin:0;" id="filterModeLabel">$filter</span>
+            <div class="segmented" role="group" aria-labelledby="filterModeLabel">
+              <button type="button" data-fmode="builder" aria-pressed="true">Builder</button>
+              <button type="button" data-fmode="manual" aria-pressed="false">Manual</button>
+            </div>
+          </div>
+          <div class="row-list" id="filterRows"></div>
+          <div id="filterBuilderActions" style="margin-top:8px;">
+            <button type="button" class="btn-sm" id="addFilter">＋ Add condition</button>
+          </div>
+          <textarea id="filterRaw" rows="2" class="hidden" placeholder="Status eq 'Active' and Amount gt 100" spellcheck="false"></textarea>
+        </div>
+
+        <div class="field-group" id="orderbySection">
+          <span class="field-label">$orderby</span>
+          <div class="row-list" id="orderbyRows"></div>
+          <div style="margin-top:8px;">
+            <button type="button" class="btn-sm" id="addOrderby">＋ Add sort</button>
+          </div>
+        </div>
+
+        <div class="form-grid cols-2" id="topRow">
+          <div class="field-group">
+            <label class="field-label" for="qTop">$top — max items to return (default 100, max 5000)</label>
+            <input type="number" id="qTop" min="1" max="5000" placeholder="100" />
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FIELDS (create/update) -->
+    <section class="input-card hidden" id="fieldsCard" aria-labelledby="fields-label">
+      <div class="input-card-header">
+        <span class="input-card-icon" aria-hidden="true">✏</span>
+        <span class="input-card-label" id="fields-label">Field Values</span>
+        <span class="input-card-hint">use internal names</span>
+      </div>
+      <div class="input-card-body">
+        <div class="field-group hidden" id="entityTypeGroup">
+          <label class="field-label" for="entityType">ListItemEntityTypeFullName (required for verbose — fetch it with the "Get entity type" operation)</label>
+          <input type="text" id="entityType" placeholder="SP.Data.MyListListItem" spellcheck="false" />
+        </div>
+        <div class="row-list" id="fieldRows"></div>
+        <div style="margin-top:4px;">
+          <button type="button" class="btn-sm" id="addField">＋ Add field</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- BATCH -->
+    <section class="input-card hidden" id="batchCard" aria-labelledby="batch-label">
+      <div class="input-card-header">
+        <span class="input-card-icon" aria-hidden="true">📦</span>
+        <span class="input-card-label" id="batch-label">Batch Operations</span>
+        <span class="input-card-hint">consecutive writes are grouped into one atomic changeset</span>
+      </div>
+      <div class="input-card-body">
+        <div class="row-list" id="batchRows"></div>
+        <div style="margin-top:4px; display:flex; gap:8px;">
+          <button type="button" class="btn-sm" id="addBatchOp">＋ Add operation</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ─────────────────────────────────────── RIGHT: OUTPUT -->
+  <aside class="output-panel" aria-label="Generated action inputs">
+    <div class="output-panel-header">
+      <h1>Action Inputs</h1>
+      <p>Paste each value into the matching field of the <strong>Send HTTP Request to SharePoint</strong> action. Authentication and request digest are handled by the connector — no <code style="font-family:var(--mono)">Authorization</code> or <code style="font-family:var(--mono)">X-RequestDigest</code> headers needed.</p>
+    </div>
+
+    <div class="warn-box hidden" id="warnBox" role="alert">
+      <div class="warn-title">⚠ Fix before using</div>
+      <ul id="warnList"></ul>
+    </div>
+
+    <div class="out-block">
+      <div class="out-block-head">
+        <span class="out-block-label">Site Address</span>
+        <button type="button" class="copy-btn" data-copy="outSite">Copy</button>
+      </div>
+      <div class="out-value" id="outSite"></div>
+    </div>
+
+    <div class="out-block">
+      <div class="out-block-head">
+        <span class="out-block-label">Method</span>
+        <button type="button" class="copy-btn" data-copy="outMethod">Copy</button>
+      </div>
+      <div class="out-value method-val" id="outMethod"></div>
+    </div>
+
+    <div class="out-block">
+      <div class="out-block-head">
+        <span class="out-block-label">Uri</span>
+        <button type="button" class="copy-btn" data-copy="outUri">Copy</button>
+      </div>
+      <div class="out-value" id="outUri"></div>
+    </div>
+
+    <div class="out-block">
+      <div class="out-block-head">
+        <span class="out-block-label">Headers <span style="text-transform:none; font-weight:400;">(JSON — switch the action's headers grid to raw, or add key/value pairs)</span></span>
+        <button type="button" class="copy-btn" data-copy="outHeaders">Copy</button>
+      </div>
+      <div class="out-value" id="outHeaders"></div>
+    </div>
+
+    <div class="out-block" id="bodyBlock">
+      <div class="out-block-head">
+        <span class="out-block-label">Body</span>
+        <button type="button" class="copy-btn" data-copy="outBody">Copy</button>
+      </div>
+      <div class="out-value" id="outBody"></div>
+    </div>
+
+    <div class="out-block" id="fullUrlBlock">
+      <div class="out-block-head">
+        <span class="out-block-label">Full URL <span style="text-transform:none; font-weight:400;">(for testing GETs in a signed-in browser tab)</span></span>
+        <button type="button" class="copy-btn" data-copy="outFullUrl">Copy</button>
+      </div>
+      <div class="out-value" id="outFullUrl"></div>
+    </div>
+
+    <div class="note-box" id="noteBox">
+      <div class="note-title">ℹ Power Automate tips</div>
+      <ul id="noteList"></ul>
+    </div>
+  </aside>
+
+  <div class="toast-region" aria-live="polite" aria-atomic="true" id="toastRegion"></div>
+
+  <script>
+    'use strict';
+
+    /* ───────────────────────────── operation catalog */
+    const OPS = {
+      getItems:   { name: 'Get items',        method: 'GET',  desc: 'Query list items with OData options' },
+      getItem:    { name: 'Get item by ID',   method: 'GET',  desc: 'Retrieve a single item' },
+      itemCount:  { name: 'Get item count',   method: 'GET',  desc: 'Total items in the list' },
+      entityType: { name: 'Get entity type',  method: 'GET',  desc: 'ListItemEntityTypeFullName for verbose bodies' },
+      createItem: { name: 'Create item',      method: 'POST', desc: 'Add a new list item' },
+      updateItem: { name: 'Update item',      method: 'POST', desc: 'MERGE — change only the fields you send' },
+      deleteItem: { name: 'Delete item',      method: 'POST', desc: 'Remove an item (sends it to the recycle bin)' },
+      batch:      { name: '$batch',           method: 'POST', desc: 'Bundle many operations into one request' }
+    };
+
+    const FIELD_TYPES = [
+      { v: 'text',        label: 'Text' },
+      { v: 'note',        label: 'Multi-line text' },
+      { v: 'number',      label: 'Number' },
+      { v: 'bool',        label: 'Yes/No' },
+      { v: 'date',        label: 'Date (ISO)' },
+      { v: 'choice',      label: 'Choice (single)' },
+      { v: 'choiceMulti', label: 'Choice (multi)' },
+      { v: 'person',      label: 'Person/Lookup (single)' },
+      { v: 'personMulti', label: 'Person/Lookup (multi)' },
+      { v: 'url',         label: 'Hyperlink' },
+      { v: 'raw',         label: 'Raw JSON' }
+    ];
+
+    const FILTER_OPS = [
+      { v: 'eq', label: 'equals' }, { v: 'ne', label: 'not equals' },
+      { v: 'gt', label: '>' }, { v: 'ge', label: '≥' },
+      { v: 'lt', label: '<' }, { v: 'le', label: '≤' },
+      { v: 'startswith', label: 'starts with' },
+      { v: 'substringof', label: 'contains' },
+      { v: 'isnull', label: 'is empty' }, { v: 'isnotnull', label: 'is not empty' }
+    ];
+
+    const FILTER_VALUE_TYPES = [
+      { v: 'text', label: 'Text' }, { v: 'number', label: 'Number' },
+      { v: 'date', label: 'Date' }, { v: 'bool', label: 'Yes/No' }
+    ];
+
+    const BATCH_KINDS = [
+      { v: 'get',    label: 'GET (query)' },
+      { v: 'create', label: 'Create item' },
+      { v: 'update', label: 'Update (MERGE)' },
+      { v: 'delete', label: 'Delete' }
+    ];
+
+    /* ───────────────────────────── state */
+    const state = {
+      op: 'getItems',
+      site: '',
+      listBy: 'title',
+      listTitle: '',
+      listGuid: '',
+      meta: 'nometadata',
+      itemId: '',
+      etag: '*',
+      qSelect: '',
+      qExpand: '',
+      qTop: '',
+      filterMode: 'builder',
+      filterRaw: '',
+      filters: [],
+      orderby: [],
+      fields: [{ name: 'Title', type: 'text', value: '' }],
+      entityType: '',
+      batchOps: [{ kind: 'create', listTitle: '', itemId: '', query: '', body: '{\n  "Title": "New item"\n}' }]
+    };
+
+    const STORAGE_KEY = 'flow-sharepoint-api-state-v1';
+
+    /* ───────────────────────────── helpers */
+    const $ = (id) => document.getElementById(id);
+
+    function escOData(str) { return String(str).replace(/'/g, "''"); }
+
+    function uuid() {
+      return (crypto.randomUUID ? crypto.randomUUID()
+        : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+            const r = Math.random() * 16 | 0;
+            return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+          }));
+    }
+
+    function listPath(by, title, guid) {
+      if (by === 'guid') return "_api/web/lists(guid'" + (guid || '{list-guid}').trim() + "')";
+      return "_api/web/lists/GetByTitle('" + escOData((title || '{list title}').trim()) + "')";
+    }
+
+    function cleanSite() { return state.site.trim().replace(/\/+$/, ''); }
+
+    /* odata literal for filter values */
+    function filterLiteral(value, type) {
+      switch (type) {
+        case 'number': return value;
+        case 'bool':   return value;
+        case 'date': {
+          let v = value.trim();
+          if (/^\d{4}-\d{2}-\d{2}$/.test(v)) v += 'T00:00:00Z';
+          return "datetime'" + v + "'";
+        }
+        default: return "'" + escOData(value) + "'";
+      }
+    }
+
+    function buildFilterString() {
+      if (state.filterMode === 'manual') return state.filterRaw.trim();
+      const parts = [];
+      state.filters.forEach((f, i) => {
+        if (!f.field.trim()) return;
+        const needsValue = f.op !== 'isnull' && f.op !== 'isnotnull';
+        if (needsValue && f.value.trim() === '') return;
+        let expr;
+        const field = f.field.trim();
+        if (f.op === 'startswith') expr = "startswith(" + field + "," + filterLiteral(f.value, 'text') + ")";
+        else if (f.op === 'substringof') expr = "substringof(" + filterLiteral(f.value, 'text') + "," + field + ")";
+        else if (f.op === 'isnull') expr = field + " eq null";
+        else if (f.op === 'isnotnull') expr = field + " ne null";
+        else expr = field + " " + f.op + " " + filterLiteral(f.value, f.vtype);
+        if (parts.length > 0) parts.push(f.join);
+        parts.push(expr);
+      });
+      return parts.join(' ');
+    }
+
+    function buildQueryString(opts) {
+      const qs = [];
+      if (opts.select && state.qSelect.trim()) qs.push('$select=' + state.qSelect.trim().replace(/\s+/g, ''));
+      if (opts.expand && state.qExpand.trim()) qs.push('$expand=' + state.qExpand.trim().replace(/\s+/g, ''));
+      if (opts.filter) {
+        const f = buildFilterString();
+        if (f) qs.push('$filter=' + f);
+      }
+      if (opts.orderby) {
+        const ob = state.orderby.filter(o => o.field.trim())
+          .map(o => o.field.trim() + (o.dir === 'desc' ? ' desc' : '')).join(',');
+        if (ob) qs.push('$orderby=' + ob);
+      }
+      if (opts.top && state.qTop) qs.push('$top=' + state.qTop);
+      return qs.length ? '?' + qs.join('&') : '';
+    }
+
+    /* field value → JSON, honoring metadata level */
+    function buildFieldEntry(f, meta, warnings) {
+      let name = f.name.trim();
+      if (!name) return null;
+      const v = f.value;
+      switch (f.type) {
+        case 'text': case 'note': case 'choice':
+          return [name, v];
+        case 'number': {
+          const n = Number(v);
+          if (v.trim() === '' || isNaN(n)) { warnings.push('Field "' + name + '": value is not a number.'); return [name, 0]; }
+          return [name, n];
+        }
+        case 'bool':
+          return [name, v === 'true'];
+        case 'date': {
+          let d = v.trim();
+          if (/^\d{4}-\d{2}-\d{2}$/.test(d)) d += 'T00:00:00Z';
+          return [name, d];
+        }
+        case 'person': {
+          if (!/Id$/.test(name)) name += 'Id';
+          const n = Number(v);
+          if (v.trim() === '' || isNaN(n)) { warnings.push('Field "' + name + '": person/lookup needs the numeric user or item ID.'); return [name, 0]; }
+          return [name, n];
+        }
+        case 'personMulti': {
+          if (!/Id$/.test(name)) name += 'Id';
+          const arr = v.split(',').map(s => s.trim()).filter(Boolean).map(Number).filter(n => !isNaN(n));
+          if (meta === 'verbose') return [name, { '__metadata': { type: 'Collection(Edm.Int32)' }, results: arr }];
+          return [name, arr];
+        }
+        case 'choiceMulti': {
+          const arr = v.split(',').map(s => s.trim()).filter(Boolean);
+          if (meta === 'verbose') return [name, { '__metadata': { type: 'Collection(Edm.String)' }, results: arr }];
+          return [name, arr];
+        }
+        case 'url': {
+          const parts = v.split('|');
+          const url = (parts[0] || '').trim();
+          const desc = (parts[1] || url).trim();
+          const obj = { Description: desc, Url: url };
+          if (meta === 'verbose') obj['__metadata'] = { type: 'SP.FieldUrlValue' };
+          return [name, obj];
+        }
+        case 'raw': {
+          try { return [name, JSON.parse(v)]; }
+          catch { warnings.push('Field "' + name + '": invalid JSON — ' + v); return [name, null]; }
+        }
+      }
+      return [name, v];
+    }
+
+    function buildItemBody(warnings) {
+      const body = {};
+      if (state.meta === 'verbose') {
+        const et = state.entityType.trim();
+        if (!et) warnings.push('Verbose bodies require __metadata.type — run the "Get entity type" operation and paste the result.');
+        body['__metadata'] = { type: et || 'SP.Data.YourListListItem' };
+      }
+      for (const f of state.fields) {
+        const entry = buildFieldEntry(f, state.meta, warnings);
+        if (entry) body[entry[0]] = entry[1];
+      }
+      return body;
+    }
+
+    /* ───────────────────────────── batch generation */
+    function buildBatch(warnings) {
+      const site = cleanSite();
+      if (!site) warnings.push('Site address is required — $batch bodies must contain absolute URLs.');
+      const base = (site || 'https://{site}') + '/';
+      const batchId = 'batch_' + uuid();
+      const accept = 'application/json;odata=nometadata';
+      const lines = [];
+
+      const opsList = state.batchOps;
+
+      function innerUrl(o) {
+        const lp = listPath('title', o.listTitle, '');
+        if (o.kind === 'get') {
+          let q = (o.query || '').trim();
+          if (q && !q.startsWith('?')) q = '?' + q;
+          return base + lp + '/items' + q;
+        }
+        if (o.kind === 'create') return base + lp + '/items';
+        return base + lp + '/items(' + (o.itemId || '{id}') + ')';
+      }
+
+      function writePart(o, idx) {
+        const out = [];
+        out.push('Content-Type: application/http');
+        out.push('Content-Transfer-Encoding: binary');
+        out.push('');
+        if (o.kind === 'create') {
+          out.push('POST ' + innerUrl(o) + ' HTTP/1.1');
+          out.push('Content-Type: application/json;odata=nometadata');
+          out.push('Accept: ' + accept);
+          out.push('');
+          out.push(validBatchBody(o, idx));
+        } else if (o.kind === 'update') {
+          out.push('MERGE ' + innerUrl(o) + ' HTTP/1.1');
+          out.push('Content-Type: application/json;odata=nometadata');
+          out.push('Accept: ' + accept);
+          out.push('IF-MATCH: *');
+          out.push('');
+          out.push(validBatchBody(o, idx));
+        } else { // delete
+          out.push('DELETE ' + innerUrl(o) + ' HTTP/1.1');
+          out.push('Accept: ' + accept);
+          out.push('IF-MATCH: *');
+          out.push('');
+        }
+        return out.join('\n');
+      }
+
+      function validBatchBody(o, idx) {
+        const raw = (o.body || '').trim() || '{}';
+        try { JSON.parse(raw); }
+        catch { warnings.push('Batch operation ' + (idx + 1) + ': body is not valid JSON.'); }
+        return raw;
+      }
+
+      if (!opsList.length) {
+        warnings.push('Add at least one batch operation.');
+        return { boundary: batchId, body: '' };
+      }
+      opsList.forEach((o, idx) => {
+        if (!o.listTitle.trim()) warnings.push('Batch operation ' + (idx + 1) + ': list title is required.');
+        if ((o.kind === 'update' || o.kind === 'delete') && !String(o.itemId).trim())
+          warnings.push('Batch operation ' + (idx + 1) + ': item ID is required.');
+      });
+
+      let i = 0;
+      while (i < opsList.length) {
+        const o = opsList[i];
+        if (o.kind === 'get') {
+          lines.push('--' + batchId);
+          lines.push('Content-Type: application/http');
+          lines.push('Content-Transfer-Encoding: binary');
+          lines.push('');
+          lines.push('GET ' + innerUrl(o) + ' HTTP/1.1');
+          lines.push('Accept: ' + accept);
+          lines.push('');
+          i++;
+        } else {
+          // group consecutive writes into one changeset
+          const changesetId = 'changeset_' + uuid();
+          lines.push('--' + batchId);
+          lines.push('Content-Type: multipart/mixed; boundary="' + changesetId + '"');
+          lines.push('Content-Transfer-Encoding: binary');
+          lines.push('');
+          while (i < opsList.length && opsList[i].kind !== 'get') {
+            lines.push('--' + changesetId);
+            lines.push(writePart(opsList[i], i));
+            lines.push('');
+            i++;
+          }
+          lines.push('--' + changesetId + '--');
+          lines.push('');
+        }
+      }
+      lines.push('--' + batchId + '--');
+      return { boundary: batchId, body: lines.join('\n') };
+    }
+
+    /* ───────────────────────────── request generation */
+    function generate() {
+      const warnings = [];
+      const meta = state.meta;
+      const accept = 'application/json;odata=' + meta;
+      const contentType = 'application/json;odata=' + meta;
+      const lp = listPath(state.listBy, state.listTitle, state.listGuid);
+      let method = 'GET', uri = '', headers = {}, body = null, notes = [];
+
+      if (state.op !== 'batch') {
+        if (state.listBy === 'title' && !state.listTitle.trim()) warnings.push('List title is required.');
+        if (state.listBy === 'guid' && !state.listGuid.trim()) warnings.push('List GUID is required.');
+      }
+      if (!state.site.trim() && state.op !== 'batch') warnings.push('Site address is empty — fill the action’s Site Address field.');
+      const needsId = state.op === 'getItem' || state.op === 'updateItem' || state.op === 'deleteItem';
+      if (needsId && !String(state.itemId).trim()) warnings.push('Item ID is required.');
+
+      switch (state.op) {
+        case 'getItems': {
+          method = 'GET';
+          uri = lp + '/items' + buildQueryString({ select: 1, expand: 1, filter: 1, orderby: 1, top: 1 });
+          headers = { 'Accept': accept };
+          notes = [
+            'Returns at most 100 items unless you set <code>$top</code> (max 5000). For more, follow the paging link in the response.',
+            'Loop the results with <strong>Apply to each</strong> on <code>body(\'Send_an_HTTP_request_to_SharePoint\')?[\'value\']</code>.',
+            meta === 'verbose'
+              ? 'Verbose responses nest results under <code>[\'d\'][\'results\']</code> instead of <code>[\'value\']</code>.'
+              : 'Inside the loop, read a column with <code>items(\'Apply_to_each\')?[\'Title\']</code>.'
+          ];
+          break;
+        }
+        case 'getItem': {
+          method = 'GET';
+          uri = lp + '/items(' + (state.itemId || '{id}') + ')' + buildQueryString({ select: 1, expand: 1 });
+          headers = { 'Accept': accept };
+          notes = [
+            'Read a column with <code>body(\'Send_an_HTTP_request_to_SharePoint\')?[\'Title\']</code>.',
+            'A non-existent ID returns a 404 error — add a parallel branch or configure run-after to handle it.'
+          ];
+          break;
+        }
+        case 'itemCount': {
+          method = 'GET';
+          uri = lp + '/ItemCount';
+          headers = { 'Accept': accept };
+          notes = [ 'Read the count with <code>body(\'Send_an_HTTP_request_to_SharePoint\')?[\'value\']</code>.' ];
+          break;
+        }
+        case 'entityType': {
+          method = 'GET';
+          uri = lp + '?$select=ListItemEntityTypeFullName';
+          headers = { 'Accept': accept };
+          notes = [
+            'Read it with <code>body(\'Send_an_HTTP_request_to_SharePoint\')?[\'ListItemEntityTypeFullName\']</code>.',
+            'You only need this value for <strong>verbose</strong> create/update bodies (<code>__metadata.type</code>).'
+          ];
+          break;
+        }
+        case 'createItem': {
+          method = 'POST';
+          uri = lp + '/items';
+          headers = { 'Accept': accept, 'Content-Type': contentType };
+          body = JSON.stringify(buildItemBody(warnings), null, 2);
+          notes = [
+            'The response echoes the created item — get its ID with <code>body(\'Send_an_HTTP_request_to_SharePoint\')?[\'' + (meta === 'verbose' ? 'd\']?[\'Id' : 'Id') + '\']</code>.',
+            'Person and lookup columns are set through their <code>…Id</code> companion field with the numeric ID.',
+            meta !== 'verbose' ? 'With <code>odata=nometadata</code> no <code>__metadata.type</code> is needed in the body.' : ''
+          ].filter(Boolean);
+          break;
+        }
+        case 'updateItem': {
+          method = 'POST';
+          uri = lp + '/items(' + (state.itemId || '{id}') + ')';
+          headers = { 'Accept': accept, 'Content-Type': contentType, 'IF-MATCH': state.etag.trim() || '*', 'X-HTTP-Method': 'MERGE' };
+          body = JSON.stringify(buildItemBody(warnings), null, 2);
+          notes = [
+            'MERGE only changes the fields present in the body; everything else is untouched.',
+            'Success returns <strong>204 No Content</strong> — there is no body to parse.',
+            'If you pass a real ETag instead of <code>*</code>, a version mismatch returns <strong>412 Precondition Failed</strong>.'
+          ];
+          break;
+        }
+        case 'deleteItem': {
+          method = 'POST';
+          uri = lp + '/items(' + (state.itemId || '{id}') + ')';
+          headers = { 'Accept': accept, 'IF-MATCH': state.etag.trim() || '*', 'X-HTTP-Method': 'DELETE' };
+          notes = [
+            'Success returns <strong>200/204 with no body</strong>. The item goes to the site recycle bin.',
+            'Deleting an ID that doesn’t exist returns a 404 — configure run-after if that’s expected.'
+          ];
+          break;
+        }
+        case 'batch': {
+          method = 'POST';
+          uri = '_api/$batch';
+          const b = buildBatch(warnings);
+          headers = { 'Content-Type': 'multipart/mixed; boundary="' + b.boundary + '"' };
+          body = b.body;
+          notes = [
+            'The whole batch returns <strong>200 OK</strong> even when inner operations fail — check each inner status line in the response text.',
+            'Operations inside one changeset are atomic: if one fails, SharePoint rolls back the rest of that changeset.',
+            'The response is <code>multipart/mixed</code> text, not JSON — parse it with text functions (e.g. <code>split(body(...), \'--batchresponse\')</code>).',
+            'Inner URLs must be absolute, which is why Site address is required here.'
+          ];
+          break;
+        }
+      }
+
+      return { method, uri, headers, body, notes, warnings };
+    }
+
+    /* ───────────────────────────── render: output panel */
+    function renderOutput() {
+      const r = generate();
+      $('outSite').textContent = cleanSite() || 'https://{your-site}';
+      $('outMethod').textContent = r.method;
+      $('outUri').textContent = r.uri;
+      $('outHeaders').textContent = JSON.stringify(r.headers, null, 2);
+
+      if (r.body !== null && r.body !== undefined) {
+        $('bodyBlock').classList.remove('hidden');
+        $('outBody').textContent = r.body;
+      } else {
+        $('bodyBlock').classList.add('hidden');
+      }
+
+      if (r.method === 'GET') {
+        $('fullUrlBlock').classList.remove('hidden');
+        $('outFullUrl').textContent = (cleanSite() || 'https://{your-site}') + '/' + r.uri;
+      } else {
+        $('fullUrlBlock').classList.add('hidden');
+      }
+
+      const warnBox = $('warnBox');
+      if (r.warnings.length) {
+        warnBox.classList.remove('hidden');
+        $('warnList').innerHTML = r.warnings.map(w => '<li>' + escHtml(w) + '</li>').join('');
+      } else {
+        warnBox.classList.add('hidden');
+      }
+
+      $('noteList').innerHTML = r.notes.map(n => '<li>' + n + '</li>').join('');
+    }
+
+    function escHtml(s) {
+      return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    /* ───────────────────────────── render: card visibility */
+    function renderVisibility() {
+      const op = state.op;
+      const showItem = op === 'getItem' || op === 'updateItem' || op === 'deleteItem';
+      $('itemCard').classList.toggle('hidden', !showItem);
+      $('etagGroup').classList.toggle('hidden', !(op === 'updateItem' || op === 'deleteItem'));
+
+      const showQuery = op === 'getItems' || op === 'getItem';
+      $('queryCard').classList.toggle('hidden', !showQuery);
+      const fullQuery = op === 'getItems';
+      $('filterSection').classList.toggle('hidden', !fullQuery);
+      $('orderbySection').classList.toggle('hidden', !fullQuery);
+      $('topRow').classList.toggle('hidden', !fullQuery);
+
+      const showFields = op === 'createItem' || op === 'updateItem';
+      $('fieldsCard').classList.toggle('hidden', !showFields);
+      $('entityTypeGroup').classList.toggle('hidden', state.meta !== 'verbose');
+
+      $('batchCard').classList.toggle('hidden', op !== 'batch');
+      const connFields = op === 'batch';
+      $('listIdGrid').classList.toggle('hidden', connFields);
+      $('metaGroup').classList.toggle('hidden', connFields);
+    }
+
+    /* ───────────────────────────── render: operation grid */
+    function renderOpGrid() {
+      const grid = $('opGrid');
+      grid.innerHTML = '';
+      for (const [key, op] of Object.entries(OPS)) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'op-btn';
+        btn.setAttribute('aria-pressed', String(state.op === key));
+        btn.innerHTML =
+          '<span class="op-name"><span class="op-method m-' + op.method.toLowerCase() + '">' + op.method + '</span>' + op.name + '</span>' +
+          '<span class="op-desc">' + op.desc + '</span>';
+        btn.addEventListener('click', () => {
+          state.op = key;
+          grid.querySelectorAll('.op-btn').forEach(b => b.setAttribute('aria-pressed', 'false'));
+          btn.setAttribute('aria-pressed', 'true');
+          renderVisibility();
+          update();
+        });
+        grid.appendChild(btn);
+      }
+    }
+
+    /* ───────────────────────────── render: dynamic rows */
+    function makeSelect(options, value, onChange, cls) {
+      const sel = document.createElement('select');
+      if (cls) sel.className = cls;
+      for (const o of options) {
+        const opt = document.createElement('option');
+        opt.value = o.v; opt.textContent = o.label;
+        sel.appendChild(opt);
+      }
+      sel.value = value;
+      sel.addEventListener('change', () => { onChange(sel.value); update(); });
+      return sel;
+    }
+
+    function makeInput(value, placeholder, onInput, type) {
+      const inp = document.createElement('input');
+      inp.type = type || 'text';
+      inp.value = value;
+      inp.placeholder = placeholder || '';
+      inp.spellcheck = false;
+      inp.className = 'grow';
+      inp.addEventListener('input', () => { onInput(inp.value); update(); });
+      return inp;
+    }
+
+    function makeRemoveBtn(label, onClick) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn-icon';
+      btn.setAttribute('aria-label', label);
+      btn.textContent = '✕';
+      btn.addEventListener('click', () => { onClick(); update(); });
+      return btn;
+    }
+
+    function renderFilterRows() {
+      const wrap = $('filterRows');
+      wrap.innerHTML = '';
+      if (!state.filters.length) {
+        const p = document.createElement('p');
+        p.className = 'empty-note';
+        p.textContent = 'No filter — all items returned.';
+        wrap.appendChild(p);
+      }
+      state.filters.forEach((f, i) => {
+        const row = document.createElement('div');
+        row.className = 'dyn-row';
+        if (i > 0) {
+          row.appendChild(makeSelect(
+            [{ v: 'and', label: 'AND' }, { v: 'or', label: 'OR' }],
+            f.join, v => f.join = v, 'compact join-select'));
+        } else {
+          const spacer = document.createElement('span');
+          spacer.style.cssText = 'width:70px;flex-shrink:0;font-size:11px;color:var(--muted);text-align:center;';
+          spacer.textContent = 'WHERE';
+          row.appendChild(spacer);
+        }
+        const fieldInp = makeInput(f.field, 'InternalName', v => f.field = v);
+        fieldInp.setAttribute('aria-label', 'Filter field ' + (i + 1));
+        row.appendChild(fieldInp);
+        row.appendChild(makeSelect(FILTER_OPS, f.op, v => { f.op = v; renderFilterRows(); }, 'compact'));
+        const needsValue = f.op !== 'isnull' && f.op !== 'isnotnull';
+        if (needsValue) {
+          if (f.op === 'startswith' || f.op === 'substringof') {
+            const vi = makeInput(f.value, 'value', v => f.value = v);
+            vi.setAttribute('aria-label', 'Filter value ' + (i + 1));
+            row.appendChild(vi);
+          } else {
+            row.appendChild(makeSelect(FILTER_VALUE_TYPES, f.vtype, v => { f.vtype = v; renderFilterRows(); }, 'compact'));
+            if (f.vtype === 'bool') {
+              row.appendChild(makeSelect([{ v: 'true', label: 'Yes (true)' }, { v: 'false', label: 'No (false)' }], f.value || 'true', v => f.value = v, 'compact grow'));
+              if (!f.value) f.value = 'true';
+            } else {
+              const vi = makeInput(f.value, f.vtype === 'date' ? 'YYYY-MM-DD' : 'value', v => f.value = v);
+              vi.setAttribute('aria-label', 'Filter value ' + (i + 1));
+              row.appendChild(vi);
+            }
+          }
+        }
+        row.appendChild(makeRemoveBtn('Remove condition ' + (i + 1), () => { state.filters.splice(i, 1); renderFilterRows(); }));
+        wrap.appendChild(row);
+      });
+    }
+
+    function renderOrderbyRows() {
+      const wrap = $('orderbyRows');
+      wrap.innerHTML = '';
+      if (!state.orderby.length) {
+        const p = document.createElement('p');
+        p.className = 'empty-note';
+        p.textContent = 'No sort — server default order.';
+        wrap.appendChild(p);
+      }
+      state.orderby.forEach((o, i) => {
+        const row = document.createElement('div');
+        row.className = 'dyn-row';
+        const fi = makeInput(o.field, 'InternalName', v => o.field = v);
+        fi.setAttribute('aria-label', 'Sort field ' + (i + 1));
+        row.appendChild(fi);
+        row.appendChild(makeSelect([{ v: 'asc', label: 'Ascending' }, { v: 'desc', label: 'Descending' }], o.dir, v => o.dir = v, 'compact'));
+        row.appendChild(makeRemoveBtn('Remove sort ' + (i + 1), () => { state.orderby.splice(i, 1); renderOrderbyRows(); }));
+        wrap.appendChild(row);
+      });
+    }
+
+    function renderFieldRows() {
+      const wrap = $('fieldRows');
+      wrap.innerHTML = '';
+      state.fields.forEach((f, i) => {
+        const row = document.createElement('div');
+        row.className = 'dyn-row';
+        const ni = makeInput(f.name, 'InternalName', v => f.name = v);
+        ni.setAttribute('aria-label', 'Field name ' + (i + 1));
+        ni.style.maxWidth = '180px';
+        row.appendChild(ni);
+        row.appendChild(makeSelect(FIELD_TYPES, f.type, v => { f.type = v; renderFieldRows(); }, 'compact'));
+        let ph = 'value';
+        if (f.type === 'person') ph = 'user/item ID, e.g. 12';
+        else if (f.type === 'personMulti') ph = 'IDs: 12, 15';
+        else if (f.type === 'choiceMulti') ph = 'Choice A, Choice B';
+        else if (f.type === 'date') ph = 'YYYY-MM-DD or full ISO';
+        else if (f.type === 'url') ph = 'https://url | description';
+        else if (f.type === 'raw') ph = '{"key": "value"}';
+        if (f.type === 'bool') {
+          row.appendChild(makeSelect([{ v: 'true', label: 'Yes (true)' }, { v: 'false', label: 'No (false)' }], f.value || 'true', v => f.value = v, 'grow'));
+          if (!f.value) f.value = 'true';
+        } else {
+          const vi = makeInput(f.value, ph, v => f.value = v);
+          vi.setAttribute('aria-label', 'Field value ' + (i + 1));
+          row.appendChild(vi);
+        }
+        row.appendChild(makeRemoveBtn('Remove field ' + (i + 1), () => { state.fields.splice(i, 1); renderFieldRows(); }));
+        wrap.appendChild(row);
+      });
+    }
+
+    function renderBatchRows() {
+      const wrap = $('batchRows');
+      wrap.innerHTML = '';
+      state.batchOps.forEach((o, i) => {
+        const card = document.createElement('div');
+        card.className = 'batch-op';
+
+        const head = document.createElement('div');
+        head.className = 'batch-op-head';
+        const num = document.createElement('span');
+        num.className = 'batch-op-num';
+        num.textContent = String(i + 1);
+        head.appendChild(num);
+        head.appendChild(makeSelect(BATCH_KINDS, o.kind, v => { o.kind = v; renderBatchRows(); }, 'compact'));
+        const lt = makeInput(o.listTitle, 'List title', v => o.listTitle = v);
+        lt.setAttribute('aria-label', 'Batch operation ' + (i + 1) + ' list title');
+        head.appendChild(lt);
+        if (o.kind === 'update' || o.kind === 'delete') {
+          const idInp = makeInput(String(o.itemId || ''), 'Item ID', v => o.itemId = v, 'number');
+          idInp.setAttribute('aria-label', 'Batch operation ' + (i + 1) + ' item ID');
+          idInp.style.maxWidth = '90px';
+          head.appendChild(idInp);
+        }
+        head.appendChild(makeRemoveBtn('Remove batch operation ' + (i + 1), () => { state.batchOps.splice(i, 1); renderBatchRows(); }));
+        card.appendChild(head);
+
+        if (o.kind === 'get') {
+          const qi = makeInput(o.query, "$select=Id,Title&$top=10", v => o.query = v);
+          qi.setAttribute('aria-label', 'Batch operation ' + (i + 1) + ' query options');
+          card.appendChild(qi);
+        }
+        if (o.kind === 'create' || o.kind === 'update') {
+          const ta = document.createElement('textarea');
+          ta.rows = 3;
+          ta.value = o.body;
+          ta.placeholder = '{"Title": "New value"}';
+          ta.spellcheck = false;
+          ta.setAttribute('aria-label', 'Batch operation ' + (i + 1) + ' JSON body');
+          ta.addEventListener('input', () => { o.body = ta.value; update(); });
+          card.appendChild(ta);
+        }
+        wrap.appendChild(card);
+      });
+    }
+
+    /* ───────────────────────────── persistence */
+    let saveTimer = null;
+    function persist() {
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(() => {
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch {}
+      }, 300);
+    }
+
+    function restore() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        const saved = JSON.parse(raw);
+        Object.assign(state, saved);
+        if (!Array.isArray(state.filters)) state.filters = [];
+        if (!Array.isArray(state.orderby)) state.orderby = [];
+        if (!Array.isArray(state.fields) || !state.fields.length) state.fields = [{ name: 'Title', type: 'text', value: '' }];
+        if (!Array.isArray(state.batchOps) || !state.batchOps.length) state.batchOps = [{ kind: 'create', listTitle: '', itemId: '', query: '', body: '{\n  "Title": "New item"\n}' }];
+      } catch {}
+    }
+
+    function update() { renderOutput(); persist(); }
+
+    /* ───────────────────────────── toast + copy */
+    function toast(msg) {
+      const region = $('toastRegion');
+      region.innerHTML = '';
+      const t = document.createElement('div');
+      t.className = 'toast';
+      t.textContent = msg;
+      region.appendChild(t);
+      setTimeout(() => { if (t.parentNode) t.parentNode.removeChild(t); }, 1800);
+    }
+
+    async function copyText(text, btn) {
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      btn.classList.add('copied');
+      btn.textContent = '✓ Copied';
+      toast('Copied to clipboard');
+      setTimeout(() => { btn.classList.remove('copied'); btn.textContent = 'Copy'; }, 1500);
+    }
+
+    /* ───────────────────────────── wire up static inputs */
+    function bindText(id, key, after) {
+      $(id).addEventListener('input', () => {
+        state[key] = $(id).value;
+        if (after) after();
+        update();
+      });
+    }
+
+    function init() {
+      restore();
+
+      renderOpGrid();
+      renderFilterRows();
+      renderOrderbyRows();
+      renderFieldRows();
+      renderBatchRows();
+
+      // restore static input values
+      $('siteUrl').value = state.site;
+      $('listValue').value = state.listBy === 'guid' ? state.listGuid : state.listTitle;
+      $('itemId').value = state.itemId;
+      $('etag').value = state.etag;
+      $('qSelect').value = state.qSelect;
+      $('qExpand').value = state.qExpand;
+      $('qTop').value = state.qTop;
+      $('filterRaw').value = state.filterRaw;
+      $('entityType').value = state.entityType;
+
+      bindText('siteUrl', 'site');
+      bindText('itemId', 'itemId');
+      bindText('etag', 'etag');
+      bindText('qSelect', 'qSelect');
+      bindText('qExpand', 'qExpand');
+      bindText('qTop', 'qTop');
+      bindText('filterRaw', 'filterRaw');
+      bindText('entityType', 'entityType');
+
+      $('listValue').addEventListener('input', () => {
+        if (state.listBy === 'guid') state.listGuid = $('listValue').value;
+        else state.listTitle = $('listValue').value;
+        update();
+      });
+
+      function setListBy(by) {
+        state.listBy = by;
+        $('listByTitle').setAttribute('aria-pressed', String(by === 'title'));
+        $('listByGuid').setAttribute('aria-pressed', String(by === 'guid'));
+        $('listValueLabel').textContent = by === 'guid' ? 'List GUID' : 'List title';
+        $('listValue').placeholder = by === 'guid' ? 'aa11bb22-cc33-dd44-ee55-ff6677889900' : 'My List';
+        $('listValue').value = by === 'guid' ? state.listGuid : state.listTitle;
+        update();
+      }
+      $('listByTitle').addEventListener('click', () => setListBy('title'));
+      $('listByGuid').addEventListener('click', () => setListBy('guid'));
+      setListBy(state.listBy);
+
+      document.querySelectorAll('[data-meta]').forEach(btn => {
+        btn.setAttribute('aria-pressed', String(btn.dataset.meta === state.meta));
+        btn.addEventListener('click', () => {
+          state.meta = btn.dataset.meta;
+          document.querySelectorAll('[data-meta]').forEach(b => b.setAttribute('aria-pressed', String(b === btn)));
+          renderVisibility();
+          update();
+        });
+      });
+
+      document.querySelectorAll('[data-fmode]').forEach(btn => {
+        btn.setAttribute('aria-pressed', String(btn.dataset.fmode === state.filterMode));
+        btn.addEventListener('click', () => {
+          state.filterMode = btn.dataset.fmode;
+          document.querySelectorAll('[data-fmode]').forEach(b => b.setAttribute('aria-pressed', String(b === btn)));
+          applyFilterMode();
+          update();
+        });
+      });
+
+      function applyFilterMode() {
+        const manual = state.filterMode === 'manual';
+        $('filterRaw').classList.toggle('hidden', !manual);
+        $('filterRows').classList.toggle('hidden', manual);
+        $('filterBuilderActions').classList.toggle('hidden', manual);
+      }
+      applyFilterMode();
+
+      $('addFilter').addEventListener('click', () => {
+        state.filters.push({ field: '', op: 'eq', value: '', vtype: 'text', join: 'and' });
+        renderFilterRows();
+        update();
+      });
+      $('addOrderby').addEventListener('click', () => {
+        state.orderby.push({ field: '', dir: 'asc' });
+        renderOrderbyRows();
+        update();
+      });
+      $('addField').addEventListener('click', () => {
+        state.fields.push({ name: '', type: 'text', value: '' });
+        renderFieldRows();
+        update();
+      });
+      $('addBatchOp').addEventListener('click', () => {
+        state.batchOps.push({ kind: 'create', listTitle: state.batchOps[0]?.listTitle || '', itemId: '', query: '', body: '{\n  "Title": "New item"\n}' });
+        renderBatchRows();
+        update();
+      });
+
+      document.querySelectorAll('.copy-btn').forEach(btn => {
+        btn.addEventListener('click', () => copyText($(btn.dataset.copy).textContent, btn));
+      });
+
+      renderVisibility();
+      renderOutput();
+    }
+
+    init();
+  </script>
+</body>
+</html>
