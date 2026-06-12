@@ -15,6 +15,7 @@ A collection of single-page, client-side HTML tools — no installation, no depe
 | [Expression Scratchpad](power-automate-expression-tester/expression-repl.html) | A lightweight REPL for experimenting with Power Automate expressions, with function reference and history navigation. |
 | [simple-select](simple-select/simple-select.html) | Visual builder for Power Automate's **Select Action** — map input fields to an output structure without writing code. |
 | [Form Overlay Builder](form-overlay-builder/form-overlay-builder.html) | Upload a PDF screenshot, draw interactive form field overlays over it, and export JSON ready to import into a Power Automate flow. |
+| [HTML Table Builder](html-table-builder/html-table-builder.html) | Interactive designer for Outlook-safe HTML tables in the **Send an email** action — live preview, themes, and generated **Select** + `join()` row templates for dynamic data. |
 
 ### Power Apps / Power Fx
 
@@ -46,6 +47,7 @@ A collection of single-page, client-side HTML tools — no installation, no depe
 
 | Resource | Description |
 |----------|-------------|
+| [HTML Table Builder User Guide](html-table-builder/user-guide.md) | Step-by-step guide to the HTML Table Builder, including detailed Power Automate Select + Send an email setup. |
 | [Regex Recipe Book](regex-recipe-books/PA_Regex_Recipe_Book_Final.md) | A curated collection of regex patterns for common Power Automate use cases. |
 | [Dark Theme Accessibility Style Guide](html-style-guides/dark-theme-a11y-style-guide.md) | Accessibility-focused colour and contrast guidelines for dark-themed UIs. |
 | [Canvas App YAML Patterns](vibe-coding-canvas-apps/canvas-apps-yaml-patterns.md) | Common YAML patterns for building Power Apps Canvas Apps. |
