@@ -262,6 +262,28 @@
 
     .empty-note { font-size: 11.5px; color: var(--muted); font-style: italic; }
 
+    /* extracted list reference preview */
+    .preview-box {
+      background: color-mix(in srgb, var(--panel-2) 80%, transparent);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 6px 10px;
+    }
+    .preview-box .p-lbl {
+      font-size: 10px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 2px;
+    }
+    .preview-box .p-val {
+      color: var(--accent-2);
+      font-weight: 600;
+      font-family: var(--mono);
+      font-size: 12px;
+      word-break: break-all;
+    }
+
     /* batch op card */
     .batch-op {
       border: 1px solid var(--line-2);
@@ -429,6 +451,7 @@
           <div class="field-group">
             <label class="field-label" id="listByLabel">Identify list by</label>
             <div class="segmented" role="group" aria-labelledby="listByLabel">
+              <button type="button" id="listByUrl" aria-pressed="false">URL</button>
               <button type="button" id="listByTitle" aria-pressed="true">Title</button>
               <button type="button" id="listByGuid" aria-pressed="false">GUID</button>
             </div>
@@ -437,6 +460,10 @@
             <label class="field-label" for="listValue" id="listValueLabel">List title</label>
             <input type="text" id="listValue" placeholder="My List" spellcheck="false" />
           </div>
+        </div>
+        <div class="preview-box hidden" id="listRefPreview">
+          <div class="p-lbl">List reference — site address &amp; list extracted automatically; <span style="font-family:var(--mono); text-transform:none;">GetList()</span> avoids title/URL-name mismatches</div>
+          <div class="p-val" id="listRefValue"></div>
         </div>
         <div class="field-group" id="metaGroup">
           <label class="field-label" id="metaLabel">OData metadata level (affects headers &amp; body shape)</label>
@@ -680,6 +707,7 @@
       listBy: 'title',
       listTitle: '',
       listGuid: '',
+      listUrl: '',
       meta: 'nometadata',
       itemId: '',
       etag: '*',
@@ -710,9 +738,42 @@
           }));
     }
 
-    function listPath(by, title, guid) {
+    /* Extract origin, server-relative list path, and site path from a pasted list URL.
+       GetList('/sites/X/Lists/Y') is immune to display-name vs URL-name mismatches. */
+    function extractListUrlParts(url) {
+      url = (url || '').trim();
+      if (!url) return null;
+      const origin = (url.match(/^(https?:\/\/[^\/]+)/i) || [])[1] || '';
+      let path = '';
+      let m = url.match(/GetList\s*\(\s*['"]([^'"]+)['"]\s*\)/i);
+      if (m) path = decodeURIComponent(m[1]);
+      if (!path && !/_api\//i.test(url)) {
+        const p = url.replace(/^https?:\/\/[^\/]+/, '');
+        m = p.match(/((?:\/(?:sites|teams)\/[^\/]+)?\/[Ll]ists\/[^\/\?#]+)/);
+        if (m) path = decodeURIComponent(m[1].replace(/\+/g, ' '));
+      }
+      if (!path) return null;
+      const sitePath = (path.match(/(.*?)\/[Ll]ists\//) || [])[1] || '';
+      return { origin, path, sitePath };
+    }
+
+    function listPath(by, title, guid, url) {
       if (by === 'guid') return "_api/web/lists(guid'" + (guid || '{list-guid}').trim() + "')";
+      if (by === 'url') {
+        const parts = extractListUrlParts(url);
+        return "_api/web/GetList('" + escOData(parts ? parts.path : '/sites/{site}/Lists/{list}') + "')";
+      }
       return "_api/web/lists/GetByTitle('" + escOData((title || '{list title}').trim()) + "')";
+    }
+
+    /* batch list field accepts a title, a full list URL, or a server-relative /Lists/ path */
+    function resolveListRef(value) {
+      const v = (value || '').trim();
+      if (/^https?:\/\//i.test(v) || /\/[Ll]ists\//.test(v)) {
+        const parts = extractListUrlParts(/^https?:\/\//i.test(v) ? v : 'https://x' + v);
+        if (parts) return "_api/web/GetList('" + escOData(parts.path) + "')";
+      }
+      return listPath('title', v, '');
     }
 
     function cleanSite() { return state.site.trim().replace(/\/+$/, ''); }
@@ -847,7 +908,7 @@
       const opsList = state.batchOps;
 
       function innerUrl(o) {
-        const lp = listPath('title', o.listTitle, '');
+        const lp = resolveListRef(o.listTitle);
         if (o.kind === 'get') {
           let q = (o.query || '').trim();
           if (q && !q.startsWith('?')) q = '?' + q;
@@ -896,7 +957,7 @@
         return { boundary: batchId, body: '' };
       }
       opsList.forEach((o, idx) => {
-        if (!o.listTitle.trim()) warnings.push('Batch operation ' + (idx + 1) + ': list title is required.');
+        if (!o.listTitle.trim()) warnings.push('Batch operation ' + (idx + 1) + ': list title or URL is required.');
         if ((o.kind === 'update' || o.kind === 'delete') && !String(o.itemId).trim())
           warnings.push('Batch operation ' + (idx + 1) + ': item ID is required.');
       });
@@ -940,12 +1001,16 @@
       const meta = state.meta;
       const accept = 'application/json;odata=' + meta;
       const contentType = 'application/json;odata=' + meta;
-      const lp = listPath(state.listBy, state.listTitle, state.listGuid);
+      const lp = listPath(state.listBy, state.listTitle, state.listGuid, state.listUrl);
       let method = 'GET', uri = '', headers = {}, body = null, notes = [];
 
       if (state.op !== 'batch') {
         if (state.listBy === 'title' && !state.listTitle.trim()) warnings.push('List title is required.');
         if (state.listBy === 'guid' && !state.listGuid.trim()) warnings.push('List GUID is required.');
+        if (state.listBy === 'url') {
+          if (!state.listUrl.trim()) warnings.push('List URL is required — paste the list’s AllItems.aspx URL.');
+          else if (!extractListUrlParts(state.listUrl)) warnings.push('Could not extract a /Lists/ path from that URL.');
+        }
       }
       if (!state.site.trim() && state.op !== 'batch') warnings.push('Site address is empty — fill the action’s Site Address field.');
       const needsId = state.op === 'getItem' || state.op === 'updateItem' || state.op === 'deleteItem';
@@ -1082,6 +1147,19 @@
       return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
 
+    function updateListRefPreview() {
+      const box = $('listRefPreview');
+      if (state.listBy !== 'url' || state.op === 'batch') { box.classList.add('hidden'); return; }
+      const parts = extractListUrlParts(state.listUrl);
+      if (parts) {
+        $('listRefValue').textContent = parts.path;
+        box.classList.remove('hidden');
+      } else {
+        $('listRefValue').textContent = '';
+        box.classList.add('hidden');
+      }
+    }
+
     /* ───────────────────────────── render: card visibility */
     function renderVisibility() {
       const op = state.op;
@@ -1104,6 +1182,7 @@
       const connFields = op === 'batch';
       $('listIdGrid').classList.toggle('hidden', connFields);
       $('metaGroup').classList.toggle('hidden', connFields);
+      updateListRefPreview();
     }
 
     /* ───────────────────────────── render: operation grid */
@@ -1279,8 +1358,8 @@
         num.textContent = String(i + 1);
         head.appendChild(num);
         head.appendChild(makeSelect(BATCH_KINDS, o.kind, v => { o.kind = v; renderBatchRows(); }, 'compact'));
-        const lt = makeInput(o.listTitle, 'List title', v => o.listTitle = v);
-        lt.setAttribute('aria-label', 'Batch operation ' + (i + 1) + ' list title');
+        const lt = makeInput(o.listTitle, 'List title or URL', v => o.listTitle = v);
+        lt.setAttribute('aria-label', 'Batch operation ' + (i + 1) + ' list title or URL');
         head.appendChild(lt);
         if (o.kind === 'update' || o.kind === 'delete') {
           const idInp = makeInput(String(o.itemId || ''), 'Item ID', v => o.itemId = v, 'number');
@@ -1401,20 +1480,36 @@
       bindText('entityType', 'entityType');
 
       $('listValue').addEventListener('input', () => {
-        if (state.listBy === 'guid') state.listGuid = $('listValue').value;
-        else state.listTitle = $('listValue').value;
+        const v = $('listValue').value;
+        if (state.listBy === 'guid') state.listGuid = v;
+        else if (state.listBy === 'url') {
+          state.listUrl = v;
+          const parts = extractListUrlParts(v);
+          if (parts && parts.origin) {
+            state.site = parts.origin + parts.sitePath;
+            $('siteUrl').value = state.site;
+          }
+          updateListRefPreview();
+        }
+        else state.listTitle = v;
         update();
       });
 
       function setListBy(by) {
         state.listBy = by;
+        $('listByUrl').setAttribute('aria-pressed', String(by === 'url'));
         $('listByTitle').setAttribute('aria-pressed', String(by === 'title'));
         $('listByGuid').setAttribute('aria-pressed', String(by === 'guid'));
-        $('listValueLabel').textContent = by === 'guid' ? 'List GUID' : 'List title';
-        $('listValue').placeholder = by === 'guid' ? 'aa11bb22-cc33-dd44-ee55-ff6677889900' : 'My List';
-        $('listValue').value = by === 'guid' ? state.listGuid : state.listTitle;
+        $('listValueLabel').textContent = by === 'guid' ? 'List GUID' : by === 'url' ? 'List URL' : 'List title';
+        $('listValue').placeholder =
+          by === 'guid' ? 'aa11bb22-cc33-dd44-ee55-ff6677889900'
+          : by === 'url' ? 'https://tenant.sharepoint.com/sites/Site/Lists/MyList/AllItems.aspx'
+          : 'My List';
+        $('listValue').value = by === 'guid' ? state.listGuid : by === 'url' ? state.listUrl : state.listTitle;
+        updateListRefPreview();
         update();
       }
+      $('listByUrl').addEventListener('click', () => setListBy('url'));
       $('listByTitle').addEventListener('click', () => setListBy('title'));
       $('listByGuid').addEventListener('click', () => setListBy('guid'));
       setListBy(state.listBy);
