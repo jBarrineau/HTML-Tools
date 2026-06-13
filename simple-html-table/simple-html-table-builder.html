@@ -269,6 +269,24 @@
       align-items: center;
       gap: 8px;
       margin-bottom: 10px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .col-card-head:hover { background: rgba(255,255,255,0.03); border-radius: var(--r-sm); }
+    .col-card.collapsed .col-card-head { margin-bottom: 0; }
+    .col-chevron {
+      font-size: 16px;
+      color: var(--text-2);
+      transition: transform 150ms ease;
+      flex-shrink: 0;
+      line-height: 1;
+    }
+    .col-card.collapsed .col-chevron { transform: rotate(-90deg); }
+    .col-card.collapsed .col-body { display: none; }
+    .col-list-toolbar {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 10px;
     }
     .col-card-head .col-key {
       font-family: var(--mono);
@@ -551,6 +569,9 @@
 
       <!-- RULES -->
       <div class="tab-body" id="tabRules" role="tabpanel" aria-labelledby="tabBtnRules">
+        <div class="col-list-toolbar" id="colToolbar" style="display:none;">
+          <button class="mini-btn" id="btnToggleAll" type="button">Collapse all</button>
+        </div>
         <div id="columnList"></div>
       </div>
 
@@ -1115,26 +1136,43 @@
 
   function buildColumnsPanel() {
     const list = $('columnList');
+    const toolbar = $('colToolbar');
     list.textContent = '';
 
     if (!state.columns.length) {
       list.append(el('p', { class: 'empty-note', text: 'Paste data on the Data tab, then your columns appear here.' }));
+      toolbar.style.display = 'none';
       return;
     }
 
+    toolbar.style.display = '';
+    const allCollapsed = state.columns.every(c => c.collapsed);
+    $('btnToggleAll').textContent = allCollapsed ? 'Expand all' : 'Collapse all';
+
     state.columns.forEach(col => {
       const styled = col.rules.length || hasFmt(col.elseFmt);
-      const card = el('div', { class: 'col-card' + (col.include === false ? ' excluded' : styled ? ' styled' : '') });
+      const card = el('div', { class: 'col-card' + (col.include === false ? ' excluded' : styled ? ' styled' : '') + (col.collapsed ? ' collapsed' : '') });
 
       const incBox = el('input', { type: 'checkbox', onchange: e => { col.include = e.target.checked; buildColumnsPanel(); refresh(); } });
       incBox.checked = col.include !== false;
+
+      const chevron = el('span', { class: 'col-chevron', 'aria-hidden': 'true', text: '▾' });
 
       const head = el('div', { class: 'col-card-head' },
         el('label', { class: 'check-row', style: 'margin:0;', title: 'Include this column' }, incBox),
         el('span', { class: 'col-key', text: col.key, title: 'Source key: ' + col.key }),
         el('span', { class: 'spacer' }),
-        col.rules.length ? el('span', { class: 'pill rules', text: '🎨 ' + col.rules.length }) : null
+        col.rules.length ? el('span', { class: 'pill rules', text: '🎨 ' + col.rules.length }) : null,
+        chevron
       );
+
+      head.addEventListener('click', e => {
+        if (e.target.closest('input[type="checkbox"]')) return;
+        col.collapsed = !col.collapsed;
+        buildColumnsPanel();
+      });
+
+      const body = el('div', { class: 'col-body' });
 
       const headerInput = el('input', {
         type: 'text', value: col.header || '', 'aria-label': 'Column header',
@@ -1150,14 +1188,14 @@
         )
       );
 
-      card.append(head, headerRow);
+      body.append(headerRow);
 
       if (col.include !== false) {
         const rulesWrap = el('div', { class: 'rules-wrap' });
         col.rules.forEach((rule, ri) => rulesWrap.append(buildRuleRow(col, rule, ri)));
-        card.append(rulesWrap);
+        body.append(rulesWrap);
 
-        card.append(el('button', {
+        body.append(el('button', {
           class: 'add-rule-btn', type: 'button', text: '＋ Add colour rule',
           onclick: () => {
             col.rules.push({ id: uid(), op: 'equals', valueType: 'text', value: '', color: '#dc2626', bg: '', bold: false });
@@ -1165,9 +1203,10 @@
           }
         }));
 
-        card.append(buildElseRow(col));
+        body.append(buildElseRow(col));
       }
 
+      card.append(head, body);
       list.append(card);
     });
   }
@@ -1254,7 +1293,7 @@
 
     return el('div', { class: 'else-row' },
       el('span', { class: 'lbl', text: 'Otherwise' }),
-      el('span', { class: 'swatch-label', style: 'font-size:11px;color:var(--text-2);' }, 'text', colorBox, f.color ? clearColor : null),
+      el('span', { class: 'swatch-label', style: 'font-size:11px;color:var(--text-2);' }, colorBox, f.color ? clearColor : null),
       el('label', { class: 'swatch-label', style: 'font-size:11px;color:var(--text-2);cursor:pointer;' }, boldBox, 'bold'),
       el('span', { style: 'font-size:11px;color:var(--text-3);flex:1;text-align:right;' },
         hasFmt(f) ? 'styled fallback' : 'plain value')
@@ -1388,6 +1427,12 @@
     refresh();
     if (state.rows.length) showJsonStatus(`${state.rows.length} row${state.rows.length !== 1 ? 's' : ''} · ${state.columns.length} column${state.columns.length !== 1 ? 's' : ''}`, false);
   }
+
+  $('btnToggleAll').addEventListener('click', () => {
+    const allCollapsed = state.columns.every(c => c.collapsed);
+    state.columns.forEach(c => { c.collapsed = !allCollapsed; });
+    buildColumnsPanel();
+  });
 
   wireStyleInputs();
   wireTabs($('designerPanel'));
