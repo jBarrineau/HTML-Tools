@@ -512,13 +512,12 @@
     <!-- ================= LEFT: DESIGNER ================= -->
     <div class="panel" id="designerPanel">
       <div class="tab-strip" role="tablist" aria-label="Designer sections">
-        <button role="tab" aria-selected="true"  data-tab="tabColumns" id="tabBtnColumns" type="button">Columns</button>
+        <button role="tab" aria-selected="true"  data-tab="tabData"    id="tabBtnData"    type="button">Sample Data</button>
+        <button role="tab" aria-selected="false" data-tab="tabColumns" id="tabBtnColumns" type="button">Columns</button>
         <button role="tab" aria-selected="false" data-tab="tabStyle"   id="tabBtnStyle"   type="button">Style</button>
-        <button role="tab" aria-selected="false" data-tab="tabData"    id="tabBtnData"    type="button">Sample Data</button>
-        <button role="tab" aria-selected="false" data-tab="tabFlow"    id="tabBtnFlow"    type="button">Flow</button>
       </div>
 
-      <div class="tab-body active" id="tabColumns" role="tabpanel" aria-labelledby="tabBtnColumns">
+      <div class="tab-body" id="tabColumns" role="tabpanel" aria-labelledby="tabBtnColumns">
         <div id="columnList"></div>
         <button class="add-col-btn" id="btnAddColumn" type="button">＋ Add column</button>
       </div>
@@ -613,48 +612,16 @@
         </div>
       </div>
 
-      <div class="tab-body" id="tabData" role="tabpanel" aria-labelledby="tabBtnData">
+      <div class="tab-body active" id="tabData" role="tabpanel" aria-labelledby="tabBtnData">
         <p style="font-size:13px;color:var(--text-2);margin-bottom:12px;">
-          Sample rows drive the live preview and the <strong>Static HTML</strong> output. At runtime, Power Automate replaces these with your array data.
+          Paste a JSON array of objects. Keys become columns; only the first 5 objects are used for the live preview.
         </p>
-        <div class="data-grid" id="dataGrid"></div>
-        <button class="add-col-btn" id="btnAddRow" type="button">＋ Add sample row</button>
+        <textarea id="sampleJsonInput" class="code" spellcheck="false"
+          style="min-height:160px;resize:vertical;"
+          placeholder='[{"Column1":"Value","Column2":"Value"},…]'></textarea>
+        <div id="sampleJsonStatus" style="font-size:12.5px;margin-top:8px;min-height:18px;"></div>
       </div>
 
-      <div class="tab-body" id="tabFlow" role="tabpanel" aria-labelledby="tabBtnFlow">
-        <p class="subhead">Source array</p>
-        <div class="ctl-row">
-          <div>
-            <label class="field-label" for="paSource">Expression that returns your array of items</label>
-            <input type="text" class="code" id="paSource" spellcheck="false">
-          </div>
-        </div>
-        <div class="hint">
-          Common sources: <code>outputs('Get_items')?['body/value']</code> (SharePoint),
-          <code>body('List_rows')?['value']</code> (Dataverse),
-          <code>variables('myArray')</code>.
-        </div>
-
-        <p class="subhead">Select action</p>
-        <div class="ctl-row">
-          <div>
-            <label class="field-label" for="paSelectName">Name of your Select action</label>
-            <input type="text" id="paSelectName" spellcheck="false">
-          </div>
-        </div>
-        <label class="check-row"><input type="checkbox" id="paNullSafe" checked> Null-safe formatting (skip <span style="font-family:var(--mono);font-size:12px;">formatDateTime</span>/<span style="font-family:var(--mono);font-size:12px;">formatNumber</span> on empty values)</label>
-        <div class="hint amber" id="zebraFlowNote" hidden>
-          <strong>Zebra striping is on</strong>, so the generated Select iterates
-          <code>range(0, length(…))</code> and indexes into your array — that's the only way a
-          Select map can know the row number. Turn zebra off for the simpler <code>item()</code> pattern.
-        </div>
-        <p class="subhead">Field name reference</p>
-        <p style="font-size:13px;color:var(--text-2);">
-          Each column's <strong>Field</strong> becomes <span style="font-family:var(--mono);font-size:12px;color:var(--cyan);">item()?['Field']</span>.
-          Start a field with <strong>=</strong> to use a raw expression instead, e.g.
-          <span style="font-family:var(--mono);font-size:12px;color:var(--cyan);">=item()?['Author']?['DisplayName']</span>.
-        </p>
-      </div>
     </div>
 
     <!-- ================= RIGHT: PREVIEW + OUTPUT ================= -->
@@ -667,10 +634,6 @@
           <span class="row-count-note" id="rowCountNote"></span>
         </div>
         <div class="email-chrome">
-          <div class="email-toolbar">
-            <span class="env-icon" aria-hidden="true"></span>
-            <p class="email-meta"><b>Weekly status report</b>Flow Bot &lt;flow-noreply@…&gt; — To: You</p>
-          </div>
           <div class="email-body" id="previewBody"></div>
         </div>
       </div>
@@ -696,23 +659,34 @@
           <div class="out-step">
             <div class="out-step-head">
               <span class="step-badge">2</span>
-              <h3>Select action — <span class="where">Map (text mode)</span></h3>
+              <h3>Select action — <span class="where">Map (text mode → fx)</span></h3>
               <span class="spacer"></span>
               <button class="copy-btn" data-copy="outMap" type="button">Copy</button>
             </div>
             <pre class="out-code" id="outMap"></pre>
-            <p class="out-tip">Click the small <strong>switch-to-text-mode</strong> toggle on the right side of Map, then paste this. The <code>@{…}</code> tokens resolve per item.</p>
+            <p class="out-tip">Click the <strong>switch-to-text-mode</strong> toggle on the right of Map (icon top-right). Then click into the Map field, open the <strong>Expression editor (<code>fx</code>)</strong>, and paste this <code>concat(…)</code> there — <em>not</em> directly into the field. The <code>fx</code> editor takes it as an expression, so the Select outputs one HTML row string per item; pasting plain text into the field instead makes Power Automate read it as JSON and split it into one field per character.</p>
           </div>
 
           <div class="out-step">
             <div class="out-step-head">
               <span class="step-badge">3</span>
-              <h3>Send an email (V2) — <span class="where">Body, code view</span></h3>
+              <h3>Compose action — <span class="where">Inputs (fx)</span></h3>
               <span class="spacer"></span>
-              <button class="copy-btn" data-copy="outEmail" type="button">Copy</button>
+              <button class="copy-btn" data-copy="outCompose" type="button">Copy</button>
             </div>
-            <pre class="out-code" id="outEmail"></pre>
-            <p class="out-tip">In the email body toolbar click <strong>&lt;/&gt;</strong> (code view) and paste. The <code>join(…)</code> stitches your Select rows into the table.</p>
+            <pre class="out-code" id="outCompose"></pre>
+            <p class="out-tip">Add a <strong>Compose</strong> action after the Select. Click its <strong>Inputs</strong> field, open the <strong>Expression editor (<code>fx</code>)</strong>, and paste this. It builds the entire table — header plus <code>join(…)</code>'d rows — as one HTML string.</p>
+          </div>
+
+          <div class="out-step">
+            <div class="out-step-head">
+              <span class="step-badge">4</span>
+              <h3>Send an email (V2) — <span class="where">Body</span></h3>
+              <span class="spacer"></span>
+              <button class="copy-btn" data-copy="outEmailRef" type="button">Copy</button>
+            </div>
+            <pre class="out-code" id="outEmailRef"></pre>
+            <p class="out-tip">In the email <strong>Body</strong>, insert the <strong>Compose</strong> action's <strong>Outputs</strong> from the dynamic-content picker (or paste the expression above). <strong>Do not use code view</strong> — a single dynamic value drops the whole table in as-is, so Power Automate can't hoist the rows out of the table (which is what left your <code>&lt;tbody&gt;</code> empty). Adjust the action name if your Compose isn't named <code>Compose</code>.</p>
           </div>
         </div>
 
@@ -791,7 +765,9 @@
         source: "outputs('Get_items')?['body/value']",
         selectName: 'Select table rows',
         nullSafe: true
-      }
+      },
+      sampleJson: '[{"Title":"Annual security review","Status":"In progress","DueDate":"2026-06-30","Amount":"1250"},{"Title":"Server migration","Status":"Completed","DueDate":"2026-05-15","Amount":"8400"},{"Title":"License renewal","Status":"Not started","DueDate":"2026-07-12","Amount":"1999.5"},{"Title":"Quarterly audit","Status":"In progress","DueDate":"2026-08-01","Amount":"560"}]',
+      sampleCount: 4
     };
   }
 
@@ -802,7 +778,14 @@
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (parsed && Array.isArray(parsed.columns) && parsed.style && parsed.pa) return parsed;
+        if (parsed && Array.isArray(parsed.columns) && parsed.style && parsed.pa) {
+          if (!parsed.sampleJson && Array.isArray(parsed.sampleRows)) {
+            parsed.sampleJson = JSON.stringify(parsed.sampleRows.map(row =>
+              Object.fromEntries(parsed.columns.map((c, i) => [c.field, row[i] ?? '']))
+            ));
+          }
+          return parsed;
+        }
       }
     } catch (e) { /* corrupted save — fall through to defaults */ }
     return defaultState();
@@ -871,7 +854,7 @@
     return `<th align="${align}"${widthAttr} bgcolor="${s.headerBg}" style="${style}">${escHtml(label)}</th>`;
   }
 
-  function tdHtml(col, content) {
+  function tdOpenTag(col) {
     const s = state.style;
     const align = col.align === 'auto' || !col.align
       ? (col.format === 'number' || col.format === 'currency' ? 'right' : 'left')
@@ -883,7 +866,11 @@
       (col.bold ? 'font-weight:bold;' : '') +
       (col.nowrap ? 'white-space:nowrap;' : '') +
       borderFor('td');
-    return `<td align="${align}" style="${style}">${content}</td>`;
+    return `<td align="${align}" style="${style}">`;
+  }
+
+  function tdHtml(col, content) {
+    return tdOpenTag(col) + content + '</td>';
   }
 
   function tableOpen() {
@@ -912,7 +899,9 @@
       : `item()?['${f}']`;
   }
 
-  function paCellExpr(col, indexed) {
+  // Inner PA expression for a cell value (no @{…} wrapper). Always coerced to a
+  // string so it can sit inside concat(); empty fields fall back to ''.
+  function paCellExprInner(col, indexed) {
     const ref = paFieldRef(col, indexed);
     let expr;
     switch (col.format) {
@@ -921,40 +910,81 @@
       case 'number':   expr = col.fmt ? `formatNumber(${ref}, '${col.fmt}')` : ref; break;
       default:         expr = ref;
     }
-    if (state.pa.nullSafe && expr !== ref) {
-      expr = `if(empty(${ref}), '', ${expr})`;
+    if (state.pa.nullSafe) {
+      expr = expr === ref
+        ? `coalesce(${ref}, '')`
+        : `if(empty(${ref}), '', ${expr})`;
     }
-    return '@{' + expr + '}';
+    return expr;
+  }
+
+  function paCellExpr(col, indexed) {
+    return '@{' + paCellExprInner(col, indexed) + '}';
+  }
+
+  // A PA single-quoted string literal (embedded ' is escaped by doubling).
+  function paStr(literal) {
+    return "'" + String(literal).replace(/'/g, "''") + "'";
   }
 
   function zebraIndexed() { return !!state.style.zebra; }
 
+  // The Select "Map" (text mode) needs a real Power Automate *expression*, not a
+  // raw HTML string with @{…} tokens. A bare/quoted string gets char-split by the
+  // Select action; an expression is evaluated to one HTML string per item. So we
+  // emit a single concat(…) that interleaves literal HTML fragments with the cell
+  // expressions, then join() in the email body stitches the rows together.
   function rowTemplate() {
     const s = state.style;
     const indexed = zebraIndexed();
-    let trOpen;
+    const args = [];          // finished concat() arguments
+    let lit = '';             // pending literal HTML being accumulated
+    const pushLit = str => { lit += str; };
+    const flushLit = () => { if (lit) { args.push(paStr(lit)); lit = ''; } };
+    const pushExpr = expr => { flushLit(); args.push(expr); };
+
     if (s.zebra) {
-      const bgExpr = `@{if(equals(mod(item(), 2), 0), '${s.rowBg}', '${s.zebraColor}')}`;
-      trOpen = `<tr bgcolor="${bgExpr}" style="background-color:${bgExpr};">`;
+      const bgExpr = `if(equals(mod(item(), 2), 0), '${s.rowBg}', '${s.zebraColor}')`;
+      pushLit('<tr bgcolor="'); pushExpr(bgExpr);
+      pushLit('" style="background-color:'); pushExpr(bgExpr);
+      pushLit(';">');
     } else {
-      trOpen = `<tr bgcolor="${s.rowBg}" style="background-color:${s.rowBg};">`;
+      pushLit(`<tr bgcolor="${s.rowBg}" style="background-color:${s.rowBg};">`);
     }
-    return trOpen + state.columns.map(c => tdHtml(c, paCellExpr(c, indexed))).join('') + '</tr>';
+
+    state.columns.forEach(c => {
+      pushLit(tdOpenTag(c));
+      pushExpr(paCellExprInner(c, indexed));
+      pushLit('</td>');
+    });
+
+    pushLit('</tr>');
+    flushLit();
+
+    return 'concat(' + args.join(', ') + ')';
   }
 
   function selectFromExpr() {
-    return zebraIndexed()
-      ? `range(0, length(${state.pa.source.trim()}))`
-      : state.pa.source.trim();
+    if (!zebraIndexed()) return state.pa.source.trim();
+    const count = state.sampleCount != null ? state.sampleCount : `length(${state.pa.source.trim()})`;
+    return `range(0, ${count})`;
   }
 
-  function emailBodyHtml() {
+  // The whole table built as ONE Power Automate expression for a Compose action.
+  // Building it as a single string (rather than literal <table> HTML with a
+  // @{join(…)} token inside <tbody>) avoids HTML5 foster-parenting: the email
+  // editor would otherwise hoist that bare token out of the table, leaving an
+  // empty <tbody> and the rows dumped before the table.
+  function composeTableExpr() {
     const name = (state.pa.selectName.trim() || 'Select').replace(/\s+/g, '_');
-    return tableOpen() + '\n' +
-      '  <thead>\n    ' + headerRowHtml() + '\n  </thead>\n' +
-      '  <tbody>\n' +
-      `    @{join(body('${name}'), '')}\n` +
-      '  </tbody>\n</table>';
+    const head = tableOpen() + '<thead>' + headerRowHtml() + '</thead><tbody>';
+    const tail = '</tbody></table>';
+    return `concat(${paStr(head)}, join(body('${name}'), ''), ${paStr(tail)})`;
+  }
+
+  // What goes in the email Body: a single dynamic value (the Compose output).
+  function emailBodyRef() {
+    return "@{outputs('Compose')}";
   }
 
   /* -------- Static HTML with sample data -------- */
@@ -1017,9 +1047,9 @@
     $('rowCountNote').textContent = state.sampleRows.length + ' sample row' + (state.sampleRows.length === 1 ? '' : 's') + ' · ' + state.columns.length + ' column' + (state.columns.length === 1 ? '' : 's');
     $('outFrom').textContent = selectFromExpr();
     $('outMap').textContent = rowTemplate();
-    $('outEmail').textContent = emailBodyHtml();
+    $('outCompose').textContent = composeTableExpr();
+    $('outEmailRef').textContent = emailBodyRef();
     $('outStaticCode').textContent = staticTableHtml();
-    $('zebraFlowNote').hidden = !state.style.zebra;
     persist();
   }
 
@@ -1043,7 +1073,7 @@
 
       grid.append(wrapField('Header', el('input', {
         type: 'text', value: col.header,
-        oninput: e => { col.header = e.target.value; refresh(); buildDataPanelHeaders(); }
+        oninput: e => { col.header = e.target.value; refresh(); }
       })));
 
       grid.append(wrapField('Field / =expression', el('input', {
@@ -1131,53 +1161,68 @@
       const [v] = row.splice(idx, 1);
       row.splice(idx + dir, 0, v);
     });
-    buildColumnsPanel(); buildDataPanel(); refresh();
+    buildColumnsPanel(); refresh();
   }
 
   function removeColumn(idx) {
     if (state.columns.length <= 1) return;
     state.columns.splice(idx, 1);
     state.sampleRows.forEach(row => row.splice(idx, 1));
-    buildColumnsPanel(); buildDataPanel(); refresh();
+    buildColumnsPanel(); refresh();
   }
 
   function addColumn() {
     state.columns.push({ id: uid(), header: 'New column', field: 'FieldName', format: 'text', fmt: '', align: 'auto', width: '', bold: false, nowrap: false });
     state.sampleRows.forEach(row => row.push(''));
-    buildColumnsPanel(); buildDataPanel(); refresh();
+    buildColumnsPanel(); refresh();
   }
 
   /* ============================== RENDER: SAMPLE DATA PANEL ============================== */
 
   function buildDataPanel() {
-    const gridEl = $('dataGrid');
-    gridEl.textContent = '';
-    const colsTemplate = state.columns.map(() => 'minmax(0,1fr)').join(' ') + ' 28px';
-
-    const headRow = el('div', { class: 'data-grid-row', style: `grid-template-columns:${colsTemplate};` });
-    state.columns.forEach(c => headRow.append(el('span', { class: 'col-head-label', text: c.header || '—' })));
-    headRow.append(el('span'));
-    gridEl.append(headRow);
-
-    state.sampleRows.forEach((row, ri) => {
-      const rowEl = el('div', { class: 'data-grid-row', style: `grid-template-columns:${colsTemplate};` });
-      state.columns.forEach((c, ci) => {
-        rowEl.append(el('input', {
-          type: 'text', value: row[ci] ?? '', 'aria-label': `Row ${ri + 1}, ${c.header}`,
-          oninput: e => { row[ci] = e.target.value; refresh(); }
-        }));
-      });
-      rowEl.append(el('button', {
-        class: 'btn-danger-ghost', type: 'button', text: '✕', 'aria-label': 'Remove row ' + (ri + 1),
-        onclick: () => { state.sampleRows.splice(ri, 1); buildDataPanel(); refresh(); }
-      }));
-      gridEl.append(rowEl);
-    });
+    const ta = $('sampleJsonInput');
+    if (ta) ta.value = state.sampleJson || '';
+    if (state.sampleJson && state.sampleRows.length) showJsonStatus(statusText(), false);
   }
 
-  function buildDataPanelHeaders() {
-    const labels = $('dataGrid').querySelectorAll('.col-head-label');
-    state.columns.forEach((c, i) => { if (labels[i]) labels[i].textContent = c.header || '—'; });
+  function statusText() {
+    const r = state.sampleRows.length, c = state.columns.length;
+    return `${r} row${r !== 1 ? 's' : ''} · ${c} column${c !== 1 ? 's' : ''}`;
+  }
+
+  function applySampleJson(jsonStr) {
+    jsonStr = (jsonStr || '').trim();
+    state.sampleJson = jsonStr;
+    if (!jsonStr) { showJsonStatus('', false); persist(); return; }
+    let parsed;
+    try { parsed = JSON.parse(jsonStr); } catch (e) {
+      showJsonStatus('Invalid JSON — ' + e.message, true); return;
+    }
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      showJsonStatus('Expected a non-empty JSON array.', true); return;
+    }
+    const keys = Object.keys(parsed[0]);
+    if (keys.length === 0) { showJsonStatus('First object has no keys.', true); return; }
+
+    state.sampleCount = parsed.length;
+    const limited = parsed.slice(0, 5);
+    state.columns = keys.map(k => {
+      const existing = state.columns.find(c => c.field === k);
+      return existing || { id: uid(), header: k, field: k, format: 'text', fmt: '', align: 'auto', width: '', bold: false, nowrap: false };
+    });
+    state.sampleRows = limited.map(obj => keys.map(k => (obj[k] == null ? '' : String(obj[k]))));
+
+    const extra = parsed.length > 5 ? ` (showing 5 of ${parsed.length})` : '';
+    showJsonStatus(statusText() + extra, false);
+    buildColumnsPanel();
+    refresh();
+  }
+
+  function showJsonStatus(msg, isError) {
+    const el = $('sampleJsonStatus');
+    if (!el) return;
+    el.textContent = msg;
+    el.style.color = isError ? 'var(--red)' : 'var(--green)';
   }
 
   /* ============================== RENDER: STYLE PANEL ============================== */
@@ -1255,20 +1300,6 @@
         refresh();
       });
     }
-  }
-
-  /* ============================== RENDER: FLOW PANEL ============================== */
-
-  function syncFlowInputs() {
-    $('paSource').value = state.pa.source;
-    $('paSelectName').value = state.pa.selectName;
-    $('paNullSafe').checked = state.pa.nullSafe;
-  }
-
-  function wireFlowInputs() {
-    $('paSource').addEventListener('input', e => { state.pa.source = e.target.value; refresh(); });
-    $('paSelectName').addEventListener('input', e => { state.pa.selectName = e.target.value; refresh(); });
-    $('paNullSafe').addEventListener('change', e => { state.pa.nullSafe = e.target.checked; refresh(); });
   }
 
   /* ============================== TABS ============================== */
@@ -1355,10 +1386,6 @@
   });
 
   $('btnAddColumn').addEventListener('click', addColumn);
-  $('btnAddRow').addEventListener('click', () => {
-    state.sampleRows.push(state.columns.map(() => ''));
-    buildDataPanel(); refresh();
-  });
 
   /* ============================== INIT ============================== */
 
@@ -1366,15 +1393,14 @@
     buildColumnsPanel();
     buildThemeGrid();
     syncStyleInputs();
-    syncFlowInputs();
     buildDataPanel();
     refresh();
   }
 
   wireStyleInputs();
-  wireFlowInputs();
   wireTabs($('designerPanel'));
   wireTabs(document.querySelector('.workspace > div:last-child > .panel:last-child'));
+  $('sampleJsonInput').addEventListener('input', e => applySampleJson(e.target.value));
   initAll();
   </script>
 </body>
