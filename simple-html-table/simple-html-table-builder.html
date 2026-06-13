@@ -625,7 +625,7 @@
           </div>
         </div>
         <div class="hint">
-          Styling is applied as inline CSS on <code>&lt;table&gt;</code>, <code>&lt;th&gt;</code>, and <code>&lt;td&gt;</code> elements — compatible with all email clients including Outlook desktop. Zebra striping uses a <code>&lt;style&gt;</code> block with <code>nth-child</code> (Outlook web and most modern clients; not Outlook desktop).
+          Styling is applied as inline CSS on <code>&lt;table&gt;</code>, <code>&lt;th&gt;</code>, and <code>&lt;td&gt;</code> elements — compatible with all email clients including Outlook desktop. Zebra striping applies a <code>background-color</code> inline on each <code>&lt;tr&gt;</code> using the row index, so it works in Outlook desktop and all other clients.
         </div>
       </div>
 
@@ -662,6 +662,15 @@
               <label class="field-label" for="paSource">From — array your flow loops over</label>
               <input type="text" id="paSource" class="code" spellcheck="false"
                 value="outputs('Get_items')?['body/value']">
+            </div>
+            <div id="zebraFromHint" style="display:none;padding:8px 14px 0;">
+              <div class="hint amber" style="margin:0;">
+                <strong>Zebra striping is on.</strong> Inline row colours need the row index, so use this in the <strong>From</strong> field instead of your array directly:
+                <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+                  <code id="zebraFromCode" style="font-family:var(--mono);font-size:11.5px;color:var(--amber);flex:1;word-break:break-all;"></code>
+                  <button class="copy-btn" data-copy="zebraFromCode" type="button" style="flex-shrink:0;min-height:26px;padding:4px 10px;font-size:11px;">Copy</button>
+                </div>
+              </div>
             </div>
             <div class="out-step-head" style="background:none;border-top:1px solid var(--line);border-bottom:none;padding-top:10px;">
               <span style="font-size:12.5px;font-weight:600;color:var(--text-2);">Map — paste into the <code style="font-family:var(--mono);font-size:11.5px;color:var(--cyan);">fx</code> editor</span>
@@ -908,7 +917,16 @@
   /* ====================== POWER AUTOMATE EXPRESSION GEN ====================== */
 
   function fieldRef(key) {
+    if (state.style.enabled && state.style.zebra) {
+      const src = (state.pa.source || "outputs('Get_items')?['body/value']").trim();
+      return `${src}[item()]?['${String(key).replace(/'/g, "''")}']`;
+    }
     return `item()?['${String(key).replace(/'/g, "''")}']`;
+  }
+
+  function zebraFromExpr() {
+    const src = (state.pa.source || "outputs('Get_items')?['body/value']").trim();
+    return `range(0, length(${src}))`;
   }
 
   // Literal for a rule's comparison value, per its value type.
@@ -998,7 +1016,16 @@
     const tdStyle = s.enabled
       ? `padding:${s.pad}px ${s.pad + 4}px;${border}`
       : '';
-    const parts = [paStr('<tr>')];
+    // Zebra: inline <tr> style via row index (item() when From = range(0, length(...))).
+    // This works in all email clients including Outlook desktop, unlike a <style> block.
+    let trOpen;
+    if (s.enabled && s.zebra) {
+      const zebraStyle = `background-color:${s.zebraColor};`;
+      trOpen = `if(equals(mod(item(), 2), 1), ${paStr(`<tr style="${zebraStyle}">`)}, ${paStr('<tr>')})`;
+    } else {
+      trOpen = paStr('<tr>');
+    }
+    const parts = [trOpen];
     cols.forEach(col => {
       parts.push(columnCellExpr(col, tdStyle));
     });
@@ -1024,10 +1051,7 @@
         ? `<th style="${thStyle}">${escHtml(c.header || c.key)}</th>`
         : `<th>${escHtml(c.header || c.key)}</th>`
       ).join('') + '</tr></thead>';
-    const zebra = s.enabled && s.zebra
-      ? `<style>tr:nth-child(even){background-color:${s.zebraColor};}</style>`
-      : '';
-    const open = `${zebra}<table style="${tableStyle}">${thead}<tbody>`;
+    const open = `<table style="${tableStyle}">${thead}<tbody>`;
     return `concat(\n  ${paStr(open)},\n  join(body('${selectSlug}'), ''),\n  ${paStr('</tbody></table>')}\n)`;
   }
 
@@ -1135,6 +1159,10 @@
     $('outCompose').textContent = composeExpr();
     $('outEmail').textContent = emailBodyExpr();
     $('outStaticCode').textContent = staticTableHtml();
+
+    const zebraOn = state.style.enabled && state.style.zebra;
+    $('zebraFromHint').style.display = zebraOn ? '' : 'none';
+    if (zebraOn) $('zebraFromCode').textContent = zebraFromExpr();
 
     persist();
   }
@@ -1411,7 +1439,7 @@
 
   /* ============================== PA SETTINGS ============================== */
 
-  $('paSource').addEventListener('input', e => { state.pa.source = e.target.value; persist(); });
+  $('paSource').addEventListener('input', e => { state.pa.source = e.target.value; refresh(); });
   $('paSelectName').addEventListener('input', e => { state.pa.selectName = e.target.value; refresh(); });
 
   /* ============================== EXAMPLE / RESET ============================== */
