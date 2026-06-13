@@ -1,0 +1,1404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:">
+  <title>Conditional Table Colourizer — Power Automate HTML tables</title>
+  <style>
+    /* ============================================================
+       DRAFTING ROOM — dark chrome, amber accent, blueprint grid
+       (shared visual language with the HTML Table Builder)
+       ============================================================ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:          #0f172a;
+      --surface:     #1e293b;
+      --raised:      #334155;
+      --line:        #2c3a50;
+      --text:        #f8fafc;
+      --text-2:      #94a3b8;
+      --text-3:      #64748b;
+      --amber:       #f59e0b;
+      --amber-soft:  rgba(245,158,11,0.14);
+      --blue:        #3b82f6;
+      --blue-soft:   rgba(59,130,246,0.14);
+      --cyan:        #06b6d4;
+      --green:       #10b981;
+      --green-soft:  rgba(16,185,129,0.14);
+      --red:         #ef4444;
+      --violet:      #a78bfa;
+      --mono:        'Cascadia Code', 'Cascadia Mono', Consolas, 'Courier New', monospace;
+      --sans:        'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, sans-serif;
+      --r-sm: 6px;
+      --r-md: 10px;
+      --r-lg: 14px;
+    }
+
+    body {
+      font-family: var(--sans);
+      background-color: var(--bg);
+      background-image:
+        linear-gradient(rgba(59,130,246,0.045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(59,130,246,0.045) 1px, transparent 1px);
+      background-size: 28px 28px;
+      color: var(--text);
+      min-height: 100vh;
+      font-size: 15px;
+      line-height: 1.5;
+    }
+
+    :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 4px; }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+
+    /* ===== HEADER ===== */
+    .app-header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 18px 28px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(15,23,42,0.85);
+      flex-wrap: wrap;
+    }
+    .brand-mark {
+      width: 40px; height: 40px;
+      border: 2px solid var(--amber);
+      border-radius: var(--r-sm);
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      grid-template-rows: 12px 1fr 1fr;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .brand-mark span { border: 1px solid rgba(245,158,11,0.4); }
+    .brand-mark span:nth-child(-n+3) { background: var(--amber); }
+    .brand-mark span:nth-child(4) { background: var(--red); border-color: var(--red); }
+    .brand-mark span:nth-child(7) { background: var(--green); border-color: var(--green); }
+    .brand-mark span:nth-child(9) { background: var(--blue); border-color: var(--blue); }
+    .app-header h1 {
+      font-size: 21px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+    .app-header h1 em {
+      font-style: normal;
+      color: var(--amber);
+    }
+    .tagline {
+      color: var(--text-2);
+      font-size: 13px;
+      border-left: 1px solid var(--line);
+      padding-left: 16px;
+      max-width: 420px;
+    }
+    .header-actions { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+
+    /* ===== BUTTONS ===== */
+    button {
+      font-family: var(--sans);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      border-radius: var(--r-sm);
+      transition: filter 150ms ease, background-color 150ms ease;
+    }
+    button:hover { filter: brightness(1.15); }
+    button:active { filter: brightness(0.92); }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-2);
+      border: 1px solid var(--raised);
+      padding: 7px 14px;
+      min-height: 34px;
+    }
+    .btn-ghost:hover { color: var(--text); border-color: var(--text-3); }
+    .btn-amber {
+      background: var(--amber);
+      color: #1c1303;
+      padding: 7px 16px;
+      min-height: 34px;
+    }
+    .btn-danger-ghost {
+      background: transparent;
+      color: var(--text-3);
+      border: 1px solid transparent;
+      padding: 4px 8px;
+    }
+    .btn-danger-ghost:hover { color: var(--red); }
+
+    /* ===== LAYOUT ===== */
+    .workspace {
+      display: grid;
+      grid-template-columns: 440px minmax(0, 1fr);
+      gap: 20px;
+      padding: 20px 28px 40px;
+      align-items: start;
+    }
+    @media (max-width: 1120px) {
+      .workspace { grid-template-columns: 1fr; }
+    }
+
+    /* ===== PANELS ===== */
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r-lg);
+      overflow: hidden;
+    }
+
+    .tab-strip {
+      display: flex;
+      border-bottom: 1px solid var(--line);
+      background: rgba(15,23,42,0.4);
+    }
+    .tab-strip button {
+      flex: 1;
+      background: transparent;
+      color: var(--text-2);
+      padding: 12px 6px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      border-bottom: 2px solid transparent;
+      border-radius: 0;
+      min-height: 42px;
+    }
+    .tab-strip button[aria-selected="true"] {
+      color: var(--amber);
+      border-bottom-color: var(--amber);
+      background: var(--amber-soft);
+    }
+
+    .tab-body { padding: 18px; display: none; }
+    .tab-body.active { display: block; }
+
+    /* ===== FORM CONTROLS ===== */
+    label.field-label, .field-label {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-2);
+      margin-bottom: 5px;
+    }
+    input[type="text"], input[type="number"], select, textarea {
+      font-family: var(--sans);
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--raised);
+      border-radius: var(--r-sm);
+      color: var(--text);
+      font-size: 14px;
+      padding: 7px 10px;
+      min-height: 36px;
+    }
+    input[type="text"]:focus-visible, select:focus-visible, textarea:focus-visible, input[type="number"]:focus-visible {
+      outline: 2px solid var(--blue);
+      outline-offset: 0;
+      border-color: var(--blue);
+    }
+    input.code, textarea.code { font-family: var(--mono); font-size: 13px; }
+    input[type="color"] {
+      width: 34px; height: 34px;
+      padding: 2px;
+      border: 1px solid var(--raised);
+      border-radius: var(--r-sm);
+      background: var(--bg);
+      cursor: pointer;
+      flex-shrink: 0;
+      min-height: 0;
+    }
+    .ctl-row { display: flex; gap: 10px; margin-bottom: 14px; align-items: flex-end; }
+    .ctl-row > div { flex: 1; min-width: 0; }
+    .ctl-row > div.narrow { flex: 0 0 auto; }
+
+    .check-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13.5px;
+      color: var(--text);
+      margin-bottom: 10px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .check-row input[type="checkbox"] {
+      width: 17px; height: 17px;
+      accent-color: var(--amber);
+      cursor: pointer;
+    }
+
+    .subhead {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--amber);
+      margin: 20px 0 10px;
+      padding-bottom: 5px;
+      border-bottom: 1px dashed var(--line);
+    }
+    .subhead:first-child { margin-top: 0; }
+
+    /* ===== COLUMN CARDS ===== */
+    .col-card {
+      background: var(--bg);
+      border: 1px solid var(--raised);
+      border-left: 3px solid var(--blue);
+      border-radius: var(--r-md);
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+    .col-card.styled { border-left-color: var(--amber); }
+    .col-card.excluded { opacity: 0.55; border-left-color: var(--text-3); }
+    .col-card-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .col-card-head .col-key {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--cyan);
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .col-card-head .spacer { flex: 1; }
+    .pill {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 2px 7px;
+      border-radius: 999px;
+      flex-shrink: 0;
+    }
+    .pill.rules { background: var(--amber-soft); color: var(--amber); }
+
+    .icon-btn {
+      background: transparent;
+      border: 1px solid var(--raised);
+      color: var(--text-2);
+      width: 26px; height: 26px;
+      border-radius: var(--r-sm);
+      font-size: 12px;
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .icon-btn:hover { color: var(--text); border-color: var(--text-3); }
+    .icon-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    .col-head-input { flex: 1; min-width: 0; }
+    .col-head-input input { min-height: 30px; font-size: 13px; padding: 4px 8px; }
+
+    /* ===== RULES ===== */
+    .rules-wrap { margin-top: 4px; }
+    .rule-row {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 7px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r-sm);
+      padding: 9px;
+      margin-bottom: 8px;
+    }
+    .rule-line { display: flex; gap: 6px; align-items: center; }
+    .rule-line.cond > select { flex: 0 0 auto; min-width: 0; }
+    .rule-op { flex: 1 1 130px; }
+    .rule-val { flex: 2 1 auto; }
+    .rule-vtype { flex: 0 0 84px; }
+    .rule-row select, .rule-row input[type="text"] {
+      min-height: 30px; font-size: 12.5px; padding: 4px 7px; width: 100%;
+    }
+    .rule-fmt { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .rule-fmt .swatch-label {
+      font-size: 11px; color: var(--text-2);
+      display: flex; align-items: center; gap: 4px;
+    }
+    .rule-num {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--bg);
+      background: var(--amber);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .rule-preview {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-weight: 600;
+      white-space: nowrap;
+      border: 1px solid var(--line);
+    }
+    .else-row {
+      display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+      background: var(--bg);
+      border: 1px dashed var(--raised);
+      border-radius: var(--r-sm);
+      padding: 9px;
+      margin-top: 2px;
+    }
+    .else-row .lbl { font-size: 12px; color: var(--text-2); font-weight: 600; }
+
+    .add-rule-btn {
+      width: 100%;
+      background: transparent;
+      border: 1px dashed var(--raised);
+      color: var(--text-2);
+      padding: 8px;
+      font-size: 12.5px;
+      border-radius: var(--r-sm);
+      margin: 2px 0 8px;
+    }
+    .add-rule-btn:hover { color: var(--amber); border-color: var(--amber); background: var(--amber-soft); }
+
+    .mini-btn {
+      background: var(--raised);
+      color: var(--text);
+      font-size: 11px;
+      padding: 5px 10px;
+      min-height: 28px;
+      border-radius: var(--r-sm);
+    }
+    .mini-btn.amber { background: var(--amber); color: #1c1303; }
+
+    /* ===== HINTS / NOTES ===== */
+    .hint {
+      font-size: 12.5px;
+      color: var(--text-2);
+      background: var(--blue-soft);
+      border: 1px solid rgba(59,130,246,0.3);
+      border-radius: var(--r-md);
+      padding: 10px 12px;
+      margin: 10px 0;
+    }
+    .hint strong { color: var(--text); }
+    .hint code { font-family: var(--mono); font-size: 11.5px; color: var(--cyan); }
+    .hint.amber { background: var(--amber-soft); border-color: rgba(245,158,11,0.35); }
+    .hint.amber code { color: var(--amber); }
+
+    /* ===== PREVIEW (email canvas) ===== */
+    .preview-panel { margin-bottom: 20px; }
+    .email-chrome {
+      background: #f3f2f1;
+      border-radius: var(--r-md);
+      margin: 18px;
+      overflow: hidden;
+      border: 1px solid #d2d0ce;
+      box-shadow: 0 12px 36px rgba(0,0,0,0.45);
+    }
+    .email-body {
+      background: #ffffff;
+      padding: 24px;
+      overflow-x: auto;
+      min-height: 160px;
+    }
+    .panel-caption {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 18px 0;
+    }
+    .panel-caption h2 {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      color: var(--text-2);
+    }
+    .panel-caption .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+    .panel-caption .spacer { flex: 1; }
+    .row-count-note { font-size: 12px; color: var(--text-3); }
+
+    /* ===== OUTPUT ===== */
+    .out-step {
+      border: 1px solid var(--line);
+      border-radius: var(--r-md);
+      margin-bottom: 14px;
+      overflow: hidden;
+      background: var(--bg);
+    }
+    .out-step-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      background: rgba(51,65,85,0.35);
+      border-bottom: 1px solid var(--line);
+      flex-wrap: wrap;
+    }
+    .step-badge {
+      font-family: var(--mono);
+      background: var(--amber);
+      color: #1c1303;
+      font-weight: 700;
+      font-size: 12px;
+      border-radius: 4px;
+      padding: 2px 8px;
+      flex-shrink: 0;
+    }
+    .out-step-head h3 { font-size: 13.5px; font-weight: 600; }
+    .out-step-head .where { font-size: 12px; color: var(--text-2); }
+    .out-step-head .spacer { flex: 1; }
+    .copy-btn {
+      background: var(--raised);
+      color: var(--text);
+      padding: 6px 14px;
+      font-size: 12px;
+      min-height: 30px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .copy-btn.copied { background: var(--green); color: #042f1f; }
+    .out-code {
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.55;
+      color: #c9d6e8;
+      padding: 12px 14px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 320px;
+      overflow: auto;
+      margin: 0;
+    }
+    .out-tip { font-size: 12.5px; color: var(--text-2); padding: 8px 14px 12px; }
+    .out-tip code { font-family: var(--mono); font-size: 11.5px; color: var(--cyan); }
+
+    /* per-column value list */
+    .colval { border-top: 1px solid var(--line); }
+    .colval:first-child { border-top: none; }
+    .colval-head {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 14px 4px;
+    }
+    .colval-head .name { font-size: 12.5px; font-weight: 700; color: var(--text); }
+    .colval-head .tag { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); }
+    .colval-head .spacer { flex: 1; }
+    .colval pre.out-code { max-height: 220px; }
+
+    footer {
+      text-align: center;
+      color: var(--text-3);
+      font-size: 12px;
+      padding: 0 28px 28px;
+    }
+    footer strong { color: var(--text-2); }
+
+    .sr-only {
+      position: absolute; width: 1px; height: 1px;
+      padding: 0; margin: -1px; overflow: hidden;
+      clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+    }
+    .empty-note { color: var(--text-3); font-size: 13px; padding: 18px 4px; text-align: center; }
+  </style>
+</head>
+<body>
+
+  <header class="app-header">
+    <div class="brand-mark" aria-hidden="true">
+      <span></span><span></span><span></span>
+      <span></span><span></span><span></span>
+      <span></span><span></span><span></span>
+    </div>
+    <h1>Conditional Table <em>Colourizer</em></h1>
+    <p class="tagline">Add value-based colours &amp; logic to a Power Automate <strong>Create HTML table</strong></p>
+    <div class="header-actions">
+      <button class="btn-ghost" id="btnExample" type="button">Load example</button>
+      <button class="btn-ghost" id="btnReset" type="button">Reset</button>
+    </div>
+  </header>
+
+  <main class="workspace">
+
+    <!-- ================= LEFT: DESIGNER ================= -->
+    <div class="panel" id="designerPanel">
+      <div class="tab-strip" role="tablist" aria-label="Designer sections">
+        <button role="tab" aria-selected="true"  data-tab="tabData"  id="tabBtnData"  type="button">1 · Data</button>
+        <button role="tab" aria-selected="false" data-tab="tabRules" id="tabBtnRules" type="button">2 · Columns &amp; Colours</button>
+        <button role="tab" aria-selected="false" data-tab="tabStyle" id="tabBtnStyle" type="button">3 · Table style</button>
+      </div>
+
+      <!-- DATA -->
+      <div class="tab-body active" id="tabData" role="tabpanel" aria-labelledby="tabBtnData">
+        <p style="font-size:13px;color:var(--text-2);margin-bottom:12px;">
+          Paste a JSON array of objects — the items your flow loops over (e.g. the output of <strong>Get items</strong>).
+          Keys become columns; every row is used for the live preview.
+        </p>
+        <textarea id="jsonInput" class="code" spellcheck="false"
+          style="min-height:200px;resize:vertical;"
+          placeholder='[{"First Name":"Nicola","Favorite Color":null}, …]'></textarea>
+        <div style="display:flex;gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap;">
+          <button class="mini-btn amber" id="btnParse" type="button">Parse &amp; build columns</button>
+          <button class="mini-btn" id="btnUseExample" type="button">Use example data</button>
+          <span id="jsonStatus" style="font-size:12.5px;flex:1;min-width:120px;"></span>
+        </div>
+        <div class="hint amber">
+          <strong>How it works:</strong> for each column you add <code>if(…)</code> rules that wrap the value in a coloured
+          <code>&lt;span&gt;</code>. Power Automate's <strong>Create HTML table</strong> escapes that HTML, so the email body
+          uses <code>replace(…)</code> to turn it back into real colour. Technique from <strong>tomriha.com</strong>.
+        </div>
+      </div>
+
+      <!-- RULES -->
+      <div class="tab-body" id="tabRules" role="tabpanel" aria-labelledby="tabBtnRules">
+        <div id="columnList"></div>
+      </div>
+
+      <!-- STYLE -->
+      <div class="tab-body" id="tabStyle" role="tabpanel" aria-labelledby="tabBtnStyle">
+        <label class="check-row" style="margin-bottom:14px;">
+          <input type="checkbox" id="stEnabled"> Add a&nbsp;<code style="font-family:var(--mono);font-size:12px;color:var(--cyan);">&lt;style&gt;</code>&nbsp;block to dress up the bare table
+        </label>
+        <div id="styleControls">
+          <p class="subhead">Header row</p>
+          <div class="ctl-row">
+            <div class="narrow"><label class="field-label" for="stHeaderBg">Bg</label><input type="color" id="stHeaderBg"></div>
+            <div class="narrow"><label class="field-label" for="stHeaderColor">Text</label><input type="color" id="stHeaderColor"></div>
+            <div>
+              <label class="field-label" for="stFont">Font</label>
+              <select id="stFont">
+                <option value="Segoe UI, Arial, sans-serif">Segoe UI</option>
+                <option value="Calibri, Arial, sans-serif">Calibri</option>
+                <option value="Arial, Helvetica, sans-serif">Arial</option>
+                <option value="Verdana, Geneva, sans-serif">Verdana</option>
+                <option value="Tahoma, Geneva, sans-serif">Tahoma</option>
+                <option value="Georgia, 'Times New Roman', serif">Georgia</option>
+              </select>
+            </div>
+            <div class="narrow" style="flex-basis:78px;">
+              <label class="field-label" for="stFontSize">Size px</label>
+              <input type="number" id="stFontSize" min="10" max="22" value="14">
+            </div>
+          </div>
+
+          <p class="subhead">Borders &amp; rows</p>
+          <div class="ctl-row">
+            <div>
+              <label class="field-label" for="stBorderStyle">Borders</label>
+              <select id="stBorderStyle">
+                <option value="grid">Full grid</option>
+                <option value="rows">Horizontal rules</option>
+                <option value="none">None</option>
+              </select>
+            </div>
+            <div class="narrow"><label class="field-label" for="stBorderColor">Color</label><input type="color" id="stBorderColor"></div>
+            <div class="narrow" style="flex-basis:84px;">
+              <label class="field-label" for="stPad">Padding px</label>
+              <input type="number" id="stPad" min="0" max="24" value="8">
+            </div>
+          </div>
+          <label class="check-row"><input type="checkbox" id="stZebra"> Zebra striping (banded rows)</label>
+          <div class="ctl-row" id="zebraRow">
+            <div class="narrow"><label class="field-label" for="stZebraColor">Band color</label><input type="color" id="stZebraColor"></div>
+            <div><p style="font-size:12px;color:var(--text-3);padding-bottom:8px;">Uses <code style="font-family:var(--mono);color:var(--cyan);">nth-child</code> — works in Outlook web &amp; most clients.</p></div>
+          </div>
+        </div>
+        <div class="hint">
+          The <code>&lt;style&gt;</code> block is prepended to the table with <code>concat(…)</code>. Desktop Outlook honours
+          element selectors like <code>th</code> / <code>td</code> but <strong>not</strong> per-cell background — that's why
+          your conditional colours use an inline <code>&lt;span&gt;</code> on the value itself.
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ================= RIGHT: PREVIEW + OUTPUT ================= -->
+    <div>
+      <div class="panel preview-panel">
+        <div class="panel-caption">
+          <span class="dot" aria-hidden="true"></span>
+          <h2>Live preview</h2>
+          <span class="spacer"></span>
+          <span class="row-count-note" id="rowCountNote"></span>
+        </div>
+        <div class="email-chrome">
+          <div class="email-body" id="previewBody"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="tab-strip" role="tablist" aria-label="Output formats">
+          <button role="tab" aria-selected="true"  data-tab="outFlow"   id="outBtnFlow"   type="button">Power Automate setup</button>
+          <button role="tab" aria-selected="false" data-tab="outStatic" id="outBtnStatic" type="button">Static HTML</button>
+        </div>
+
+        <!-- FLOW SETUP -->
+        <div class="tab-body active" id="outFlow" role="tabpanel" aria-labelledby="outBtnFlow">
+          <div class="out-step">
+            <div class="out-step-head">
+              <span class="step-badge">1</span>
+              <h3>Create HTML table — <span class="where">From</span></h3>
+            </div>
+            <div style="padding:12px 14px;">
+              <label class="field-label" for="paSource">Array your flow loops over</label>
+              <input type="text" id="paSource" class="code" spellcheck="false"
+                value="outputs('Get_items')?['body/value']">
+              <p class="out-tip" style="padding:8px 0 0;">Set <strong>Columns</strong> to <strong>Custom</strong>, then add one column per entry below. Paste each expression into the column's <strong>Value</strong> (open the <code>fx</code> editor first).</p>
+            </div>
+          </div>
+
+          <div class="out-step">
+            <div class="out-step-head">
+              <span class="step-badge">2</span>
+              <h3>Create HTML table — <span class="where">Custom column values</span></h3>
+              <span class="spacer"></span>
+              <button class="copy-btn" id="copyAllCols" type="button">Copy all</button>
+            </div>
+            <div id="colValueList"></div>
+          </div>
+
+          <div class="out-step">
+            <div class="out-step-head">
+              <span class="step-badge">3</span>
+              <h3>Send an email (V2) — <span class="where">Body (code view)</span></h3>
+              <span class="spacer"></span>
+              <button class="copy-btn" data-copy="outEmail" type="button">Copy</button>
+            </div>
+            <pre class="out-code" id="outEmail"></pre>
+            <p class="out-tip">In the email <strong>Body</strong>, switch to <strong>code view</strong> (<code>&lt;/&gt;</code>) and paste this. The <code>replace(…)</code> calls turn the escaped <code>&amp;lt;span&amp;gt;</code> back into real HTML so the colours render. Rename <code id="actNameTip">Create_HTML_table</code> if your action has a different name.</p>
+            <div style="padding:0 14px 12px;">
+              <label class="field-label" for="paActionName">Create HTML table action name</label>
+              <input type="text" id="paActionName" value="Create HTML table" style="max-width:280px;">
+            </div>
+          </div>
+        </div>
+
+        <!-- STATIC -->
+        <div class="tab-body" id="outStatic" role="tabpanel" aria-labelledby="outBtnStatic">
+          <div class="out-step">
+            <div class="out-step-head">
+              <span class="step-badge">⧉</span>
+              <h3>Rendered table with your sample data</h3>
+              <span class="spacer"></span>
+              <button class="copy-btn" data-copy="outStaticCode" type="button">Copy</button>
+            </div>
+            <pre class="out-code" id="outStaticCode" style="max-height:460px;"></pre>
+            <p class="out-tip">Fully styled, self-contained HTML with the conditional colours baked in. Paste into a test email to preview the look.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    Everything runs locally in your browser — no data leaves this page. Work autosaves to localStorage.
+    Technique based on <strong>tomriha.com</strong> — “Add multiple colours to your HTML table”.
+  </footer>
+
+  <script>
+  'use strict';
+
+  /* ============================== CONSTANTS ============================== */
+
+  const STORAGE_KEY = 'simple-html-table-builder-v1';
+  let uidCounter = 0;
+  const uid = () => 'r' + (++uidCounter) + Date.now().toString(36).slice(-3);
+
+  const EXAMPLE_JSON = '[{"First Name":"Nicola","Last Name":"Young","Favorite Color":null},{"First Name":"Greg","Last Name":"Peter","Favorite Color":"Blue"},{"First Name":"Shane","Last Name":"Young","Favorite Color":"Red"},{"First Name":"Chewy","Last Name":"Young","Favorite Color":"Orange"},{"First Name":"Jeff","Last Name":"Taylor","Favorite Color":"Purple"},{"First Name":"Jennifer","Last Name":"Hammond","Favorite Color":"Green"},{"First Name":"Daniel","Last Name":"LeMay","Favorite Color":"Purple"},{"First Name":"Ferguson","Last Name":"Taylor","Favorite Color":"Green"},{"First Name":"Allison","Last Name":"Boswell","Favorite Color":"Red"},{"First Name":"Fausto","Last Name":"Capellan Jr","Favorite Color":"Blue"},{"First Name":"Sara","Last Name":"Ritter","Favorite Color":"Purple"},{"First Name":"Steven","Last Name":"Farris","Favorite Color":"Orange"},{"First Name":"Homer","Last Name":"Simpson","Favorite Color":"Blue"},{"First Name":"Herman","Last Name":"Howard","Favorite Color":null}]';
+
+  const OPS = [
+    ['equals', 'equals'],
+    ['notEquals', 'does not equal'],
+    ['contains', 'contains'],
+    ['startsWith', 'starts with'],
+    ['endsWith', 'ends with'],
+    ['greater', 'greater than'],
+    ['greaterOrEquals', 'greater or equal'],
+    ['less', 'less than'],
+    ['lessOrEquals', 'less or equal'],
+    ['isEmpty', 'is empty'],
+    ['isNotEmpty', 'is not empty']
+  ];
+  const NO_VALUE_OPS = new Set(['isEmpty', 'isNotEmpty']);
+
+  // Named CSS colours → readable hex (used by "auto colour from values")
+  const COLOR_NAMES = {
+    red:'#dc2626', blue:'#2563eb', green:'#16a34a', orange:'#ea580c', purple:'#9333ea',
+    yellow:'#ca8a04', gold:'#b7791f', pink:'#db2777', teal:'#0d9488', cyan:'#0891b2',
+    magenta:'#c026d3', violet:'#7c3aed', indigo:'#4f46e5', lime:'#65a30d', navy:'#1e3a8a',
+    maroon:'#7f1d1d', olive:'#5f6b18', brown:'#92400e', gray:'#4b5563', grey:'#4b5563',
+    black:'#111827', turquoise:'#0d9488', salmon:'#e2725b', crimson:'#be123c'
+  };
+  const PALETTE = ['#2563eb','#16a34a','#dc2626','#9333ea','#ea580c','#0d9488','#ca8a04','#be123c','#4f46e5','#65a30d'];
+
+  /* ============================== STATE ============================== */
+
+  function blankFmt() { return { color: '', bg: '', bold: false }; }
+
+  function defaultState() {
+    const st = {
+      rawJson: EXAMPLE_JSON,
+      rows: [],
+      columns: [],
+      style: {
+        enabled: true,
+        headerBg: '#0f6cbd', headerColor: '#ffffff',
+        font: 'Segoe UI, Arial, sans-serif', fontSize: 14,
+        borderStyle: 'grid', borderColor: '#d0d7de', pad: 8,
+        zebra: false, zebraColor: '#f3f6fb'
+      },
+      pa: { source: "outputs('Get_items')?['body/value']", actionName: 'Create HTML table' }
+    };
+    ingest(st, EXAMPLE_JSON, /*autoColor*/ true);
+    return st;
+  }
+
+  let state = loadState();
+
+  function loadState() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const p = JSON.parse(raw);
+        if (p && Array.isArray(p.columns) && p.style && p.pa) return p;
+      }
+    } catch (e) { /* fall through */ }
+    return defaultState();
+  }
+
+  let saveTimer = null;
+  function persist() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
+    }, 250);
+  }
+
+  /* ============================== DATA INGEST ============================== */
+
+  // Parse JSON into st.rows + st.columns, preserving existing column config by key.
+  // Returns { ok, message, error }.
+  function ingest(st, jsonStr, autoColor) {
+    jsonStr = (jsonStr || '').trim();
+    st.rawJson = jsonStr;
+    if (!jsonStr) return { ok: false, message: 'Paste a JSON array to begin.' };
+
+    let parsed;
+    try { parsed = JSON.parse(jsonStr); }
+    catch (e) { return { ok: false, error: true, message: 'Invalid JSON — ' + e.message }; }
+
+    if (!Array.isArray(parsed)) return { ok: false, error: true, message: 'Expected a JSON array of objects.' };
+    if (parsed.length === 0) return { ok: false, error: true, message: 'Array is empty.' };
+    if (typeof parsed[0] !== 'object' || parsed[0] === null || Array.isArray(parsed[0]))
+      return { ok: false, error: true, message: 'Array items must be objects.' };
+
+    // union of keys, in first-seen order
+    const keys = [];
+    parsed.forEach(o => {
+      if (o && typeof o === 'object' && !Array.isArray(o)) Object.keys(o).forEach(k => { if (!keys.includes(k)) keys.push(k); });
+    });
+    if (keys.length === 0) return { ok: false, error: true, message: 'Objects have no keys.' };
+
+    st.rows = parsed.map(o => {
+      const r = {};
+      keys.forEach(k => { r[k] = (o && typeof o === 'object' && k in o) ? o[k] : null; });
+      return r;
+    });
+
+    const prev = new Map((st.columns || []).map(c => [c.key, c]));
+    st.columns = keys.map(k => {
+      if (prev.has(k)) { const c = prev.get(k); c.include = c.include !== false; return c; }
+      return { key: k, header: k, include: true, rules: [], elseFmt: blankFmt() };
+    });
+
+    if (autoColor) st.columns.forEach(c => maybeAutoColor(st, c));
+
+    return { ok: true, message: `${st.rows.length} row${st.rows.length !== 1 ? 's' : ''} · ${keys.length} column${keys.length !== 1 ? 's' : ''}` };
+  }
+
+  // Distinct non-empty string values for a column, from the data.
+  function distinctValues(st, key) {
+    const seen = new Set(), out = [];
+    for (const r of st.rows) {
+      const v = r[key];
+      if (v == null || v === '') continue;
+      const s = String(v);
+      if (!seen.has(s)) { seen.add(s); out.push(s); }
+    }
+    return out;
+  }
+
+  // Build equals-rules from distinct values, colouring by name where possible.
+  function autoColorRules(st, key) {
+    const vals = distinctValues(st, key).slice(0, 16);
+    const allNum = vals.length > 0 && vals.every(v => v.trim() !== '' && !isNaN(parseFloat(v)) && isFinite(v));
+    let pi = 0;
+    return vals.map(v => {
+      const named = COLOR_NAMES[v.trim().toLowerCase()];
+      const color = named || PALETTE[pi++ % PALETTE.length];
+      return {
+        id: uid(), op: 'equals',
+        valueType: allNum ? 'number' : 'text',
+        value: v, color, bg: '', bold: false
+      };
+    });
+  }
+
+  // Auto-colour a column only if its values look like colour names (nice default for the example).
+  function maybeAutoColor(st, col) {
+    if (col.rules.length) return;
+    const vals = distinctValues(st, col.key);
+    if (vals.length === 0 || vals.length > 8) return;
+    const namedHits = vals.filter(v => COLOR_NAMES[v.trim().toLowerCase()]).length;
+    if (namedHits >= Math.ceil(vals.length * 0.6)) {
+      col.rules = autoColorRules(st, col.key);
+    }
+  }
+
+  /* ============================== HELPERS ============================== */
+
+  const $ = id => document.getElementById(id);
+
+  function escHtml(s) {
+    return String(s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function el(tag, attrs, ...children) {
+    const node = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs || {})) {
+      if (k === 'class') node.className = v;
+      else if (k === 'text') node.textContent = v;
+      else if (k.startsWith('on')) node.addEventListener(k.slice(2), v);
+      else if (v !== false && v != null) node.setAttribute(k, v === true ? '' : v);
+    }
+    for (const c of children) if (c != null) node.append(c);
+    return node;
+  }
+
+  const hasFmt = f => !!(f && (f.color || f.bg || f.bold));
+
+  /* ====================== POWER AUTOMATE EXPRESSION GEN ====================== */
+
+  function fieldRef(key) {
+    return `item()?['${String(key).replace(/'/g, "''")}']`;
+  }
+
+  // Literal for a rule's comparison value, per its value type.
+  function ruleValueLiteral(rule) {
+    if (rule.valueType === 'number') return String(rule.value).trim() || '0';
+    if (rule.valueType === 'expression') return String(rule.value).trim();
+    return "'" + String(rule.value).replace(/'/g, "''") + "'";
+  }
+
+  function ruleCondition(col, rule) {
+    const ref = fieldRef(col.key);
+    const val = ruleValueLiteral(rule);
+    switch (rule.op) {
+      case 'equals':          return `equals(${ref}, ${val})`;
+      case 'notEquals':       return `not(equals(${ref}, ${val}))`;
+      case 'contains':        return `contains(${ref}, ${val})`;
+      case 'startsWith':      return `startsWith(${ref}, ${val})`;
+      case 'endsWith':        return `endsWith(${ref}, ${val})`;
+      case 'greater':         return `greater(${ref}, ${val})`;
+      case 'greaterOrEquals': return `greaterOrEquals(${ref}, ${val})`;
+      case 'less':            return `less(${ref}, ${val})`;
+      case 'lessOrEquals':    return `lessOrEquals(${ref}, ${val})`;
+      case 'isEmpty':         return `empty(${ref})`;
+      case 'isNotEmpty':      return `not(empty(${ref}))`;
+      default:                return `equals(${ref}, ${val})`;
+    }
+  }
+
+  function spanStyleStr(fmt) {
+    let s = '';
+    if (fmt.color) s += `color:${fmt.color};`;
+    if (fmt.bg)    s += `background-color:${fmt.bg};`;
+    if (fmt.bold)  s += 'font-weight:bold;';
+    return s;
+  }
+
+  // The "then"/value expression: plain ref, or wrapped in a styled span.
+  function styledValueExpr(col, fmt) {
+    const ref = fieldRef(col.key);
+    const style = spanStyleStr(fmt);
+    if (!style) return ref;
+    return `concat('<span style="${style}">', ${ref}, '</span>')`;
+  }
+
+  // Full value expression for a column's "Value" field, nested if(…) most-strict-first.
+  function columnValueExpr(col) {
+    const elseExpr = hasFmt(col.elseFmt) ? styledValueExpr(col, col.elseFmt) : fieldRef(col.key);
+    if (!col.rules.length) return elseExpr;
+
+    const build = (idx, indent) => {
+      if (idx >= col.rules.length) return elseExpr;
+      const r = col.rules[idx];
+      const cond = ruleCondition(col, r);
+      const thenExpr = styledValueExpr(col, r);
+      const inner = build(idx + 1, indent + '  ');
+      return `if(${cond},\n${indent}  ${thenExpr},\n${indent}  ${inner}\n${indent})`;
+    };
+    return build(0, '');
+  }
+
+  const includedColumns = () => state.columns.filter(c => c.include !== false);
+
+  function actionNameSlug() {
+    return (state.pa.actionName || 'Create HTML table').trim().replace(/\s+/g, '_') || 'Create_HTML_table';
+  }
+
+  // CSS for the optional <style> block.
+  function styleBlockCss() {
+    const s = state.style;
+    const border = s.borderStyle === 'none' ? '' :
+      s.borderStyle === 'rows' ? `border-bottom:1px solid ${s.borderColor};` :
+      `border:1px solid ${s.borderColor};`;
+    let css = `table{border-collapse:collapse;width:100%;font-family:${s.font};font-size:${s.fontSize}px;color:#242424;}`;
+    css += `th{background-color:${s.headerBg};color:${s.headerColor};text-align:left;padding:${s.pad}px ${s.pad + 4}px;${border}}`;
+    css += `td{padding:${s.pad}px ${s.pad + 4}px;${border}}`;
+    if (s.zebra) css += `tr:nth-child(even){background-color:${s.zebraColor};}`;
+    return css;
+  }
+
+  // Email body expression: unescape Create HTML table output, optional style prefix.
+  function emailBodyExpr() {
+    const name = actionNameSlug();
+    const unescape = `replace(replace(replace(body('${name}'),'&lt;','<'),'&gt;','>'),'&quot;','"')`;
+    if (!state.style.enabled) return unescape;
+    return `concat('<style>${styleBlockCss()}</style>',\n  ${unescape})`;
+  }
+
+  /* ---------- Static / preview rendering (JS evaluation of the rules) ---------- */
+
+  function matchRule(raw, rule) {
+    const empty = raw == null || raw === '';
+    if (rule.op === 'isEmpty') return empty;
+    if (rule.op === 'isNotEmpty') return !empty;
+    if (rule.valueType === 'expression') return false; // not evaluable client-side
+    const sv = raw == null ? '' : String(raw);
+    const tv = rule.value == null ? '' : String(rule.value);
+    if (rule.valueType === 'number') {
+      const a = parseFloat(sv), b = parseFloat(tv);
+      switch (rule.op) {
+        case 'equals': return a === b;
+        case 'notEquals': return a !== b;
+        case 'greater': return a > b;
+        case 'greaterOrEquals': return a >= b;
+        case 'less': return a < b;
+        case 'lessOrEquals': return a <= b;
+        case 'contains': return sv.includes(tv);
+        case 'startsWith': return sv.startsWith(tv);
+        case 'endsWith': return sv.endsWith(tv);
+      }
+      return false;
+    }
+    switch (rule.op) {
+      case 'equals': return sv === tv;
+      case 'notEquals': return sv !== tv;
+      case 'contains': return sv.includes(tv);
+      case 'startsWith': return sv.startsWith(tv);
+      case 'endsWith': return sv.endsWith(tv);
+      case 'greater': return sv > tv;
+      case 'greaterOrEquals': return sv >= tv;
+      case 'less': return sv < tv;
+      case 'lessOrEquals': return sv <= tv;
+    }
+    return false;
+  }
+
+  function effectiveFmt(col, raw) {
+    for (const r of col.rules) if (matchRule(raw, r)) return r;
+    if (hasFmt(col.elseFmt)) return col.elseFmt;
+    return null;
+  }
+
+  function cellInnerHtml(col, raw) {
+    const text = raw == null ? '' : String(raw);
+    const safe = escHtml(text);
+    const fmt = effectiveFmt(col, raw);
+    const style = fmt ? spanStyleStr(fmt) : '';
+    return style ? `<span style="${style}">${safe}</span>` : safe;
+  }
+
+  // A standalone, styled table with sample data and colours baked in.
+  function staticTableHtml() {
+    const s = state.style;
+    const cols = includedColumns();
+    const border = s.borderStyle === 'none' ? '' :
+      s.borderStyle === 'rows' ? `border-bottom:1px solid ${s.borderColor};` :
+      `border:1px solid ${s.borderColor};`;
+    const tableStyle = `border-collapse:collapse;width:100%;font-family:${s.font};font-size:${s.fontSize}px;color:#242424;`;
+    const thStyle = `background-color:${s.headerBg};color:${s.headerColor};text-align:left;padding:${s.pad}px ${s.pad + 4}px;${border}`;
+    const tdStyle = `padding:${s.pad}px ${s.pad + 4}px;${border}`;
+
+    const head = '  <thead>\n    <tr>' +
+      cols.map(c => `<th style="${thStyle}">${escHtml(c.header || c.key)}</th>`).join('') +
+      '</tr>\n  </thead>';
+
+    const body = '  <tbody>\n' + state.rows.map((row, i) => {
+      const zebra = s.zebra && i % 2 === 1 ? ` background-color:${s.zebraColor};` : '';
+      const cells = cols.map(c => `<td style="${tdStyle}${zebra}">${cellInnerHtml(c, row[c.key])}</td>`).join('');
+      return `    <tr>${cells}</tr>`;
+    }).join('\n') + '\n  </tbody>';
+
+    return `<table style="${tableStyle}">\n${head}\n${body}\n</table>`;
+  }
+
+  /* ============================== RENDER: PREVIEW + OUTPUT ============================== */
+
+  function refresh() {
+    const cols = includedColumns();
+    if (!state.rows.length || !cols.length) {
+      $('previewBody').innerHTML = '<p style="color:#888;font-family:sans-serif;font-size:14px;">No data — paste a JSON array on the Data tab.</p>';
+      $('rowCountNote').textContent = '';
+    } else {
+      $('previewBody').innerHTML = staticTableHtml();
+      const exprRules = cols.some(c => c.rules.some(r => r.valueType === 'expression'));
+      $('rowCountNote').textContent =
+        `${state.rows.length} row${state.rows.length !== 1 ? 's' : ''} · ${cols.length} column${cols.length !== 1 ? 's' : ''}` +
+        (exprRules ? ' · expression rules shown unstyled' : '');
+    }
+
+    buildColValueList();
+
+    $('outEmail').textContent = emailBodyExpr();
+    $('actNameTip').textContent = actionNameSlug();
+    $('outStaticCode').textContent = staticTableHtml();
+
+    persist();
+  }
+
+  function buildColValueList() {
+    const wrap = $('colValueList');
+    wrap.textContent = '';
+    const cols = includedColumns();
+    if (!cols.length) {
+      wrap.append(el('p', { class: 'empty-note', text: 'No included columns.' }));
+      return;
+    }
+    cols.forEach(col => {
+      const styled = col.rules.length || hasFmt(col.elseFmt);
+      const block = el('div', { class: 'colval' });
+      const copyBtn = el('button', { class: 'copy-btn', type: 'button', text: 'Copy' });
+      copyBtn.dataset.copyText = columnValueExpr(col);
+      copyBtn.dataset.label = 'Copy';
+      const head = el('div', { class: 'colval-head' },
+        el('span', { class: 'name', text: col.header || col.key }),
+        el('span', { class: 'tag', text: styled ? `${col.rules.length} rule${col.rules.length !== 1 ? 's' : ''}` : 'plain value' }),
+        el('span', { class: 'spacer' }),
+        copyBtn
+      );
+      const pre = el('pre', { class: 'out-code', text: columnValueExpr(col) });
+      block.append(head, pre);
+      wrap.append(block);
+    });
+  }
+
+  /* ============================== RENDER: COLUMNS & RULES PANEL ============================== */
+
+  function buildColumnsPanel() {
+    const list = $('columnList');
+    list.textContent = '';
+
+    if (!state.columns.length) {
+      list.append(el('p', { class: 'empty-note', text: 'Paste data on the Data tab, then your columns appear here.' }));
+      return;
+    }
+
+    state.columns.forEach(col => {
+      const styled = col.rules.length || hasFmt(col.elseFmt);
+      const card = el('div', { class: 'col-card' + (col.include === false ? ' excluded' : styled ? ' styled' : '') });
+
+      const incBox = el('input', { type: 'checkbox', onchange: e => { col.include = e.target.checked; buildColumnsPanel(); refresh(); } });
+      incBox.checked = col.include !== false;
+
+      const head = el('div', { class: 'col-card-head' },
+        el('label', { class: 'check-row', style: 'margin:0;', title: 'Include this column' }, incBox),
+        el('span', { class: 'col-key', text: col.key, title: 'Source key: ' + col.key }),
+        el('span', { class: 'spacer' }),
+        col.rules.length ? el('span', { class: 'pill rules', text: '🎨 ' + col.rules.length }) : null
+      );
+
+      const headerInput = el('input', {
+        type: 'text', value: col.header || '', 'aria-label': 'Column header',
+        oninput: e => { col.header = e.target.value; refresh(); }
+      });
+      const headerRow = el('div', { class: 'col-head-input ctl-row', style: 'margin-bottom:10px;align-items:flex-end;' },
+        el('div', null, el('label', { class: 'field-label', text: 'Header label' }), headerInput),
+        el('div', { class: 'narrow' },
+          el('button', {
+            class: 'mini-btn amber', type: 'button', title: 'Create one colour rule per distinct value',
+            text: '✨ Auto colour', onclick: () => { col.rules = autoColorRules(state, col.key); buildColumnsPanel(); refresh(); }
+          })
+        )
+      );
+
+      card.append(head, headerRow);
+
+      if (col.include !== false) {
+        const rulesWrap = el('div', { class: 'rules-wrap' });
+        col.rules.forEach((rule, ri) => rulesWrap.append(buildRuleRow(col, rule, ri)));
+        card.append(rulesWrap);
+
+        card.append(el('button', {
+          class: 'add-rule-btn', type: 'button', text: '＋ Add colour rule',
+          onclick: () => {
+            col.rules.push({ id: uid(), op: 'equals', valueType: 'text', value: '', color: '#dc2626', bg: '', bold: false });
+            buildColumnsPanel(); refresh();
+          }
+        }));
+
+        card.append(buildElseRow(col));
+      }
+
+      list.append(card);
+    });
+  }
+
+  function buildRuleRow(col, rule, ri) {
+    const row = el('div', { class: 'rule-row' });
+
+    // line 1: IF <op> <value> <type>
+    const opSel = el('select', { class: 'rule-op', onchange: e => { rule.op = e.target.value; buildColumnsPanel(); refresh(); } },
+      ...OPS.map(([v, lbl]) => el('option', { value: v, text: lbl })));
+    opSel.value = rule.op;
+
+    const valInput = el('input', {
+      type: 'text', class: 'rule-val code', value: rule.value || '',
+      placeholder: rule.valueType === 'expression' ? 'addDays(utcNow(),3)' : 'value',
+      spellcheck: 'false',
+      oninput: e => { rule.value = e.target.value; refresh(); }
+    });
+
+    const typeSel = el('select', { class: 'rule-vtype', title: 'How to treat the value',
+      onchange: e => { rule.valueType = e.target.value; buildColumnsPanel(); refresh(); } },
+      el('option', { value: 'text', text: 'text' }),
+      el('option', { value: 'number', text: 'number' }),
+      el('option', { value: 'expression', text: 'expr' })
+    );
+    typeSel.value = rule.valueType;
+
+    const condLine = el('div', { class: 'rule-line cond' },
+      el('span', { class: 'rule-num', text: 'IF' }),
+      opSel
+    );
+    if (!NO_VALUE_OPS.has(rule.op)) condLine.append(valInput, typeSel);
+    row.append(condLine);
+
+    // line 2: format controls + preview
+    const preview = el('span', { class: 'rule-preview', text: 'Abc' });
+    function updateRulePreview() {
+      preview.style.color = rule.color || '#1f2937';
+      preview.style.backgroundColor = rule.bg || 'transparent';
+      preview.style.fontWeight = rule.bold ? 'bold' : 'normal';
+    }
+
+    const colorBox = el('input', { type: 'color', value: rule.color || '#000000', 'aria-label': 'Text colour', style: 'width:30px;height:30px;',
+      oninput: e => { rule.color = e.target.value; updateRulePreview(); refresh(); } });
+    const clearColor = el('button', { class: 'btn-danger-ghost', type: 'button', title: 'No text colour', text: '∅', style: 'padding:2px 5px;',
+      onclick: () => { rule.color = ''; buildColumnsPanel(); refresh(); } });
+
+    const bgBox = el('input', { type: 'color', value: rule.bg || '#ffffff', 'aria-label': 'Background colour', style: 'width:30px;height:30px;',
+      oninput: e => { rule.bg = e.target.value; updateRulePreview(); refresh(); } });
+    const clearBg = el('button', { class: 'btn-danger-ghost', type: 'button', title: 'No background', text: '∅', style: 'padding:2px 5px;',
+      onclick: () => { rule.bg = ''; buildColumnsPanel(); refresh(); } });
+
+    const boldBox = el('input', { type: 'checkbox', onchange: e => { rule.bold = e.target.checked; updateRulePreview(); refresh(); } });
+    boldBox.checked = !!rule.bold;
+
+    updateRulePreview();
+
+    const fmtLine = el('div', { class: 'rule-line rule-fmt' },
+      el('span', { class: 'swatch-label' }, 'text', colorBox, rule.color ? clearColor : null),
+      el('span', { class: 'swatch-label' }, 'bg', bgBox, rule.bg ? clearBg : null),
+      el('label', { class: 'swatch-label', style: 'cursor:pointer;' }, boldBox, 'bold'),
+      el('span', { style: 'flex:1;' }),
+      preview,
+      el('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Move rule up', disabled: ri === 0,
+        onclick: () => { const a = col.rules; [a[ri-1], a[ri]] = [a[ri], a[ri-1]]; buildColumnsPanel(); refresh(); }, text: '↑' }),
+      el('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Move rule down', disabled: ri === col.rules.length - 1,
+        onclick: () => { const a = col.rules; [a[ri+1], a[ri]] = [a[ri], a[ri+1]]; buildColumnsPanel(); refresh(); }, text: '↓' }),
+      el('button', { class: 'btn-danger-ghost', type: 'button', 'aria-label': 'Delete rule', text: '✕',
+        onclick: () => { col.rules.splice(ri, 1); buildColumnsPanel(); refresh(); } })
+    );
+    row.append(fmtLine);
+
+    return row;
+  }
+
+  function buildElseRow(col) {
+    const f = col.elseFmt || (col.elseFmt = blankFmt());
+    const colorBox = el('input', { type: 'color', value: f.color || '#000000', 'aria-label': 'Otherwise text colour', style: 'width:30px;height:30px;',
+      oninput: e => { f.color = e.target.value; buildColumnsPanel(); refresh(); } });
+    const clearColor = el('button', { class: 'btn-danger-ghost', type: 'button', title: 'No colour (plain value)', text: '∅', style: 'padding:2px 5px;',
+      onclick: () => { f.color = ''; buildColumnsPanel(); refresh(); } });
+    const boldBox = el('input', { type: 'checkbox', onchange: e => { f.bold = e.target.checked; refresh(); } });
+    boldBox.checked = !!f.bold;
+
+    return el('div', { class: 'else-row' },
+      el('span', { class: 'lbl', text: 'Otherwise' }),
+      el('span', { class: 'swatch-label', style: 'font-size:11px;color:var(--text-2);' }, 'text', colorBox, f.color ? clearColor : null),
+      el('label', { class: 'swatch-label', style: 'font-size:11px;color:var(--text-2);cursor:pointer;' }, boldBox, 'bold'),
+      el('span', { style: 'font-size:11px;color:var(--text-3);flex:1;text-align:right;' },
+        hasFmt(f) ? 'styled fallback' : 'plain value')
+    );
+  }
+
+  /* ============================== STYLE PANEL ============================== */
+
+  const styleBindings = [
+    ['stEnabled',    'enabled',    'checked'],
+    ['stHeaderBg',   'headerBg',   'value'],
+    ['stHeaderColor','headerColor','value'],
+    ['stFont',       'font',       'value'],
+    ['stFontSize',   'fontSize',   'number'],
+    ['stBorderStyle','borderStyle','value'],
+    ['stBorderColor','borderColor','value'],
+    ['stPad',        'pad',        'number'],
+    ['stZebra',      'zebra',      'checked'],
+    ['stZebraColor', 'zebraColor', 'value']
+  ];
+
+  function syncStyleInputs() {
+    for (const [id, key, kind] of styleBindings) {
+      const inp = $(id);
+      if (kind === 'checked') inp.checked = !!state.style[key];
+      else inp.value = state.style[key];
+    }
+    $('zebraRow').style.display = state.style.zebra ? '' : 'none';
+    $('styleControls').style.opacity = state.style.enabled ? '1' : '0.45';
+    $('styleControls').style.pointerEvents = state.style.enabled ? '' : 'none';
+  }
+
+  function wireStyleInputs() {
+    for (const [id, key, kind] of styleBindings) {
+      $(id).addEventListener(kind === 'value' || kind === 'number' ? 'input' : 'change', e => {
+        state.style[key] = kind === 'checked' ? e.target.checked
+                         : kind === 'number' ? (parseInt(e.target.value, 10) || 0)
+                         : e.target.value;
+        if (id === 'stZebra' || id === 'stEnabled') syncStyleInputs();
+        refresh();
+      });
+    }
+  }
+
+  /* ============================== TABS ============================== */
+
+  function wireTabs(container) {
+    const strip = container.querySelector('.tab-strip');
+    strip.addEventListener('click', e => {
+      const btn = e.target.closest('button[data-tab]');
+      if (!btn) return;
+      strip.querySelectorAll('button').forEach(b => b.setAttribute('aria-selected', b === btn ? 'true' : 'false'));
+      container.querySelectorAll(':scope > .tab-body').forEach(p => p.classList.toggle('active', p.id === btn.dataset.tab));
+    });
+  }
+
+  /* ============================== COPY ============================== */
+
+  document.addEventListener('click', e => {
+    const btn = e.target.closest('button[data-copy], button[data-copy-text]');
+    if (!btn) return;
+    const text = btn.dataset.copyText != null ? btn.dataset.copyText : $(btn.dataset.copy).textContent;
+    const done = ok => {
+      const orig = btn.dataset.label || 'Copy';
+      btn.classList.toggle('copied', ok);
+      btn.textContent = ok ? '✓ Copied' : 'Failed';
+      setTimeout(() => { btn.classList.remove('copied'); btn.textContent = orig; }, 1500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => done(true), () => fallbackCopy(text, done));
+    } else fallbackCopy(text, done);
+  });
+
+  function fallbackCopy(text, done) {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    ta.remove(); done(ok);
+  }
+
+  $('copyAllCols').dataset.label = 'Copy all';
+  $('copyAllCols').addEventListener('click', () => {
+    const all = includedColumns().map(c => `${c.header || c.key}:\n${columnValueExpr(c)}`).join('\n\n');
+    $('copyAllCols').dataset.copyText = all;
+  });
+
+  /* ============================== DATA TAB ACTIONS ============================== */
+
+  function showJsonStatus(msg, isError) {
+    const elx = $('jsonStatus');
+    elx.textContent = msg || '';
+    elx.style.color = isError ? 'var(--red)' : 'var(--green)';
+  }
+
+  function parseInput() {
+    const res = ingest(state, $('jsonInput').value, false);
+    showJsonStatus(res.message, res.error);
+    if (res.ok) { buildColumnsPanel(); refresh(); }
+  }
+
+  $('btnParse').addEventListener('click', parseInput);
+  $('jsonInput').addEventListener('input', () => { state.rawJson = $('jsonInput').value; persist(); });
+
+  function loadExampleData() {
+    $('jsonInput').value = EXAMPLE_JSON;
+    state.columns = [];                 // drop prior config so auto-colour reseeds
+    const res = ingest(state, EXAMPLE_JSON, true);
+    showJsonStatus(res.message, res.error);
+    buildColumnsPanel(); refresh();
+  }
+  $('btnUseExample').addEventListener('click', loadExampleData);
+
+  /* ============================== PA SETTINGS ============================== */
+
+  $('paSource').addEventListener('input', e => { state.pa.source = e.target.value; persist(); });
+  $('paActionName').addEventListener('input', e => { state.pa.actionName = e.target.value; refresh(); });
+
+  /* ============================== EXAMPLE / RESET ============================== */
+
+  $('btnExample').addEventListener('click', loadExampleData);
+  $('btnReset').addEventListener('click', () => {
+    if (!confirm('Reset everything to the example design? Your current work will be discarded.')) return;
+    state = defaultState();
+    initAll();
+  });
+
+  /* ============================== INIT ============================== */
+
+  function initAll() {
+    $('jsonInput').value = state.rawJson || '';
+    $('paSource').value = state.pa.source || "outputs('Get_items')?['body/value']";
+    $('paActionName').value = state.pa.actionName || 'Create HTML table';
+    syncStyleInputs();
+    buildColumnsPanel();
+    refresh();
+    if (state.rows.length) showJsonStatus(`${state.rows.length} row${state.rows.length !== 1 ? 's' : ''} · ${state.columns.length} column${state.columns.length !== 1 ? 's' : ''}`, false);
+  }
+
+  wireStyleInputs();
+  wireTabs($('designerPanel'));
+  wireTabs(document.querySelector('.workspace > div:last-child > .panel:last-child'));
+  initAll();
+  </script>
+</body>
+</html>
