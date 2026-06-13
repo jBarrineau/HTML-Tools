@@ -1005,7 +1005,7 @@
       ? `<style>tr:nth-child(even){background-color:${s.zebraColor};}</style>`
       : '';
     const open = `${zebra}<table style="${tableStyle}">${thead}<tbody>`;
-    return `concat(\n  ${paStr(open)},\n  join(outputs('${selectSlug}'), ''),\n  ${paStr('</tbody></table>')}\n)`;
+    return `concat(\n  ${paStr(open)},\n  join(body('${selectSlug}'), ''),\n  ${paStr('</tbody></table>')}\n)`;
   }
 
   // Email body: reference the Compose action output directly.
