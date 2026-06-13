@@ -644,6 +644,7 @@
               <label class="field-label" for="paSource">From — array your flow loops over</label>
               <input type="text" id="paSource" class="code" spellcheck="false"
                 value="outputs('Get_items')?['body/value']">
+              <div id="paSourceError" style="display:none;margin-top:6px;font-size:12px;color:var(--red);"></div>
             </div>
             <div id="zebraFromHint" style="display:none;padding:8px 14px 0;">
               <div class="hint amber" style="margin:0;">
@@ -875,7 +876,7 @@
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const p = JSON.parse(raw);
-        if (p && Array.isArray(p.columns) && p.style && p.pa) return p;
+        if (p && Array.isArray(p.columns) && Array.isArray(p.rows) && p.style && p.pa) return p;
       }
     } catch (e) { /* fall through */ }
     return defaultState();
@@ -1074,6 +1075,18 @@
 
   const includedColumns = () => state.columns.filter(c => c.include !== false);
 
+  function sourceValidationError(src) {
+    if (!src || !src.trim()) return 'From expression is empty.';
+    let p = 0, b = 0;
+    for (const c of src) {
+      if (c === '(') p++; else if (c === ')') { if (--p < 0) return 'Unbalanced parentheses in From expression.'; }
+      if (c === '[') b++; else if (c === ']') { if (--b < 0) return 'Unbalanced brackets in From expression.'; }
+    }
+    if (p !== 0) return 'Unbalanced parentheses in From expression.';
+    if (b !== 0) return 'Unbalanced brackets in From expression.';
+    return null;
+  }
+
   const paStr = s => "'" + String(s).replace(/'/g, "''") + "'";
 
   function selectNameSlug() {
@@ -1132,7 +1145,7 @@
         : `<th>${escHtml(c.header || c.key)}</th>`
       ).join('') + '</tr></thead>';
     const open = `<table style="${tableStyle}">${thead}<tbody>`;
-    return `concat(\n  ${paStr(open)},\n  join(body('${selectSlug}'), ''),\n  ${paStr('</tbody></table>')}\n)`;
+    return `concat(\n  ${paStr(open)},\n  join(body('${selectSlug.replace(/'/g, "''")}'), ''),\n  ${paStr('</tbody></table>')}\n)`;
   }
 
   // Email body: reference the Compose action output directly.
@@ -1196,24 +1209,34 @@
   function staticTableHtml(limit) {
     const s = state.style;
     const cols = includedColumns();
-    const border = s.borderStyle === 'none' ? '' :
-      s.borderStyle === 'rows' ? `border-bottom:1px solid ${s.borderColor};` :
-      `border:1px solid ${s.borderColor};`;
-    const tableStyle = `border-collapse:collapse;width:100%;font-family:${s.font};font-size:${s.fontSize}px;color:#242424;`;
-    const thStyle = `background-color:${s.headerBg};color:${s.headerColor};text-align:left;padding:${s.pad}px ${s.pad + 4}px;${border}`;
-    const tdStyle = `padding:${s.pad}px ${s.pad + 4}px;${border}`;
+    const border = s.enabled && s.borderStyle !== 'none'
+      ? (s.borderStyle === 'rows' ? `border-bottom:1px solid ${s.borderColor};` : `border:1px solid ${s.borderColor};`)
+      : '';
+    const tableStyle = s.enabled
+      ? `border-collapse:collapse;width:100%;font-family:${s.font};font-size:${s.fontSize}px;color:#242424;`
+      : 'border-collapse:collapse;width:100%;';
+    const thStyle = s.enabled
+      ? `background-color:${s.headerBg};color:${s.headerColor};text-align:left;padding:${s.pad}px ${s.pad + 4}px;${border}`
+      : '';
+    const tdStyle = s.enabled ? `padding:${s.pad}px ${s.pad + 4}px;${border}` : '';
 
     const head = '  <thead>\n    <tr>' +
-      cols.map(c => `<th style="${thStyle}">${escHtml(c.header || c.key)}</th>`).join('') +
+      cols.map(c => thStyle
+        ? `<th style="${thStyle}">${escHtml(c.header || c.key)}</th>`
+        : `<th>${escHtml(c.header || c.key)}</th>`
+      ).join('') +
       '</tr>\n  </thead>';
 
     const rows = limit != null ? state.rows.slice(0, limit) : state.rows;
     const body = '  <tbody>\n' + rows.map((row, i) => {
-      const zebraStyle = s.zebra && i % 2 === 1 ? `background-color:${s.zebraColor};` : '';
+      const zebraStyle = s.enabled && s.zebra && i % 2 === 1 ? `background-color:${s.zebraColor};` : '';
       const cells = cols.map(c => {
         const fmt = effectiveFmt(c, row[c.key]);
         const bgStyle = fmt && fmt.bg ? `background-color:${fmt.bg};` : '';
-        return `<td style="${tdStyle}${zebraStyle}${bgStyle}">${cellInnerHtml(c, row[c.key])}</td>`;
+        const cellStyle = tdStyle + zebraStyle + bgStyle;
+        return cellStyle
+          ? `<td style="${cellStyle}">${cellInnerHtml(c, row[c.key])}</td>`
+          : `<td>${cellInnerHtml(c, row[c.key])}</td>`;
       }).join('');
       return `    <tr>${cells}</tr>`;
     }).join('\n') + '\n  </tbody>';
@@ -1246,6 +1269,10 @@
     const zebraOn = state.style.enabled && state.style.zebra;
     $('zebraFromHint').style.display = zebraOn ? '' : 'none';
     if (zebraOn) $('zebraFromCode').textContent = zebraFromExpr();
+
+    const srcErr = zebraOn ? sourceValidationError(state.pa.source) : null;
+    const errEl = $('paSourceError');
+    if (errEl) { errEl.textContent = srcErr || ''; errEl.style.display = srcErr ? '' : 'none'; }
 
     persist();
   }
@@ -1288,6 +1315,7 @@
         if (e.target.closest('input[type="checkbox"]')) return;
         col.collapsed = !col.collapsed;
         buildColumnsPanel();
+        persist();
       });
 
       const body = el('div', { class: 'col-body' });
@@ -1338,7 +1366,7 @@
     opSel.value = rule.op;
 
     const valInput = el('input', {
-      type: 'text', class: 'rule-val code', value: rule.value || '',
+      type: 'text', class: 'rule-val code', value: rule.value ?? '',
       placeholder: rule.valueType === 'expression' ? 'addDays(utcNow(),3)' : 'value',
       spellcheck: 'false',
       oninput: e => { rule.value = e.target.value; refresh(); }
@@ -1366,15 +1394,15 @@
       preview.style.fontWeight = rule.bold ? 'bold' : 'normal';
     }
 
+    const clearColor = el('button', { class: 'btn-danger-ghost', type: 'button', title: 'No text colour', text: '∅', style: `padding:2px 5px;${rule.color ? '' : 'display:none'}`,
+      onclick: () => { rule.color = ''; clearColor.style.display = 'none'; buildColumnsPanel(); refresh(); } });
     const colorBox = el('input', { type: 'color', value: rule.color || '#000000', 'aria-label': 'Text colour', style: 'width:30px;height:30px;',
-      oninput: e => { rule.color = e.target.value; updateRulePreview(); refresh(); } });
-    const clearColor = el('button', { class: 'btn-danger-ghost', type: 'button', title: 'No text colour', text: '∅', style: 'padding:2px 5px;',
-      onclick: () => { rule.color = ''; buildColumnsPanel(); refresh(); } });
+      oninput: e => { rule.color = e.target.value; clearColor.style.display = ''; updateRulePreview(); refresh(); } });
 
+    const clearBg = el('button', { class: 'btn-danger-ghost', type: 'button', title: 'No background', text: '∅', style: `padding:2px 5px;${rule.bg ? '' : 'display:none'}`,
+      onclick: () => { rule.bg = ''; clearBg.style.display = 'none'; buildColumnsPanel(); refresh(); } });
     const bgBox = el('input', { type: 'color', value: rule.bg || '#ffffff', 'aria-label': 'Background colour', style: 'width:30px;height:30px;',
-      oninput: e => { rule.bg = e.target.value; updateRulePreview(); refresh(); } });
-    const clearBg = el('button', { class: 'btn-danger-ghost', type: 'button', title: 'No background', text: '∅', style: 'padding:2px 5px;',
-      onclick: () => { rule.bg = ''; buildColumnsPanel(); refresh(); } });
+      oninput: e => { rule.bg = e.target.value; clearBg.style.display = ''; updateRulePreview(); refresh(); } });
 
     const boldBox = el('input', { type: 'checkbox', onchange: e => { rule.bold = e.target.checked; updateRulePreview(); refresh(); } });
     boldBox.checked = !!rule.bold;
@@ -1382,8 +1410,8 @@
     updateRulePreview();
 
     const fmtLine = el('div', { class: 'rule-line rule-fmt' },
-      el('span', { class: 'swatch-label' }, 'text', colorBox, rule.color ? clearColor : null),
-      el('span', { class: 'swatch-label' }, 'bg', bgBox, rule.bg ? clearBg : null),
+      el('span', { class: 'swatch-label' }, 'text', colorBox, clearColor),
+      el('span', { class: 'swatch-label' }, 'bg', bgBox, clearBg),
       el('label', { class: 'swatch-label', style: 'cursor:pointer;' }, boldBox, 'bold'),
       el('span', { style: 'flex:1;' }),
       preview,
@@ -1515,6 +1543,7 @@
   });
 
   function loadExampleData() {
+    clearTimeout(parseTimer);
     $('jsonInput').value = EXAMPLE_JSON;
     state.columns = [];                 // drop prior config so auto-colour reseeds
     const res = ingest(state, EXAMPLE_JSON, true);
@@ -1553,6 +1582,7 @@
     const allCollapsed = state.columns.every(c => c.collapsed);
     state.columns.forEach(c => { c.collapsed = !allCollapsed; });
     buildColumnsPanel();
+    persist();
   });
 
   /* ============================== MODAL ============================== */
