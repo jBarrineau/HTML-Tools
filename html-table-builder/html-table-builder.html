@@ -979,7 +979,7 @@
     const name = (state.pa.selectName.trim() || 'Select').replace(/\s+/g, '_');
     const head = tableOpen() + '<thead>' + headerRowHtml() + '</thead><tbody>';
     const tail = '</tbody></table>';
-    return `concat(${paStr(head)}, join(body('${name}'), ''), ${paStr(tail)})`;
+    return `concat(${paStr(head)}, join(outputs('${name}'), ''), ${paStr(tail)})`;
   }
 
   // What goes in the email Body: a single dynamic value (the Compose output).
