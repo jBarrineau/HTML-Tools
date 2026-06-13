@@ -489,18 +489,6 @@
     .out-tip { font-size: 12.5px; color: var(--text-2); padding: 8px 14px 12px; }
     .out-tip code { font-family: var(--mono); font-size: 11.5px; color: var(--cyan); }
 
-    /* per-column value list */
-    .colval { border-top: 1px solid var(--line); }
-    .colval:first-child { border-top: none; }
-    .colval-head {
-      display: flex; align-items: center; gap: 8px;
-      padding: 8px 14px 4px;
-    }
-    .colval-head .name { font-size: 12.5px; font-weight: 700; color: var(--text); }
-    .colval-head .tag { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); }
-    .colval-head .spacer { flex: 1; }
-    .colval pre.out-code { max-height: 220px; }
-
     footer {
       text-align: center;
       color: var(--text-3);
@@ -526,7 +514,7 @@
       <span></span><span></span><span></span>
     </div>
     <h1>Conditional Table <em>Colourizer</em></h1>
-    <p class="tagline">Add value-based colours &amp; logic to a Power Automate <strong>Create HTML table</strong></p>
+    <p class="tagline">Add value-based colours &amp; logic to a Power Automate <strong>Select → Compose → Send email</strong> flow</p>
     <div class="header-actions">
       <button class="btn-ghost" id="btnExample" type="button">Load example</button>
       <button class="btn-ghost" id="btnReset" type="button">Reset</button>
@@ -558,9 +546,7 @@
           <span id="jsonStatus" style="font-size:12.5px;flex:1;min-width:120px;"></span>
         </div>
         <div class="hint amber">
-          <strong>How it works:</strong> for each column you add <code>if(…)</code> rules that wrap the value in a coloured
-          <code>&lt;span&gt;</code>. Power Automate's <strong>Create HTML table</strong> escapes that HTML, so the email body
-          uses <code>replace(…)</code> to turn it back into real colour. Technique from <strong>tomriha.com</strong>.
+          <strong>How it works:</strong> a <strong>Select</strong> action builds one <code>&lt;tr&gt;</code> per item — each column value is wrapped in an <code>if(…)</code> rule that applies a coloured <code>&lt;span&gt;</code> inline. A <strong>Compose</strong> action wraps the rows in a complete table. The email body just references <code>outputs('Compose')</code> — no unescaping needed. Technique from <strong>tomriha.com</strong>.
         </div>
       </div>
 
@@ -572,7 +558,7 @@
       <!-- STYLE -->
       <div class="tab-body" id="tabStyle" role="tabpanel" aria-labelledby="tabBtnStyle">
         <label class="check-row" style="margin-bottom:14px;">
-          <input type="checkbox" id="stEnabled"> Add a&nbsp;<code style="font-family:var(--mono);font-size:12px;color:var(--cyan);">&lt;style&gt;</code>&nbsp;block to dress up the bare table
+          <input type="checkbox" id="stEnabled"> Style the table (header, fonts, borders)
         </label>
         <div id="styleControls">
           <p class="subhead">Header row</p>
@@ -619,9 +605,7 @@
           </div>
         </div>
         <div class="hint">
-          The <code>&lt;style&gt;</code> block is prepended to the table with <code>concat(…)</code>. Desktop Outlook honours
-          element selectors like <code>th</code> / <code>td</code> but <strong>not</strong> per-cell background — that's why
-          your conditional colours use an inline <code>&lt;span&gt;</code> on the value itself.
+          Styling is applied as inline CSS on <code>&lt;table&gt;</code>, <code>&lt;th&gt;</code>, and <code>&lt;td&gt;</code> elements — compatible with all email clients including Outlook desktop. Zebra striping uses a <code>&lt;style&gt;</code> block with <code>nth-child</code> (Outlook web and most modern clients; not Outlook desktop).
         </div>
       </div>
 
@@ -652,24 +636,35 @@
           <div class="out-step">
             <div class="out-step-head">
               <span class="step-badge">1</span>
-              <h3>Create HTML table — <span class="where">From</span></h3>
+              <h3>Select — <span class="where">From &amp; Map</span></h3>
             </div>
-            <div style="padding:12px 14px;">
-              <label class="field-label" for="paSource">Array your flow loops over</label>
+            <div style="padding:12px 14px 0;">
+              <label class="field-label" for="paSource">From — array your flow loops over</label>
               <input type="text" id="paSource" class="code" spellcheck="false"
                 value="outputs('Get_items')?['body/value']">
-              <p class="out-tip" style="padding:8px 0 0;">Set <strong>Columns</strong> to <strong>Custom</strong>, then add one column per entry below. Paste each expression into the column's <strong>Value</strong> (open the <code>fx</code> editor first).</p>
+            </div>
+            <div class="out-step-head" style="background:none;border-top:1px solid var(--line);border-bottom:none;padding-top:10px;">
+              <span style="font-size:12.5px;font-weight:600;color:var(--text-2);">Map — paste into the <code style="font-family:var(--mono);font-size:11.5px;color:var(--cyan);">fx</code> editor</span>
+              <span class="spacer"></span>
+              <button class="copy-btn" data-copy="outSelectMap" type="button">Copy</button>
+            </div>
+            <pre class="out-code" id="outSelectMap"></pre>
+            <p class="out-tip">Set <strong>From</strong> to the array above. For <strong>Map</strong>, open the <code>fx</code> editor and paste the expression — it builds one <code>&lt;tr&gt;</code> per item with inline styles and conditional colour spans.</p>
+            <div style="padding:0 14px 12px;">
+              <label class="field-label" for="paSelectName">Select action name (referenced by the Compose step)</label>
+              <input type="text" id="paSelectName" value="Select" style="max-width:240px;">
             </div>
           </div>
 
           <div class="out-step">
             <div class="out-step-head">
               <span class="step-badge">2</span>
-              <h3>Create HTML table — <span class="where">Custom column values</span></h3>
+              <h3>Compose — <span class="where">Inputs</span></h3>
               <span class="spacer"></span>
-              <button class="copy-btn" id="copyAllCols" type="button">Copy all</button>
+              <button class="copy-btn" data-copy="outCompose" type="button">Copy</button>
             </div>
-            <div id="colValueList"></div>
+            <pre class="out-code" id="outCompose"></pre>
+            <p class="out-tip">Add a <strong>Compose</strong> action after Select. Open the <code>fx</code> editor in <strong>Inputs</strong> and paste this — it wraps the rows with the header and optional styling into a complete table string.</p>
           </div>
 
           <div class="out-step">
@@ -680,11 +675,7 @@
               <button class="copy-btn" data-copy="outEmail" type="button">Copy</button>
             </div>
             <pre class="out-code" id="outEmail"></pre>
-            <p class="out-tip">In the email <strong>Body</strong>, switch to <strong>code view</strong> (<code>&lt;/&gt;</code>) and paste this. The <code>replace(…)</code> calls turn the escaped <code>&amp;lt;span&amp;gt;</code> back into real HTML so the colours render. Rename <code id="actNameTip">Create_HTML_table</code> if your action has a different name.</p>
-            <div style="padding:0 14px 12px;">
-              <label class="field-label" for="paActionName">Create HTML table action name</label>
-              <input type="text" id="paActionName" value="Create HTML table" style="max-width:280px;">
-            </div>
+            <p class="out-tip">In the email <strong>Body</strong>, switch to <strong>code view</strong> (<code>&lt;/&gt;</code>) and paste this. No unescaping needed — the Compose action already holds real HTML. Rename <code>Compose</code> if your action has a different name.</p>
           </div>
         </div>
 
@@ -762,7 +753,7 @@
         borderStyle: 'grid', borderColor: '#d0d7de', pad: 8,
         zebra: false, zebraColor: '#f3f6fb'
       },
-      pa: { source: "outputs('Get_items')?['body/value']", actionName: 'Create HTML table' }
+      pa: { source: "outputs('Get_items')?['body/value']", selectName: 'Select' }
     };
     ingest(st, EXAMPLE_JSON, /*autoColor*/ true);
     return st;
@@ -960,29 +951,66 @@
 
   const includedColumns = () => state.columns.filter(c => c.include !== false);
 
-  function actionNameSlug() {
-    return (state.pa.actionName || 'Create HTML table').trim().replace(/\s+/g, '_') || 'Create_HTML_table';
+  const paStr = s => "'" + String(s).replace(/'/g, "''") + "'";
+
+  function selectNameSlug() {
+    return (state.pa.selectName || 'Select').trim().replace(/\s+/g, '_') || 'Select';
   }
 
-  // CSS for the optional <style> block.
-  function styleBlockCss() {
+  function borderCss(s) {
+    if (!s.enabled || s.borderStyle === 'none') return '';
+    return s.borderStyle === 'rows'
+      ? `border-bottom:1px solid ${s.borderColor};`
+      : `border:1px solid ${s.borderColor};`;
+  }
+
+  // Per-row <tr> expression for the Select action's Map field (entered via fx editor).
+  function rowMapExpr() {
+    const cols = includedColumns();
+    if (!cols.length) return "''";
     const s = state.style;
-    const border = s.borderStyle === 'none' ? '' :
-      s.borderStyle === 'rows' ? `border-bottom:1px solid ${s.borderColor};` :
-      `border:1px solid ${s.borderColor};`;
-    let css = `table{border-collapse:collapse;width:100%;font-family:${s.font};font-size:${s.fontSize}px;color:#242424;}`;
-    css += `th{background-color:${s.headerBg};color:${s.headerColor};text-align:left;padding:${s.pad}px ${s.pad + 4}px;${border}}`;
-    css += `td{padding:${s.pad}px ${s.pad + 4}px;${border}}`;
-    if (s.zebra) css += `tr:nth-child(even){background-color:${s.zebraColor};}`;
-    return css;
+    const border = borderCss(s);
+    const tdStyle = s.enabled
+      ? `padding:${s.pad}px ${s.pad + 4}px;${border}`
+      : '';
+    const parts = [paStr('<tr>')];
+    cols.forEach(col => {
+      parts.push(tdStyle ? paStr(`<td style="${tdStyle}">`) : paStr('<td>'));
+      parts.push(columnValueExpr(col));
+      parts.push(paStr('</td>'));
+    });
+    parts.push(paStr('</tr>'));
+    return 'concat(\n  ' + parts.join(',\n  ') + '\n)';
   }
 
-  // Email body expression: unescape Create HTML table output, optional style prefix.
+  // Full table concat() expression for the Compose action's Inputs field.
+  function composeExpr() {
+    const selectSlug = selectNameSlug();
+    const cols = includedColumns();
+    const s = state.style;
+    const border = borderCss(s);
+    const font = String(s.font).replace(/'/g, '"');
+    const tableStyle = s.enabled
+      ? `border-collapse:collapse;width:100%;font-family:${font};font-size:${s.fontSize}px;color:#242424;`
+      : 'border-collapse:collapse;width:100%;';
+    const thStyle = s.enabled
+      ? `background-color:${s.headerBg};color:${s.headerColor};text-align:left;padding:${s.pad}px ${s.pad + 4}px;${border}`
+      : '';
+    const thead = '<thead><tr>' +
+      cols.map(c => thStyle
+        ? `<th style="${thStyle}">${escHtml(c.header || c.key)}</th>`
+        : `<th>${escHtml(c.header || c.key)}</th>`
+      ).join('') + '</tr></thead>';
+    const zebra = s.enabled && s.zebra
+      ? `<style>tr:nth-child(even){background-color:${s.zebraColor};}</style>`
+      : '';
+    const open = `${zebra}<table style="${tableStyle}">${thead}<tbody>`;
+    return `concat(\n  ${paStr(open)},\n  join(outputs('${selectSlug}'), ''),\n  ${paStr('</tbody></table>')}\n)`;
+  }
+
+  // Email body: reference the Compose action output directly.
   function emailBodyExpr() {
-    const name = actionNameSlug();
-    const unescape = `replace(replace(replace(body('${name}'),'&lt;','<'),'&gt;','>'),'&quot;','"')`;
-    if (!state.style.enabled) return unescape;
-    return `concat('<style>${styleBlockCss()}</style>',\n  ${unescape})`;
+    return "@{outputs('Compose')}";
   }
 
   /* ---------- Static / preview rendering (JS evaluation of the rules) ---------- */
@@ -1076,39 +1104,12 @@
         (exprRules ? ' · expression rules shown unstyled' : '');
     }
 
-    buildColValueList();
-
+    $('outSelectMap').textContent = rowMapExpr();
+    $('outCompose').textContent = composeExpr();
     $('outEmail').textContent = emailBodyExpr();
-    $('actNameTip').textContent = actionNameSlug();
     $('outStaticCode').textContent = staticTableHtml();
 
     persist();
-  }
-
-  function buildColValueList() {
-    const wrap = $('colValueList');
-    wrap.textContent = '';
-    const cols = includedColumns();
-    if (!cols.length) {
-      wrap.append(el('p', { class: 'empty-note', text: 'No included columns.' }));
-      return;
-    }
-    cols.forEach(col => {
-      const styled = col.rules.length || hasFmt(col.elseFmt);
-      const block = el('div', { class: 'colval' });
-      const copyBtn = el('button', { class: 'copy-btn', type: 'button', text: 'Copy' });
-      copyBtn.dataset.copyText = columnValueExpr(col);
-      copyBtn.dataset.label = 'Copy';
-      const head = el('div', { class: 'colval-head' },
-        el('span', { class: 'name', text: col.header || col.key }),
-        el('span', { class: 'tag', text: styled ? `${col.rules.length} rule${col.rules.length !== 1 ? 's' : ''}` : 'plain value' }),
-        el('span', { class: 'spacer' }),
-        copyBtn
-      );
-      const pre = el('pre', { class: 'out-code', text: columnValueExpr(col) });
-      block.append(head, pre);
-      wrap.append(block);
-    });
   }
 
   /* ============================== RENDER: COLUMNS & RULES PANEL ============================== */
@@ -1337,12 +1338,6 @@
     ta.remove(); done(ok);
   }
 
-  $('copyAllCols').dataset.label = 'Copy all';
-  $('copyAllCols').addEventListener('click', () => {
-    const all = includedColumns().map(c => `${c.header || c.key}:\n${columnValueExpr(c)}`).join('\n\n');
-    $('copyAllCols').dataset.copyText = all;
-  });
-
   /* ============================== DATA TAB ACTIONS ============================== */
 
   function showJsonStatus(msg, isError) {
@@ -1372,7 +1367,7 @@
   /* ============================== PA SETTINGS ============================== */
 
   $('paSource').addEventListener('input', e => { state.pa.source = e.target.value; persist(); });
-  $('paActionName').addEventListener('input', e => { state.pa.actionName = e.target.value; refresh(); });
+  $('paSelectName').addEventListener('input', e => { state.pa.selectName = e.target.value; refresh(); });
 
   /* ============================== EXAMPLE / RESET ============================== */
 
@@ -1388,7 +1383,7 @@
   function initAll() {
     $('jsonInput').value = state.rawJson || '';
     $('paSource').value = state.pa.source || "outputs('Get_items')?['body/value']";
-    $('paActionName').value = state.pa.actionName || 'Create HTML table';
+    $('paSelectName').value = state.pa.selectName || 'Select';
     syncStyleInputs();
     buildColumnsPanel();
     refresh();
