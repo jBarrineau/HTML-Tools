@@ -940,7 +940,6 @@
   function spanStyleStr(fmt) {
     let s = '';
     if (fmt.color) s += `color:${fmt.color};`;
-    if (fmt.bg)    s += `background-color:${fmt.bg};`;
     if (fmt.bold)  s += 'font-weight:bold;';
     return s;
   }
@@ -953,16 +952,22 @@
     return `concat('<span style="${style}">', ${ref}, '</span>')`;
   }
 
-  // Full value expression for a column's "Value" field, nested if(…) most-strict-first.
-  function columnValueExpr(col) {
-    const elseExpr = hasFmt(col.elseFmt) ? styledValueExpr(col, col.elseFmt) : fieldRef(col.key);
+  // Full <td>…</td> expression for one column, with conditional bg on the td itself.
+  function columnCellExpr(col, baseTdStyle) {
+    function tdOpen(fmt) {
+      const bg = fmt && fmt.bg ? `background-color:${fmt.bg};` : '';
+      const style = baseTdStyle + bg;
+      return style ? paStr(`<td style="${style}">`) : paStr('<td>');
+    }
+    const elseContent = hasFmt(col.elseFmt) ? styledValueExpr(col, col.elseFmt) : fieldRef(col.key);
+    const elseExpr = `concat(${tdOpen(col.elseFmt)}, ${elseContent}, ${paStr('</td>')})`;
     if (!col.rules.length) return elseExpr;
 
     const build = (idx, indent) => {
       if (idx >= col.rules.length) return elseExpr;
       const r = col.rules[idx];
       const cond = ruleCondition(col, r);
-      const thenExpr = styledValueExpr(col, r);
+      const thenExpr = `concat(${tdOpen(r)}, ${styledValueExpr(col, r)}, ${paStr('</td>')})`;
       const inner = build(idx + 1, indent + '  ');
       return `if(${cond},\n${indent}  ${thenExpr},\n${indent}  ${inner}\n${indent})`;
     };
@@ -995,9 +1000,7 @@
       : '';
     const parts = [paStr('<tr>')];
     cols.forEach(col => {
-      parts.push(tdStyle ? paStr(`<td style="${tdStyle}">`) : paStr('<td>'));
-      parts.push(columnValueExpr(col));
-      parts.push(paStr('</td>'));
+      parts.push(columnCellExpr(col, tdStyle));
     });
     parts.push(paStr('</tr>'));
     return 'concat(\n  ' + parts.join(',\n  ') + '\n)';
@@ -1101,8 +1104,12 @@
       '</tr>\n  </thead>';
 
     const body = '  <tbody>\n' + state.rows.map((row, i) => {
-      const zebra = s.zebra && i % 2 === 1 ? ` background-color:${s.zebraColor};` : '';
-      const cells = cols.map(c => `<td style="${tdStyle}${zebra}">${cellInnerHtml(c, row[c.key])}</td>`).join('');
+      const zebraStyle = s.zebra && i % 2 === 1 ? `background-color:${s.zebraColor};` : '';
+      const cells = cols.map(c => {
+        const fmt = effectiveFmt(c, row[c.key]);
+        const bgStyle = fmt && fmt.bg ? `background-color:${fmt.bg};` : '';
+        return `<td style="${tdStyle}${zebraStyle}${bgStyle}">${cellInnerHtml(c, row[c.key])}</td>`;
+      }).join('');
       return `    <tr>${cells}</tr>`;
     }).join('\n') + '\n  </tbody>';
 
