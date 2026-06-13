@@ -448,7 +448,7 @@
     }
     .panel-caption .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
     .panel-caption .spacer { flex: 1; }
-    .row-count-note { font-size: 12px; color: var(--text-3); }
+    .row-count-note { font-size: 12px; color: var(--green); }
 
     /* ===== OUTPUT ===== */
     .out-step {
@@ -558,12 +558,8 @@
           style="min-height:200px;resize:vertical;"
           placeholder='[{"First Name":"Nicola","Favorite Color":null}, …]'></textarea>
         <div style="display:flex;gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap;">
-          <button class="mini-btn amber" id="btnParse" type="button">Parse &amp; build columns</button>
           <button class="mini-btn" id="btnUseExample" type="button">Use example data</button>
           <span id="jsonStatus" style="font-size:12.5px;flex:1;min-width:120px;"></span>
-        </div>
-        <div class="hint amber">
-          <strong>How it works:</strong> a <strong>Select</strong> action builds one <code>&lt;tr&gt;</code> per item — each column value is wrapped in an <code>if(…)</code> rule that applies a coloured <code>&lt;span&gt;</code> inline. A <strong>Compose</strong> action wraps the rows in a complete table. The email body just references <code>outputs('Compose')</code> — no unescaping needed. Technique from <strong>tomriha.com</strong>.
         </div>
       </div>
 
@@ -648,7 +644,6 @@
       <div class="panel">
         <div class="tab-strip" role="tablist" aria-label="Output formats">
           <button role="tab" aria-selected="true"  data-tab="outFlow"   id="outBtnFlow"   type="button">Power Automate setup</button>
-          <button role="tab" aria-selected="false" data-tab="outStatic" id="outBtnStatic" type="button">Static HTML</button>
         </div>
 
         <!-- FLOW SETUP -->
@@ -708,19 +703,6 @@
           </div>
         </div>
 
-        <!-- STATIC -->
-        <div class="tab-body" id="outStatic" role="tabpanel" aria-labelledby="outBtnStatic">
-          <div class="out-step">
-            <div class="out-step-head">
-              <span class="step-badge">⧉</span>
-              <h3>Rendered table with your sample data</h3>
-              <span class="spacer"></span>
-              <button class="copy-btn" data-copy="outStaticCode" type="button">Copy</button>
-            </div>
-            <pre class="out-code" id="outStaticCode" style="max-height:460px;"></pre>
-            <p class="out-tip">Fully styled, self-contained HTML with the conditional colours baked in. Paste into a test email to preview the look.</p>
-          </div>
-        </div>
       </div>
     </div>
   </main>
@@ -843,7 +825,7 @@
     const prev = new Map((st.columns || []).map(c => [c.key, c]));
     st.columns = keys.map(k => {
       if (prev.has(k)) { const c = prev.get(k); c.include = c.include !== false; return c; }
-      return { key: k, header: k, include: true, rules: [], elseFmt: blankFmt() };
+      return { key: k, header: k, include: true, collapsed: true, rules: [], elseFmt: blankFmt() };
     });
 
     if (autoColor) st.columns.forEach(c => maybeAutoColor(st, c));
@@ -1113,7 +1095,7 @@
   }
 
   // A standalone, styled table with sample data and colours baked in.
-  function staticTableHtml() {
+  function staticTableHtml(limit) {
     const s = state.style;
     const cols = includedColumns();
     const border = s.borderStyle === 'none' ? '' :
@@ -1127,7 +1109,8 @@
       cols.map(c => `<th style="${thStyle}">${escHtml(c.header || c.key)}</th>`).join('') +
       '</tr>\n  </thead>';
 
-    const body = '  <tbody>\n' + state.rows.map((row, i) => {
+    const rows = limit != null ? state.rows.slice(0, limit) : state.rows;
+    const body = '  <tbody>\n' + rows.map((row, i) => {
       const zebraStyle = s.zebra && i % 2 === 1 ? `background-color:${s.zebraColor};` : '';
       const cells = cols.map(c => {
         const fmt = effectiveFmt(c, row[c.key]);
@@ -1148,17 +1131,19 @@
       $('previewBody').innerHTML = '<p style="color:#888;font-family:sans-serif;font-size:14px;">No data — paste a JSON array on the Data tab.</p>';
       $('rowCountNote').textContent = '';
     } else {
-      $('previewBody').innerHTML = staticTableHtml();
+      const PREVIEW_LIMIT = 5;
+      $('previewBody').innerHTML = staticTableHtml(PREVIEW_LIMIT);
       const exprRules = cols.some(c => c.rules.some(r => r.valueType === 'expression'));
+      const previewNote = state.rows.length > PREVIEW_LIMIT ? ` · showing first ${PREVIEW_LIMIT}` : '';
       $('rowCountNote').textContent =
         `${state.rows.length} row${state.rows.length !== 1 ? 's' : ''} · ${cols.length} column${cols.length !== 1 ? 's' : ''}` +
+        previewNote +
         (exprRules ? ' · expression rules shown unstyled' : '');
     }
 
     $('outSelectMap').textContent = rowMapExpr();
     $('outCompose').textContent = composeExpr();
     $('outEmail').textContent = emailBodyExpr();
-    $('outStaticCode').textContent = staticTableHtml();
 
     const zebraOn = state.style.enabled && state.style.zebra;
     $('zebraFromHint').style.display = zebraOn ? '' : 'none';
@@ -1264,8 +1249,7 @@
     const typeSel = el('select', { class: 'rule-vtype', title: 'How to treat the value',
       onchange: e => { rule.valueType = e.target.value; buildColumnsPanel(); refresh(); } },
       el('option', { value: 'text', text: 'text' }),
-      el('option', { value: 'number', text: 'number' }),
-      el('option', { value: 'expression', text: 'expr' })
+      el('option', { value: 'number', text: 'number' })
     );
     typeSel.value = rule.valueType;
 
@@ -1425,8 +1409,12 @@
     if (res.ok) { buildColumnsPanel(); refresh(); }
   }
 
-  $('btnParse').addEventListener('click', parseInput);
-  $('jsonInput').addEventListener('input', () => { state.rawJson = $('jsonInput').value; persist(); });
+  let parseTimer = null;
+  $('jsonInput').addEventListener('input', () => {
+    state.rawJson = $('jsonInput').value;
+    clearTimeout(parseTimer);
+    parseTimer = setTimeout(parseInput, 400);
+  });
 
   function loadExampleData() {
     $('jsonInput').value = EXAMPLE_JSON;
@@ -1471,7 +1459,6 @@
 
   wireStyleInputs();
   wireTabs($('designerPanel'));
-  wireTabs(document.querySelector('.workspace > div:last-child > .panel:last-child'));
   initAll();
   </script>
 </body>
