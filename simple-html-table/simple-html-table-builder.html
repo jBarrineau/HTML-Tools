@@ -506,6 +506,91 @@
     .out-tip { font-size: 12.5px; color: var(--text-2); padding: 8px 14px 12px; }
     .out-tip code { font-family: var(--mono); font-size: 11.5px; color: var(--cyan); }
 
+    /* ===== MODAL ===== */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.65);
+      backdrop-filter: blur(3px);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 200ms ease;
+    }
+    .modal-backdrop.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r-lg);
+      width: 100%;
+      max-width: 1200px;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+      transform: translateY(16px);
+      transition: transform 200ms ease;
+    }
+    .modal-backdrop.open .modal {
+      transform: translateY(0);
+    }
+    .modal-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--line);
+      flex-shrink: 0;
+    }
+    .modal-header h2 {
+      font-size: 15px;
+      font-weight: 700;
+      flex: 1;
+    }
+    .modal-header h2 em { font-style: normal; color: var(--amber); }
+    .modal-close {
+      background: transparent;
+      border: 1px solid var(--raised);
+      color: var(--text-2);
+      width: 32px; height: 32px;
+      border-radius: var(--r-sm);
+      font-size: 16px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .modal-close:hover { color: var(--text); border-color: var(--text-3); }
+    .modal-body {
+      overflow-y: auto;
+      padding: 20px;
+      flex: 1;
+    }
+    .modal-cols {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      align-items: start;
+    }
+    @media (max-width: 860px) {
+      .modal-cols { grid-template-columns: 1fr; }
+    }
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      padding: 14px 20px;
+      border-top: 1px solid var(--line);
+      flex-shrink: 0;
+    }
+
     footer {
       text-align: center;
       color: var(--text-3);
@@ -535,8 +620,84 @@
     <div class="header-actions">
       <button class="btn-ghost" id="btnExample" type="button">Load example</button>
       <button class="btn-ghost" id="btnReset" type="button">Reset</button>
+      <button class="btn-amber" id="btnOpenModal" type="button">Generate Power Automate Code</button>
     </div>
   </header>
+
+  <!-- ================= MODAL: POWER AUTOMATE SETUP ================= -->
+  <div class="modal-backdrop" id="paModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="modalTitle">Power Automate <em>Setup</em></h2>
+        <button class="modal-close" id="btnCloseModal" type="button" aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-cols">
+
+          <!-- COLUMN 1: SELECT -->
+          <div class="out-step" style="margin-bottom:0;">
+            <div class="out-step-head">
+              <span class="step-badge">1</span>
+              <h3>Select — <span class="where">From &amp; Map</span></h3>
+            </div>
+            <div style="padding:12px 14px 0;">
+              <label class="field-label" for="paSource">From — array your flow loops over</label>
+              <input type="text" id="paSource" class="code" spellcheck="false"
+                value="outputs('Get_items')?['body/value']">
+            </div>
+            <div id="zebraFromHint" style="display:none;padding:8px 14px 0;">
+              <div class="hint amber" style="margin:0;">
+                <strong>Zebra striping is on.</strong> Inline row colours need the row index, so use this in the <strong>From</strong> field instead of your array directly:
+                <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+                  <code id="zebraFromCode" style="font-family:var(--mono);font-size:11.5px;color:var(--amber);flex:1;word-break:break-all;"></code>
+                  <button class="copy-btn" data-copy="zebraFromCode" type="button" style="flex-shrink:0;min-height:26px;padding:4px 10px;font-size:11px;">Copy</button>
+                </div>
+              </div>
+            </div>
+            <div class="out-step-head" style="background:none;border-top:1px solid var(--line);border-bottom:none;padding-top:10px;">
+              <span style="font-size:12.5px;font-weight:600;color:var(--text-2);">Map — paste into the <code style="font-family:var(--mono);font-size:11.5px;color:var(--cyan);">fx</code> editor</span>
+              <span class="spacer"></span>
+              <button class="copy-btn" data-copy="outSelectMap" type="button">Copy</button>
+            </div>
+            <pre class="out-code" id="outSelectMap" style="max-height:none;"></pre>
+            <p class="out-tip">Set <strong>From</strong> to the array above. For <strong>Map</strong>, open the <code>fx</code> editor and paste the expression — it builds one <code>&lt;tr&gt;</code> per item with inline styles and conditional colour spans.</p>
+            <div style="padding:0 14px 12px;">
+              <label class="field-label" for="paSelectName">Select action name (referenced by the Compose step)</label>
+              <input type="text" id="paSelectName" value="Select" style="max-width:240px;">
+            </div>
+          </div>
+
+          <!-- COLUMN 2: COMPOSE -->
+          <div class="out-step" style="margin-bottom:0;">
+            <div class="out-step-head">
+              <span class="step-badge">2</span>
+              <h3>Compose — <span class="where">Inputs</span></h3>
+              <span class="spacer"></span>
+              <button class="copy-btn" data-copy="outCompose" type="button">Copy</button>
+            </div>
+            <pre class="out-code" id="outCompose" style="max-height:none;"></pre>
+            <p class="out-tip">Add a <strong>Compose</strong> action after Select. Open the <code>fx</code> editor in <strong>Inputs</strong> and paste this — it wraps the rows with the header and optional styling into a complete table string.</p>
+          </div>
+
+          <!-- COLUMN 3: EMAIL -->
+          <div class="out-step" style="margin-bottom:0;">
+            <div class="out-step-head">
+              <span class="step-badge">3</span>
+              <h3>Send an email (V2) — <span class="where">Body (code view)</span></h3>
+              <span class="spacer"></span>
+              <button class="copy-btn" data-copy="outEmail" type="button">Copy</button>
+            </div>
+            <pre class="out-code" id="outEmail" style="max-height:none;"></pre>
+            <p class="out-tip">In the email <strong>Body</strong>, switch to <strong>code view</strong> (<code>&lt;/&gt;</code>) and paste this. No unescaping needed — the Compose action already holds real HTML. Rename <code>Compose</code> if your action has a different name.</p>
+          </div>
+
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-ghost" id="btnCloseModal2" type="button">Close</button>
+      </div>
+    </div>
+  </div>
 
   <main class="workspace">
 
@@ -641,69 +802,6 @@
         </div>
       </div>
 
-      <div class="panel">
-        <div class="tab-strip" role="tablist" aria-label="Output formats">
-          <button role="tab" aria-selected="true"  data-tab="outFlow"   id="outBtnFlow"   type="button">Power Automate setup</button>
-        </div>
-
-        <!-- FLOW SETUP -->
-        <div class="tab-body active" id="outFlow" role="tabpanel" aria-labelledby="outBtnFlow">
-          <div class="out-step">
-            <div class="out-step-head">
-              <span class="step-badge">1</span>
-              <h3>Select — <span class="where">From &amp; Map</span></h3>
-            </div>
-            <div style="padding:12px 14px 0;">
-              <label class="field-label" for="paSource">From — array your flow loops over</label>
-              <input type="text" id="paSource" class="code" spellcheck="false"
-                value="outputs('Get_items')?['body/value']">
-            </div>
-            <div id="zebraFromHint" style="display:none;padding:8px 14px 0;">
-              <div class="hint amber" style="margin:0;">
-                <strong>Zebra striping is on.</strong> Inline row colours need the row index, so use this in the <strong>From</strong> field instead of your array directly:
-                <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
-                  <code id="zebraFromCode" style="font-family:var(--mono);font-size:11.5px;color:var(--amber);flex:1;word-break:break-all;"></code>
-                  <button class="copy-btn" data-copy="zebraFromCode" type="button" style="flex-shrink:0;min-height:26px;padding:4px 10px;font-size:11px;">Copy</button>
-                </div>
-              </div>
-            </div>
-            <div class="out-step-head" style="background:none;border-top:1px solid var(--line);border-bottom:none;padding-top:10px;">
-              <span style="font-size:12.5px;font-weight:600;color:var(--text-2);">Map — paste into the <code style="font-family:var(--mono);font-size:11.5px;color:var(--cyan);">fx</code> editor</span>
-              <span class="spacer"></span>
-              <button class="copy-btn" data-copy="outSelectMap" type="button">Copy</button>
-            </div>
-            <pre class="out-code" id="outSelectMap"></pre>
-            <p class="out-tip">Set <strong>From</strong> to the array above. For <strong>Map</strong>, open the <code>fx</code> editor and paste the expression — it builds one <code>&lt;tr&gt;</code> per item with inline styles and conditional colour spans.</p>
-            <div style="padding:0 14px 12px;">
-              <label class="field-label" for="paSelectName">Select action name (referenced by the Compose step)</label>
-              <input type="text" id="paSelectName" value="Select" style="max-width:240px;">
-            </div>
-          </div>
-
-          <div class="out-step">
-            <div class="out-step-head">
-              <span class="step-badge">2</span>
-              <h3>Compose — <span class="where">Inputs</span></h3>
-              <span class="spacer"></span>
-              <button class="copy-btn" data-copy="outCompose" type="button">Copy</button>
-            </div>
-            <pre class="out-code" id="outCompose"></pre>
-            <p class="out-tip">Add a <strong>Compose</strong> action after Select. Open the <code>fx</code> editor in <strong>Inputs</strong> and paste this — it wraps the rows with the header and optional styling into a complete table string.</p>
-          </div>
-
-          <div class="out-step">
-            <div class="out-step-head">
-              <span class="step-badge">3</span>
-              <h3>Send an email (V2) — <span class="where">Body (code view)</span></h3>
-              <span class="spacer"></span>
-              <button class="copy-btn" data-copy="outEmail" type="button">Copy</button>
-            </div>
-            <pre class="out-code" id="outEmail"></pre>
-            <p class="out-tip">In the email <strong>Body</strong>, switch to <strong>code view</strong> (<code>&lt;/&gt;</code>) and paste this. No unescaping needed — the Compose action already holds real HTML. Rename <code>Compose</code> if your action has a different name.</p>
-          </div>
-        </div>
-
-      </div>
     </div>
   </main>
 
@@ -1456,6 +1554,24 @@
     state.columns.forEach(c => { c.collapsed = !allCollapsed; });
     buildColumnsPanel();
   });
+
+  /* ============================== MODAL ============================== */
+
+  function openModal() {
+    $('paModal').classList.add('open');
+    document.body.style.overflow = 'hidden';
+    $('btnCloseModal').focus();
+  }
+  function closeModal() {
+    $('paModal').classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
+  $('btnOpenModal').addEventListener('click', openModal);
+  $('btnCloseModal').addEventListener('click', closeModal);
+  $('btnCloseModal2').addEventListener('click', closeModal);
+  $('paModal').addEventListener('click', e => { if (e.target === $('paModal')) closeModal(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('paModal').classList.contains('open')) closeModal(); });
 
   wireStyleInputs();
   wireTabs($('designerPanel'));
