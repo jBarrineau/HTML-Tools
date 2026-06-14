@@ -636,7 +636,7 @@
             <div id="paSourceWrap" style="padding:12px 14px 0;">
               <label class="field-label" for="paSource">From — array your flow loops over</label>
               <input type="text" id="paSource" class="code" spellcheck="false"
-                value="outputs('Get_items')?['body/value']">
+                value="body('SelectTransform')">
               <div id="paSourceError" style="display:none;margin-top:6px;font-size:12px;color:var(--red);"></div>
             </div>
             <div id="zebraFromHint" style="display:none;padding:8px 14px 0;">
@@ -654,11 +654,6 @@
               <button class="copy-btn" data-copy="outSelectMap" type="button">Copy</button>
             </div>
             <pre class="out-code" id="outSelectMap" style="max-height:none;"></pre>
-            <p class="out-tip">Set <strong>From</strong> to the array above. For <strong>Map</strong>, open the <code>fx</code> editor and paste the expression — it builds one <code>&lt;tr&gt;</code> per item with inline styles and conditional colour spans.</p>
-            <div style="padding:0 14px 12px;">
-              <label class="field-label" for="paSelectName">Select action name (referenced by the Compose step)</label>
-              <input type="text" id="paSelectName" value="Select" style="max-width:240px;">
-            </div>
           </div>
 
           <!-- COLUMN 2: COMPOSE -->
@@ -668,6 +663,10 @@
               <h3>Compose — <span class="where">Inputs</span></h3>
               <span class="spacer"></span>
               <button class="copy-btn" data-copy="outCompose" type="button">Copy</button>
+            </div>
+            <div style="padding:0 14px 12px;">
+              <label class="field-label" for="paSelectName">The name of your Select Action from Step 1</label>
+              <input type="text" id="paSelectName" value="Select" style="max-width:240px;">
             </div>
             <pre class="out-code" id="outCompose" style="max-height:none;"></pre>
             <p class="out-tip">Add a <strong>Compose</strong> action after Select. Open the <code>fx</code> editor in <strong>Inputs</strong> and paste this — it wraps the rows with the header and optional styling into a complete table string.</p>
@@ -848,7 +847,7 @@
         borderStyle: 'grid', borderColor: '#d0d7de', pad: 8,
         zebra: false, zebraColor: '#f3f6fb'
       },
-      pa: { source: "outputs('Get_items')?['body/value']", selectName: 'Select' }
+      pa: { source: "body('SelectTransform')", selectName: 'Select' }
     };
     ingest(st, EXAMPLE_JSON, /*autoColor*/ true);
     return st;
@@ -984,14 +983,14 @@
 
   function fieldRef(key) {
     if (state.style.enabled && state.style.zebra) {
-      const src = (state.pa.source || "outputs('Get_items')?['body/value']").trim();
+      const src = (state.pa.source || "body('SelectTransform')").trim();
       return `${src}[item()]?['${String(key).replace(/'/g, "''")}']`;
     }
     return `item()?['${String(key).replace(/'/g, "''")}']`;
   }
 
   function zebraFromExpr() {
-    const src = (state.pa.source || "outputs('Get_items')?['body/value']").trim();
+    const src = (state.pa.source || "body('SelectTransform')").trim();
     return `range(0, length(${src}))`;
   }
 
@@ -1566,7 +1565,7 @@
 
   function initAll() {
     $('jsonInput').value = state.rawJson || '';
-    $('paSource').value = state.pa.source || "outputs('Get_items')?['body/value']";
+    $('paSource').value = state.pa.source || "body('SelectTransform')";
     $('paSelectName').value = state.pa.selectName || 'Select';
     syncStyleInputs();
     buildColumnsPanel();
