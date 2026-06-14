@@ -348,7 +348,7 @@
       min-height: 30px; font-size: 12.5px; padding: 4px 7px; width: 100%;
     }
     .rule-fmt { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-    .rule-fmt .swatch-label {
+    .swatch-label {
       font-size: 11px; color: var(--text-2);
       display: flex; align-items: center; gap: 4px;
     }
@@ -772,7 +772,7 @@
           <label class="check-row"><input type="checkbox" id="stZebra"> Zebra striping (banded rows)</label>
           <div class="ctl-row" id="zebraRow">
             <div class="narrow"><label class="field-label" for="stZebraColor">Band color</label><input type="color" id="stZebraColor"></div>
-            <div><p style="font-size:12px;color:var(--text-3);padding-bottom:8px;">Uses <code style="font-family:var(--mono);color:var(--cyan);">nth-child</code> — works in Outlook web &amp; most clients.</p></div>
+            <div></div>
           </div>
         </div>
       </div>
@@ -882,7 +882,7 @@
   function ingest(st, jsonStr, autoColor) {
     jsonStr = (jsonStr || '').trim();
     st.rawJson = jsonStr;
-    if (!jsonStr) return { ok: false, message: 'Paste a JSON array to begin.' };
+    if (!jsonStr) { st.rows = []; return { ok: false, message: 'Paste a JSON array to begin.' }; }
 
     let parsed;
     try { parsed = JSON.parse(jsonStr); }
@@ -1419,12 +1419,17 @@
       oninput: e => { f.color = e.target.value; buildColumnsPanel(); refresh(); } });
     const clearColor = el('button', { class: 'btn-danger-ghost', type: 'button', title: 'No colour (plain value)', text: '∅', style: 'padding:2px 5px;',
       onclick: () => { f.color = ''; buildColumnsPanel(); refresh(); } });
+    const bgBox = el('input', { type: 'color', value: f.bg || '#ffffff', 'aria-label': 'Otherwise background colour', style: 'width:30px;height:30px;',
+      oninput: e => { f.bg = e.target.value; buildColumnsPanel(); refresh(); } });
+    const clearBg = el('button', { class: 'btn-danger-ghost', type: 'button', title: 'No background', text: '∅', style: 'padding:2px 5px;',
+      onclick: () => { f.bg = ''; buildColumnsPanel(); refresh(); } });
     const boldBox = el('input', { type: 'checkbox', onchange: e => { f.bold = e.target.checked; refresh(); } });
     boldBox.checked = !!f.bold;
 
     return el('div', { class: 'else-row' },
       el('span', { class: 'lbl', text: 'Otherwise' }),
-      el('span', { class: 'swatch-label', style: 'font-size:11px;color:var(--text-2);' }, colorBox, f.color ? clearColor : null),
+      el('span', { class: 'swatch-label', style: 'font-size:11px;color:var(--text-2);' }, 'text', colorBox, f.color ? clearColor : null),
+      el('span', { class: 'swatch-label', style: 'font-size:11px;color:var(--text-2);' }, 'bg', bgBox, f.bg ? clearBg : null),
       el('label', { class: 'swatch-label', style: 'font-size:11px;color:var(--text-2);cursor:pointer;' }, boldBox, 'bold'),
       el('span', { style: 'font-size:11px;color:var(--text-3);flex:1;text-align:right;' },
         hasFmt(f) ? 'styled fallback' : 'plain value')
@@ -1518,7 +1523,12 @@
   function parseInput() {
     const res = ingest(state, $('jsonInput').value, false);
     showJsonStatus(res.message, res.error);
-    if (res.ok) { buildColumnsPanel(); refresh(); }
+    if (res.ok) {
+      buildColumnsPanel(); refresh();
+      if ($('tabBtnData').getAttribute('aria-selected') === 'true') $('tabBtnRules').click();
+    } else if (!res.error) {
+      buildColumnsPanel(); refresh();
+    }
   }
 
   let parseTimer = null;
