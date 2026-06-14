@@ -34,8 +34,9 @@
     --text-muted: #6b7280;
 
     /* Interactive Elements */
-    --btn-primary: rgba(255, 255, 255, 0.7);
-    --btn-hover: rgba(255, 255, 255, 0.9);
+    --btn-primary: rgba(255, 255, 255, 0.88);
+    --btn-hover: #fff;
+    --btn-border: rgba(0, 0, 0, 0.18);
 
     --accent: #7c3aed;
     --accent-soft: rgba(124, 58, 237, 0.12);
@@ -166,7 +167,7 @@
     font-size: var(--text-sm);
     color: var(--text-main);
     background: var(--btn-primary);
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--btn-border);
     border-radius: 10px;
     padding: 7px 14px;
     cursor: pointer;
@@ -217,16 +218,17 @@
   }
   .segmented {
     display: inline-flex;
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--btn-border);
     border-radius: 10px;
     overflow: hidden;
-    background: rgba(255,255,255,0.4);
+    background: rgba(255,255,255,0.6);
   }
   .segmented label {
     cursor: pointer;
     padding: 6px 12px;
     font-size: var(--text-sm);
-    color: var(--text-muted);
+    color: var(--text-main);
+    font-weight: 550;
     transition: background 0.15s ease, color 0.15s ease;
   }
   .segmented input { display: none; }
@@ -261,7 +263,6 @@
     border-color: var(--accent);
     box-shadow: 0 0 0 3px var(--accent-soft);
   }
-  .var-field.disabled { opacity: 0.45; }
 
   /* Output */
   .output-scroll {
@@ -347,9 +348,6 @@
     white-space: pre;
   }
   .copy-btn {
-    position: absolute;
-    top: 7px;
-    right: 7px;
     font-family: inherit;
     font-size: var(--text-xs);
     color: var(--accent);
@@ -359,7 +357,14 @@
     padding: 3px 9px;
     cursor: pointer;
     transition: background 0.15s ease;
+    white-space: nowrap;
   }
+  .code-inner .copy-btn {
+    position: absolute;
+    top: 7px;
+    right: 7px;
+  }
+  .card-head .copy-btn { margin-left: auto; }
   .copy-btn:hover { background: #fff; }
   .copy-btn.copied { color: #059669; border-color: #059669; }
 
@@ -425,11 +430,11 @@
     box-shadow: inset 0 0 0 1px var(--accent);
   }
   .tree-chev {
-    width: 14px;
-    flex: 0 0 14px;
+    width: 18px;
+    flex: 0 0 18px;
     text-align: center;
     color: var(--text-muted);
-    font-size: 0.7rem;
+    font-size: 0.9rem;
     user-select: none;
   }
   .tree-chev.leaf { color: transparent; }
@@ -512,16 +517,10 @@
         <textarea id="jsonInput" spellcheck="false" placeholder='Paste JSON here, e.g.&#10;{&#10;  "name": "Contoso",&#10;  "founded": 2008,&#10;  "isActive": true&#10;}'></textarea>
 
         <div class="options">
-          <div class="var-field" id="modeField">
-            <span>JSON source:</span>
-            <div class="segmented" id="sourceMode">
-              <label><input type="radio" name="src" value="variable" checked><span>Variable</span></label>
-              <label><input type="radio" name="src" value="inline"><span>Inline string</span></label>
-            </div>
-          </div>
           <div class="var-field" id="varWrap">
             <span>Variable name:</span>
-            <input type="text" id="varName" value="parsedJSON" spellcheck="false" />
+            <input type="text" id="varName" value="varTestJSON" spellcheck="false" />
+            <button class="btn small primary" id="copySetupBtn">Copy — Set Variable in Canvas App</button>
           </div>
         </div>
       </section>
@@ -532,10 +531,9 @@
           <h2>Power Fx Formulas</h2>
           <div class="toolbar">
             <div class="segmented" id="viewMode">
-              <label><input type="radio" name="view" value="list" checked><span>List</span></label>
-              <label><input type="radio" name="view" value="tree"><span>Tree</span></label>
+              <label><input type="radio" name="view" value="list"><span>List</span></label>
+              <label><input type="radio" name="view" value="tree" checked><span>Tree</span></label>
             </div>
-            <button class="btn small primary" id="copyAllBtn">Copy all</button>
           </div>
         </div>
         <div class="output-scroll" id="output"></div>
@@ -555,12 +553,9 @@
   const treeScroll  = $('treeScroll');
   const treeDetail  = $('treeDetail');
   const varNameInput= $('varName');
-  const varWrap     = $('varWrap');
 
-  let sourceMode = 'variable';
-  let viewMode   = 'list';        // 'list' | 'tree'
-  let inlineBase = '';            // ParseJSON("...") literal, set on each generate
-  let lastBundle = '';           // full text for "Copy all"
+  let viewMode      = 'tree';     // 'list' | 'tree'
+  let lastSetupCode = '';        // Set(...) block for the copy button
   let lastParsed = undefined;    // last successfully parsed JSON (for the tree)
   const MAX_ARRAY_NODES = 100;   // cap tree children for very large arrays
 
@@ -607,8 +602,7 @@
   }
 
   function baseExpr(){
-    if (sourceMode === 'variable') return (varNameInput.value.trim() || 'parsedJSON');
-    return inlineBase;
+    return varNameInput.value.trim() || 'parsedJSON';
   }
 
   // Build a ForAll(...) that maps an array's items into a typed record/table
@@ -653,7 +647,6 @@
       if (n === 0){
         blocks.push({ label: 'Empty array', code: expr });
       } else {
-        blocks.push({ label: 'First element (1-based index)', code: `Index(${expr}, 1)` });
         blocks.push({ label: 'Map every item into a table', code: buildForAll(expr, value[0]) });
       }
       return { kind: 'array', meta: `${n} item${n === 1 ? '' : 's'}`, blocks };
@@ -697,7 +690,6 @@
       if (n === 0){
         blocks.push({ label: `Empty array`, code: expr });
       } else {
-        blocks.push({ label: `First element (1-based index)`, code: `Index(${expr}, 1)` });
         blocks.push({ label: `Map every item into a table`, code: buildForAll(expr, value[0]) });
       }
       cards.push({ path: disp || '(root array)', kind: 'array',
@@ -739,14 +731,17 @@
     document.body.removeChild(ta);
   }
 
-  function codeBlock(label, code){
+  function codeBlock(label, code, hideCopy = false){
     const wrap = el('div', 'code-block');
     if (label){ const l = el('div', 'code-label'); l.textContent = label; wrap.appendChild(l); }
     const inner = el('div', 'code-inner');
     const pre = el('pre', 'code'); pre.textContent = code;
-    const btn = el('button', 'copy-btn'); btn.type = 'button'; btn.textContent = 'Copy';
-    btn.addEventListener('click', () => copyText(code, btn));
-    inner.appendChild(pre); inner.appendChild(btn);
+    inner.appendChild(pre);
+    if (!hideCopy){
+      const btn = el('button', 'copy-btn'); btn.type = 'button'; btn.textContent = 'Copy';
+      btn.addEventListener('click', () => copyText(code, btn));
+      inner.appendChild(btn);
+    }
     wrap.appendChild(inner);
     return wrap;
   }
@@ -787,8 +782,12 @@
     const badge = el('span', 'badge ' + info.kind); badge.textContent = info.kind;
     head.appendChild(path); head.appendChild(badge);
     if (info.meta){ const m = el('span', 'hint'); m.textContent = info.meta; head.appendChild(m); }
+    const allCode = info.blocks.map(b => b.code).join('\n\n');
+    const copyBtn = el('button', 'copy-btn'); copyBtn.type = 'button'; copyBtn.textContent = 'Copy';
+    copyBtn.addEventListener('click', () => copyText(allCode, copyBtn));
+    head.appendChild(copyBtn);
     card.appendChild(head);
-    for (const b of info.blocks) card.appendChild(codeBlock(b.label, b.code));
+    for (const b of info.blocks) card.appendChild(codeBlock(b.label, b.code, true));
     treeDetail.appendChild(card);
   }
 
@@ -807,7 +806,8 @@
   }
 
   // Build one tree node (row + lazily-shown children) and return the wrapper element.
-  function buildTreeNode(label, value, expr, disp, depth){
+  // autoExpand: remaining levels to open automatically (2 = open this + children).
+  function buildTreeNode(label, value, expr, disp, depth, autoExpand = 0){
     const t = jsonType(value);
     const keys = t === 'object' ? Object.keys(value) : null;
     const isContainer = (t === 'object' || t === 'array');
@@ -847,20 +847,21 @@
       kidsWrap = el('div', 'tree-children');
       kidsWrap.style.display = 'none';
       let built = false;
+      const childAutoExpand = Math.max(0, autoExpand - 1);
       const buildKids = () => {
         if (built) return; built = true;
         if (t === 'object'){
           for (const k of keys){
             kidsWrap.appendChild(buildTreeNode(
               k, value[k], `${expr}.${ident(k)}`,
-              disp ? `${disp}.${k}` : k, depth + 1));
+              disp ? `${disp}.${k}` : k, depth + 1, childAutoExpand));
           }
         } else {
           const limit = Math.min(value.length, MAX_ARRAY_NODES);
           for (let i = 0; i < limit; i++){
             kidsWrap.appendChild(buildTreeNode(
               `[${i + 1}]`, value[i], `Index(${expr}, ${i + 1})`,
-              `${disp}[${i + 1}]`, depth + 1));
+              `${disp}[${i + 1}]`, depth + 1, childAutoExpand));
           }
           if (value.length > limit){
             const more = el('div', 'hint');
@@ -879,6 +880,12 @@
         chev.textContent = open ? '▸' : '▾';
       });
       wrap.appendChild(kidsWrap);
+
+      if (autoExpand > 0){
+        buildKids();
+        kidsWrap.style.display = 'block';
+        chev.textContent = '▾';
+      }
     } else {
       row.addEventListener('click', () => selectRow(row, value, expr, disp || label));
     }
@@ -893,7 +900,7 @@
       detailPlaceholder('Paste valid JSON to build the tree.');
       return;
     }
-    const rootNode = buildTreeNode('(root)', lastParsed, baseExpr(), '', 0);
+    const rootNode = buildTreeNode('(root)', lastParsed, baseExpr(), '', 0, 2);
     treeScroll.appendChild(rootNode);
     detailPlaceholder('Click any node to generate its Power Fx formula.');
   }
@@ -907,38 +914,23 @@
 
   function generate(){
     const raw = jsonInput.value.trim();
-    if (!raw){ renderEmpty(); lastBundle = ''; lastParsed = undefined; if (viewMode === 'tree') renderTree(); return; }
+    if (!raw){ renderEmpty(); lastParsed = undefined; if (viewMode === 'tree') renderTree(); return; }
 
     let parsed;
     try { parsed = JSON.parse(raw); }
-    catch (e){ renderError(e.message); lastBundle = ''; lastParsed = undefined; if (viewMode === 'tree') renderTree(); return; }
+    catch (e){ renderError(e.message); lastParsed = undefined; if (viewMode === 'tree') renderTree(); return; }
     lastParsed = parsed;
 
     const varName = varNameInput.value.trim() || 'parsedJSON';
     const minified = JSON.stringify(parsed);
-    inlineBase = `ParseJSON(${pfString(minified)})`;
 
     output.innerHTML = '';
-    const bundleParts = [];
 
-    /* --- Setup section --- */
-    const setupTitle = el('div', 'section-title'); setupTitle.textContent = 'Setup';
-    output.appendChild(setupTitle);
-
-    const setupHint = el('div', 'hint');
-    setupHint.textContent = sourceMode === 'variable'
-      ? `Run this once (OnVisible / OnStart / a button's OnSelect). Formulas below reference "${varName}".`
-      : 'Inline mode embeds the JSON string in every formula below, so this Set step is optional.';
-    output.appendChild(setupHint);
-
-    const setupCard = el('div', 'card');
-    const setupCode =
+    /* keep setup code available for the copy button */
+    lastSetupCode =
       `// Set once, then reference ${varName} anywhere.\n` +
       `// Tip: swap the literal for a control, e.g. ParseJSON(JsonTextInput.Text)\n` +
       `Set(\n    ${varName},\n    ParseJSON(${pfString(minified)})\n);`;
-    setupCard.appendChild(codeBlock('', setupCode));
-    output.appendChild(setupCard);
-    bundleParts.push(setupCode);
 
     /* --- Field accessors --- */
     const cards = [];
@@ -963,12 +955,9 @@
       card.appendChild(head);
       for (const b of c.blocks){
         card.appendChild(codeBlock(b.label, b.code));
-        bundleParts.push((b.label ? `// ${c.path} — ${b.label}\n` : `// ${c.path}\n`) + b.code);
       }
       output.appendChild(card);
     }
-
-    lastBundle = bundleParts.join('\n\n');
 
     if (viewMode === 'tree') renderTree();
   }
@@ -978,15 +967,6 @@
   jsonInput.addEventListener('input', () => {
     clearTimeout(debounce);
     debounce = setTimeout(generate, 250);
-  });
-
-  document.querySelectorAll('input[name="src"]').forEach(r => {
-    r.addEventListener('change', e => {
-      sourceMode = e.target.value;
-      varWrap.classList.toggle('disabled', sourceMode === 'inline');
-      varNameInput.disabled = (sourceMode === 'inline');
-      generate();
-    });
   });
 
   varNameInput.addEventListener('input', generate);
@@ -1000,10 +980,11 @@
 
   $('clearBtn').addEventListener('click', () => { jsonInput.value = ''; jsonInput.focus(); generate(); });
 
-  $('copyAllBtn').addEventListener('click', () => {
-    if (!lastBundle) return;
-    copyText(lastBundle, $('copyAllBtn'));
+  $('copySetupBtn').addEventListener('click', () => {
+    if (!lastSetupCode) return;
+    copyText(lastSetupCode, $('copySetupBtn'));
   });
+
 
   const SAMPLE = {
     name: "Contoso Ltd",
@@ -1024,6 +1005,7 @@
 
   /* ---------- init ---------- */
   renderEmpty();
+  applyView();
 </script>
 </body>
 </html>
