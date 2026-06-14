@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ParseJSON → Power Fx Generator</title>
+<style>
+  :root {
+    /* System Font Stack */
+    --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+
+    /* Typography Scale */
+    --text-xs: 0.75rem;
+    --text-sm: 0.875rem;
+    --text-base: 1rem;
+    --text-lg: 1.125rem;
+    --text-xl: 1.25rem;
+    --text-2xl: 1.5rem;
+
+    /* App Background */
+    --bg-app: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
+    --bg-accent-blob-1: #ffb6ff;
+    --bg-accent-blob-2: #b3cdd1;
+
+    /* Glassmorphism Tokens */
+    --glass-bg: rgba(255, 255, 255, 0.45);
+    --glass-border: rgba(255, 255, 255, 0.6);
+    --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+    --glass-blur: 12px;
+
+    /* Typography Colors */
+    --text-main: #111827;
+    --text-muted: #6b7280;
+
+    /* Interactive Elements */
+    --btn-primary: rgba(255, 255, 255, 0.7);
+    --btn-hover: rgba(255, 255, 255, 0.9);
+
+    --accent: #7c3aed;
+    --accent-soft: rgba(124, 58, 237, 0.12);
+    --danger: #b91c1c;
+    --danger-soft: rgba(185, 28, 28, 0.1);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    line-height: 1.5;
+    color: var(--text-main);
+    background: var(--bg-app);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    position: relative;
+  }
+
+  /* Decorative blurred blobs */
+  body::before,
+  body::after {
+    content: "";
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(90px);
+    opacity: 0.55;
+    z-index: 0;
+    pointer-events: none;
+  }
+  body::before {
+    width: 460px; height: 460px;
+    background: var(--bg-accent-blob-1);
+    top: -120px; left: -100px;
+  }
+  body::after {
+    width: 520px; height: 520px;
+    background: var(--bg-accent-blob-2);
+    bottom: -160px; right: -120px;
+  }
+
+  .glass-panel {
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+    border-radius: 16px;
+  }
+
+  .app {
+    position: relative;
+    z-index: 1;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    padding: 18px;
+    gap: 16px;
+  }
+
+  header.topbar {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 20px;
+  }
+  header.topbar .logo {
+    width: 40px; height: 40px;
+    flex: 0 0 auto;
+    display: grid; place-items: center;
+    border-radius: 12px;
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+  header.topbar h1 {
+    font-size: var(--text-xl);
+    margin: 0;
+    font-weight: 650;
+  }
+  header.topbar p {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+  }
+
+  main.workspace {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(320px, 1fr) minmax(360px, 1.25fr);
+    gap: 16px;
+  }
+
+  .pane {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding: 16px;
+  }
+
+  .pane-head {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+  .pane-head h2 {
+    font-size: var(--text-base);
+    font-weight: 650;
+    margin: 0;
+  }
+
+  .btn {
+    font-family: inherit;
+    font-size: var(--text-sm);
+    color: var(--text-main);
+    background: var(--btn-primary);
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+    padding: 7px 14px;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.05s ease;
+  }
+  .btn:hover { background: var(--btn-hover); }
+  .btn:active { transform: translateY(1px); }
+  .btn.primary {
+    background: var(--accent);
+    color: #fff;
+    border-color: transparent;
+  }
+  .btn.primary:hover { background: #6d28d9; }
+  .btn.small { padding: 4px 10px; font-size: var(--text-xs); }
+
+  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  textarea#jsonInput {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    resize: none;
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    line-height: 1.55;
+    color: var(--text-main);
+    background: rgba(255, 255, 255, 0.55);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    padding: 14px;
+    outline: none;
+    tab-size: 2;
+  }
+  textarea#jsonInput:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+
+  /* Options */
+  .options {
+    flex: 0 0 auto;
+    margin-top: 12px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    font-size: var(--text-sm);
+  }
+  .segmented {
+    display: inline-flex;
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+    overflow: hidden;
+    background: rgba(255,255,255,0.4);
+  }
+  .segmented label {
+    cursor: pointer;
+    padding: 6px 12px;
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .segmented input { display: none; }
+  .segmented input:checked + span {
+    background: var(--accent);
+    color: #fff;
+  }
+  .segmented label span {
+    display: inline-block;
+    padding: 6px 12px;
+    margin: -6px -12px;
+    border-radius: 0;
+  }
+  .var-field {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--text-muted);
+  }
+  .var-field input {
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    color: var(--text-main);
+    background: rgba(255,255,255,0.6);
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    padding: 5px 9px;
+    width: 130px;
+    outline: none;
+  }
+  .var-field input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .var-field.disabled { opacity: 0.45; }
+
+  /* Output */
+  .output-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .output-scroll::-webkit-scrollbar { width: 10px; }
+  .output-scroll::-webkit-scrollbar-thumb {
+    background: rgba(124,58,237,0.25);
+    border-radius: 10px;
+  }
+
+  .section-title {
+    font-size: var(--text-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    font-weight: 650;
+    margin: 4px 2px 2px;
+  }
+
+  .card {
+    background: rgba(255,255,255,0.5);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    padding: 12px 13px;
+  }
+  .card-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 9px;
+    flex-wrap: wrap;
+  }
+  .path {
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--text-main);
+    word-break: break-all;
+  }
+  .badge {
+    font-size: 0.68rem;
+    font-weight: 650;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 2px 8px;
+    border-radius: 999px;
+    color: #fff;
+  }
+  .badge.string  { background: #2563eb; }
+  .badge.number  { background: #059669; }
+  .badge.boolean { background: #d97706; }
+  .badge.null    { background: #6b7280; }
+  .badge.array   { background: #7c3aed; }
+  .badge.object  { background: #0891b2; }
+  .badge.date    { background: #db2777; }
+
+  .code-block { margin-top: 9px; }
+  .code-block:first-child { margin-top: 0; }
+  .code-label {
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    margin-bottom: 4px;
+  }
+  .code-inner { position: relative; }
+  pre.code {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    line-height: 1.5;
+    color: #1e293b;
+    background: rgba(248, 250, 252, 0.9);
+    border: 1px solid rgba(0,0,0,0.06);
+    border-radius: 10px;
+    padding: 11px 56px 11px 12px;
+    overflow-x: auto;
+    white-space: pre;
+  }
+  .copy-btn {
+    position: absolute;
+    top: 7px;
+    right: 7px;
+    font-family: inherit;
+    font-size: var(--text-xs);
+    color: var(--accent);
+    background: rgba(255,255,255,0.85);
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    padding: 3px 9px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  .copy-btn:hover { background: #fff; }
+  .copy-btn.copied { color: #059669; border-color: #059669; }
+
+  .empty, .error {
+    margin: auto;
+    text-align: center;
+    max-width: 380px;
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    padding: 30px 16px;
+  }
+  .empty svg { opacity: 0.5; margin-bottom: 10px; }
+  .error {
+    color: var(--danger);
+    background: var(--danger-soft);
+    border: 1px solid rgba(185,28,28,0.25);
+    border-radius: 12px;
+    font-family: var(--font-mono);
+    text-align: left;
+    margin: 0;
+    width: 100%;
+  }
+  .hint {
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    margin: -2px 2px 2px;
+  }
+
+  /* Tree view */
+  .tree-view {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .tree-scroll {
+    flex: 1 1 58%;
+    min-height: 80px;
+    overflow: auto;
+    padding: 8px 6px;
+    background: rgba(255,255,255,0.45);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+  }
+  .tree-scroll::-webkit-scrollbar { width: 10px; height: 10px; }
+  .tree-scroll::-webkit-scrollbar-thumb {
+    background: rgba(124,58,237,0.25);
+    border-radius: 10px;
+  }
+  .tree-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px;
+    border-radius: 8px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .tree-row:hover { background: var(--accent-soft); }
+  .tree-row.selected {
+    background: var(--accent-soft);
+    box-shadow: inset 0 0 0 1px var(--accent);
+  }
+  .tree-chev {
+    width: 14px;
+    flex: 0 0 14px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    user-select: none;
+  }
+  .tree-chev.leaf { color: transparent; }
+  .tree-key {
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--text-main);
+  }
+  .tree-preview {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 320px;
+  }
+  .tree-badge {
+    font-size: 0.62rem;
+    font-weight: 650;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 1px 7px;
+    border-radius: 999px;
+    color: #fff;
+    flex: 0 0 auto;
+  }
+  .tree-detail {
+    flex: 0 0 auto;
+    max-height: 42%;
+    overflow: auto;
+    padding-right: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .tree-detail::-webkit-scrollbar { width: 10px; }
+  .tree-detail::-webkit-scrollbar-thumb {
+    background: rgba(124,58,237,0.25);
+    border-radius: 10px;
+  }
+  .tree-detail .detail-placeholder {
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    text-align: center;
+    padding: 18px 12px;
+  }
+
+  @media (max-width: 880px) {
+    main.workspace { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar glass-panel">
+      <div class="logo" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5a2 2 0 0 0 2 2h1"/>
+          <path d="M16 3h1a2 2 0 0 1 2 2v5a2 2 0 0 0 2 2 2 2 0 0 0-2 2v5a2 2 0 0 1-2 2h-1"/>
+        </svg>
+      </div>
+      <div>
+        <h1>ParseJSON → Power Fx Generator</h1>
+        <p>Paste JSON and get copy-ready Power Fx formulas with correct type coercion.</p>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <!-- LEFT: input -->
+      <section class="pane glass-panel">
+        <div class="pane-head">
+          <h2>JSON Input</h2>
+          <div class="toolbar">
+            <button class="btn small" id="sampleBtn">Load sample</button>
+            <button class="btn small" id="clearBtn">Clear</button>
+          </div>
+        </div>
+
+        <textarea id="jsonInput" spellcheck="false" placeholder='Paste JSON here, e.g.&#10;{&#10;  "name": "Contoso",&#10;  "founded": 2008,&#10;  "isActive": true&#10;}'></textarea>
+
+        <div class="options">
+          <div class="var-field" id="modeField">
+            <span>JSON source:</span>
+            <div class="segmented" id="sourceMode">
+              <label><input type="radio" name="src" value="variable" checked><span>Variable</span></label>
+              <label><input type="radio" name="src" value="inline"><span>Inline string</span></label>
+            </div>
+          </div>
+          <div class="var-field" id="varWrap">
+            <span>Variable name:</span>
+            <input type="text" id="varName" value="parsedJSON" spellcheck="false" />
+          </div>
+        </div>
+      </section>
+
+      <!-- RIGHT: output -->
+      <section class="pane glass-panel">
+        <div class="pane-head">
+          <h2>Power Fx Formulas</h2>
+          <div class="toolbar">
+            <div class="segmented" id="viewMode">
+              <label><input type="radio" name="view" value="list" checked><span>List</span></label>
+              <label><input type="radio" name="view" value="tree"><span>Tree</span></label>
+            </div>
+            <button class="btn small primary" id="copyAllBtn">Copy all</button>
+          </div>
+        </div>
+        <div class="output-scroll" id="output"></div>
+        <div class="tree-view" id="treeView" style="display:none;">
+          <div class="tree-scroll" id="treeScroll"></div>
+          <div class="tree-detail" id="treeDetail"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const jsonInput   = $('jsonInput');
+  const output      = $('output');
+  const treeView    = $('treeView');
+  const treeScroll  = $('treeScroll');
+  const treeDetail  = $('treeDetail');
+  const varNameInput= $('varName');
+  const varWrap     = $('varWrap');
+
+  let sourceMode = 'variable';
+  let viewMode   = 'list';        // 'list' | 'tree'
+  let inlineBase = '';            // ParseJSON("...") literal, set on each generate
+  let lastBundle = '';           // full text for "Copy all"
+  let lastParsed = undefined;    // last successfully parsed JSON (for the tree)
+  const MAX_ARRAY_NODES = 100;   // cap tree children for very large arrays
+
+  /* ---------- helpers ---------- */
+  function jsonType(v){
+    if (v === null) return 'null';
+    if (Array.isArray(v)) return 'array';
+    return typeof v; // object | string | number | boolean
+  }
+
+  // Valid Power Fx identifier, otherwise single-quoted name
+  function ident(key){
+    return /^[A-Za-z_][A-Za-z0-9_]*$/.test(key)
+      ? key
+      : "'" + String(key).replace(/'/g, "''") + "'";
+  }
+
+  // Power Fx double-quoted string literal ("" escapes a quote)
+  function pfString(s){ return '"' + String(s).replace(/"/g, '""') + '"'; }
+
+  // 'date' for date-only ISO, 'datetime' when a time component is present, else null
+  function isoKind(s){
+    if (typeof s !== 'string') return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return 'date';
+    if (/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2})?(\.\d+)?(Z|[+\-]\d{2}:?\d{2})?$/.test(s)) return 'datetime';
+    return null;
+  }
+
+  // Returns { code, kind } where kind feeds the type badge.
+  // ISO 8601 strings convert directly (no Text() needed per Power Fx docs):
+  // date-only → DateValue, with a time component → DateTimeValue.
+  function coerce(value, expr){
+    const t = jsonType(value);
+    if (t === 'string'){
+      const iso = isoKind(value);
+      if (iso === 'date')     return { code: `DateValue(${expr})`,     kind: 'date' };
+      if (iso === 'datetime') return { code: `DateTimeValue(${expr})`, kind: 'date' };
+      return { code: `Text(${expr})`, kind: 'string' };
+    }
+    if (t === 'number')  return { code: `Value(${expr})`, kind: 'number' };
+    if (t === 'boolean') return { code: `Boolean(${expr})`, kind: 'boolean' };
+    if (t === 'null')    return { code: `Text(${expr})`, kind: 'null' };
+    return { code: expr, kind: t };
+  }
+
+  function baseExpr(){
+    if (sourceMode === 'variable') return (varNameInput.value.trim() || 'parsedJSON');
+    return inlineBase;
+  }
+
+  // Build a ForAll(...) that maps an array's items into a typed record/table
+  function buildForAll(arrayExpr, sample){
+    const alias = 'ThisItem';
+    if (jsonType(sample) === 'object'){
+      const scalarKeys = Object.keys(sample).filter(k => {
+        const tt = jsonType(sample[k]);
+        return tt !== 'object' && tt !== 'array';
+      });
+      if (scalarKeys.length === 0){
+        return `ForAll(\n    ${arrayExpr} As ${alias},\n    ${alias}\n)`;
+      }
+      const lines = scalarKeys.map(k =>
+        `        ${ident(k)}: ${coerce(sample[k], `${alias}.${ident(k)}`).code}`);
+      return `ForAll(\n    ${arrayExpr} As ${alias},\n    {\n${lines.join(',\n')}\n    }\n)`;
+    }
+    // array of scalars
+    return `ForAll(${arrayExpr} As ${alias}, ${coerce(sample, alias).code})`;
+  }
+
+  // Type used for the tree row badge (objects/arrays included, ISO strings -> date)
+  function displayKind(value){
+    const t = jsonType(value);
+    if (t === 'string') return isoKind(value) ? 'date' : 'string';
+    return t; // object | array | number | boolean | null
+  }
+
+  // Formula block(s) + badge kind/meta for a single node — used by the tree detail panel.
+  function nodeFormula(value, expr){
+    const t = jsonType(value);
+    if (t === 'object'){
+      const keys = Object.keys(value);
+      if (keys.length === 0)
+        return { kind: 'object', blocks: [{ label: 'Empty object', code: expr }] };
+      return { kind: 'object', meta: `${keys.length} field${keys.length === 1 ? '' : 's'}`,
+               blocks: [{ label: 'Record reference', code: expr }] };
+    }
+    if (t === 'array'){
+      const n = value.length;
+      const blocks = [];
+      if (n === 0){
+        blocks.push({ label: 'Empty array', code: expr });
+      } else {
+        blocks.push({ label: 'First element (1-based index)', code: `Index(${expr}, 1)` });
+        blocks.push({ label: 'Map every item into a table', code: buildForAll(expr, value[0]) });
+      }
+      return { kind: 'array', meta: `${n} item${n === 1 ? '' : 's'}`, blocks };
+    }
+    const c = coerce(value, expr);
+    return { kind: c.kind, blocks: [{ label: '', code: c.code }] };
+  }
+
+  // Short, single-line preview of a leaf value for the tree row
+  function leafPreview(value){
+    const t = jsonType(value);
+    if (t === 'string'){
+      const s = value.length > 40 ? value.slice(0, 40) + '…' : value;
+      return '"' + s + '"';
+    }
+    if (t === 'null') return 'null';
+    return String(value);
+  }
+
+  /* ---------- walk the JSON into renderable cards ---------- */
+  function walk(value, expr, disp, cards){
+    const t = jsonType(value);
+
+    if (t === 'object'){
+      const keys = Object.keys(value);
+      if (keys.length === 0){
+        cards.push({ path: disp || '(root)', kind: 'null', blocks: [
+          { label: 'Empty object', code: expr }
+        ]});
+        return;
+      }
+      for (const k of keys){
+        walk(value[k], `${expr}.${ident(k)}`, disp ? `${disp}.${k}` : k, cards);
+      }
+      return;
+    }
+
+    if (t === 'array'){
+      const n = value.length;
+      const blocks = [];
+      if (n === 0){
+        blocks.push({ label: `Empty array`, code: expr });
+      } else {
+        blocks.push({ label: `First element (1-based index)`, code: `Index(${expr}, 1)` });
+        blocks.push({ label: `Map every item into a table`, code: buildForAll(expr, value[0]) });
+      }
+      cards.push({ path: disp || '(root array)', kind: 'array',
+                   meta: `${n} item${n === 1 ? '' : 's'}`, blocks });
+      if (n > 0){
+        walk(value[0], `Index(${expr}, 1)`, `${disp || ''}[1]`, cards);
+      }
+      return;
+    }
+
+    const c = coerce(value, expr);
+    cards.push({ path: disp || '(root)', kind: c.kind, blocks: [{ label: '', code: c.code }] });
+  }
+
+  /* ---------- rendering ---------- */
+  function el(tag, cls){ const e = document.createElement(tag); if (cls) e.className = cls; return e; }
+
+  function copyText(text, btn){
+    const done = () => {
+      const old = btn.textContent;
+      btn.textContent = 'Copied!';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = old; btn.classList.remove('copied'); }, 1300);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
+    } else {
+      fallbackCopy(text, done);
+    }
+  }
+  function fallbackCopy(text, done){
+    const ta = el('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); done(); } catch(e) {}
+    document.body.removeChild(ta);
+  }
+
+  function codeBlock(label, code){
+    const wrap = el('div', 'code-block');
+    if (label){ const l = el('div', 'code-label'); l.textContent = label; wrap.appendChild(l); }
+    const inner = el('div', 'code-inner');
+    const pre = el('pre', 'code'); pre.textContent = code;
+    const btn = el('button', 'copy-btn'); btn.type = 'button'; btn.textContent = 'Copy';
+    btn.addEventListener('click', () => copyText(code, btn));
+    inner.appendChild(pre); inner.appendChild(btn);
+    wrap.appendChild(inner);
+    return wrap;
+  }
+
+  function renderEmpty(){
+    output.innerHTML = '';
+    const box = el('div', 'empty');
+    box.innerHTML =
+      '<svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">'+
+      '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>'+
+      '<path d="M9 13h6"/><path d="M9 17h4"/></svg>'+
+      '<div>Paste valid JSON on the left and the Power Fx formulas appear here.</div>';
+    output.appendChild(box);
+  }
+
+  function renderError(msg){
+    output.innerHTML = '';
+    const box = el('div', 'error');
+    box.textContent = 'Invalid JSON — ' + msg;
+    output.appendChild(box);
+  }
+
+  /* ---------- tree view ---------- */
+  const KIND_COLORS = {
+    string: '#2563eb', number: '#059669', boolean: '#d97706',
+    null: '#6b7280', array: '#7c3aed', object: '#0891b2', date: '#db2777'
+  };
+
+  let selectedRow = null;
+
+  function showTreeDetail(value, expr, disp){
+    treeDetail.innerHTML = '';
+    const info = nodeFormula(value, expr);
+
+    const card = el('div', 'card');
+    const head = el('div', 'card-head');
+    const path = el('span', 'path'); path.textContent = disp || '(root)';
+    const badge = el('span', 'badge ' + info.kind); badge.textContent = info.kind;
+    head.appendChild(path); head.appendChild(badge);
+    if (info.meta){ const m = el('span', 'hint'); m.textContent = info.meta; head.appendChild(m); }
+    card.appendChild(head);
+    for (const b of info.blocks) card.appendChild(codeBlock(b.label, b.code));
+    treeDetail.appendChild(card);
+  }
+
+  function detailPlaceholder(text){
+    treeDetail.innerHTML = '';
+    const p = el('div', 'detail-placeholder');
+    p.textContent = text;
+    treeDetail.appendChild(p);
+  }
+
+  function selectRow(row, value, expr, disp){
+    if (selectedRow) selectedRow.classList.remove('selected');
+    selectedRow = row;
+    row.classList.add('selected');
+    showTreeDetail(value, expr, disp);
+  }
+
+  // Build one tree node (row + lazily-shown children) and return the wrapper element.
+  function buildTreeNode(label, value, expr, disp, depth){
+    const t = jsonType(value);
+    const keys = t === 'object' ? Object.keys(value) : null;
+    const isContainer = (t === 'object' || t === 'array');
+    const hasKids = (t === 'object' && keys.length > 0) || (t === 'array' && value.length > 0);
+
+    const wrap = el('div', 'tree-node');
+    const row = el('div', 'tree-row');
+    row.style.paddingLeft = (depth * 16 + 8) + 'px';
+
+    const chev = el('span', 'tree-chev');
+    if (hasKids) chev.textContent = '▸'; else chev.classList.add('leaf');
+    row.appendChild(chev);
+
+    const key = el('span', 'tree-key'); key.textContent = label;
+    row.appendChild(key);
+
+    const kind = displayKind(value);
+    const badge = el('span', 'tree-badge'); badge.textContent = kind;
+    badge.style.background = KIND_COLORS[kind] || '#6b7280';
+    row.appendChild(badge);
+
+    if (!isContainer){
+      const prev = el('span', 'tree-preview'); prev.textContent = leafPreview(value);
+      row.appendChild(prev);
+    } else {
+      const count = t === 'array' ? value.length : keys.length;
+      const prev = el('span', 'tree-preview');
+      prev.textContent = t === 'array'
+        ? `[${count} item${count === 1 ? '' : 's'}]`
+        : `{${count} field${count === 1 ? '' : 's'}}`;
+      row.appendChild(prev);
+    }
+    wrap.appendChild(row);
+
+    let kidsWrap = null;
+    if (hasKids){
+      kidsWrap = el('div', 'tree-children');
+      kidsWrap.style.display = 'none';
+      let built = false;
+      const buildKids = () => {
+        if (built) return; built = true;
+        if (t === 'object'){
+          for (const k of keys){
+            kidsWrap.appendChild(buildTreeNode(
+              k, value[k], `${expr}.${ident(k)}`,
+              disp ? `${disp}.${k}` : k, depth + 1));
+          }
+        } else {
+          const limit = Math.min(value.length, MAX_ARRAY_NODES);
+          for (let i = 0; i < limit; i++){
+            kidsWrap.appendChild(buildTreeNode(
+              `[${i + 1}]`, value[i], `Index(${expr}, ${i + 1})`,
+              `${disp}[${i + 1}]`, depth + 1));
+          }
+          if (value.length > limit){
+            const more = el('div', 'hint');
+            more.style.paddingLeft = ((depth + 1) * 16 + 22) + 'px';
+            more.textContent = `… ${value.length - limit} more item${value.length - limit === 1 ? '' : 's'} not shown`;
+            kidsWrap.appendChild(more);
+          }
+        }
+      };
+
+      row.addEventListener('click', () => {
+        selectRow(row, value, expr, disp || label);
+        buildKids();
+        const open = kidsWrap.style.display !== 'none';
+        kidsWrap.style.display = open ? 'none' : 'block';
+        chev.textContent = open ? '▸' : '▾';
+      });
+      wrap.appendChild(kidsWrap);
+    } else {
+      row.addEventListener('click', () => selectRow(row, value, expr, disp || label));
+    }
+
+    return wrap;
+  }
+
+  function renderTree(){
+    treeScroll.innerHTML = '';
+    selectedRow = null;
+    if (lastParsed === undefined){
+      detailPlaceholder('Paste valid JSON to build the tree.');
+      return;
+    }
+    const rootNode = buildTreeNode('(root)', lastParsed, baseExpr(), '', 0);
+    treeScroll.appendChild(rootNode);
+    detailPlaceholder('Click any node to generate its Power Fx formula.');
+  }
+
+  function applyView(){
+    const tree = viewMode === 'tree';
+    treeView.style.display = tree ? 'flex' : 'none';
+    output.style.display   = tree ? 'none' : 'flex';
+    if (tree) renderTree();
+  }
+
+  function generate(){
+    const raw = jsonInput.value.trim();
+    if (!raw){ renderEmpty(); lastBundle = ''; lastParsed = undefined; if (viewMode === 'tree') renderTree(); return; }
+
+    let parsed;
+    try { parsed = JSON.parse(raw); }
+    catch (e){ renderError(e.message); lastBundle = ''; lastParsed = undefined; if (viewMode === 'tree') renderTree(); return; }
+    lastParsed = parsed;
+
+    const varName = varNameInput.value.trim() || 'parsedJSON';
+    const minified = JSON.stringify(parsed);
+    inlineBase = `ParseJSON(${pfString(minified)})`;
+
+    output.innerHTML = '';
+    const bundleParts = [];
+
+    /* --- Setup section --- */
+    const setupTitle = el('div', 'section-title'); setupTitle.textContent = 'Setup';
+    output.appendChild(setupTitle);
+
+    const setupHint = el('div', 'hint');
+    setupHint.textContent = sourceMode === 'variable'
+      ? `Run this once (OnVisible / OnStart / a button's OnSelect). Formulas below reference "${varName}".`
+      : 'Inline mode embeds the JSON string in every formula below, so this Set step is optional.';
+    output.appendChild(setupHint);
+
+    const setupCard = el('div', 'card');
+    const setupCode =
+      `// Set once, then reference ${varName} anywhere.\n` +
+      `// Tip: swap the literal for a control, e.g. ParseJSON(JsonTextInput.Text)\n` +
+      `Set(\n    ${varName},\n    ParseJSON(${pfString(minified)})\n);`;
+    setupCard.appendChild(codeBlock('', setupCode));
+    output.appendChild(setupCard);
+    bundleParts.push(setupCode);
+
+    /* --- Field accessors --- */
+    const cards = [];
+    walk(parsed, baseExpr(), '', cards);
+
+    const fieldTitle = el('div', 'section-title'); fieldTitle.textContent = 'Field accessors';
+    output.appendChild(fieldTitle);
+
+    if (cards.length === 0){
+      const note = el('div', 'hint');
+      note.textContent = 'No extractable fields found in this JSON.';
+      output.appendChild(note);
+    }
+
+    for (const c of cards){
+      const card = el('div', 'card');
+      const head = el('div', 'card-head');
+      const path = el('span', 'path'); path.textContent = c.path;
+      const badge = el('span', 'badge ' + c.kind); badge.textContent = c.kind;
+      head.appendChild(path); head.appendChild(badge);
+      if (c.meta){ const m = el('span', 'hint'); m.textContent = c.meta; head.appendChild(m); }
+      card.appendChild(head);
+      for (const b of c.blocks){
+        card.appendChild(codeBlock(b.label, b.code));
+        bundleParts.push((b.label ? `// ${c.path} — ${b.label}\n` : `// ${c.path}\n`) + b.code);
+      }
+      output.appendChild(card);
+    }
+
+    lastBundle = bundleParts.join('\n\n');
+
+    if (viewMode === 'tree') renderTree();
+  }
+
+  /* ---------- events ---------- */
+  let debounce;
+  jsonInput.addEventListener('input', () => {
+    clearTimeout(debounce);
+    debounce = setTimeout(generate, 250);
+  });
+
+  document.querySelectorAll('input[name="src"]').forEach(r => {
+    r.addEventListener('change', e => {
+      sourceMode = e.target.value;
+      varWrap.classList.toggle('disabled', sourceMode === 'inline');
+      varNameInput.disabled = (sourceMode === 'inline');
+      generate();
+    });
+  });
+
+  varNameInput.addEventListener('input', generate);
+
+  document.querySelectorAll('input[name="view"]').forEach(r => {
+    r.addEventListener('change', e => {
+      viewMode = e.target.value;
+      applyView();
+    });
+  });
+
+  $('clearBtn').addEventListener('click', () => { jsonInput.value = ''; jsonInput.focus(); generate(); });
+
+  $('copyAllBtn').addEventListener('click', () => {
+    if (!lastBundle) return;
+    copyText(lastBundle, $('copyAllBtn'));
+  });
+
+  const SAMPLE = {
+    name: "Contoso Ltd",
+    founded: 2008,
+    isActive: true,
+    revenue: 1250000.50,
+    headquarters: { city: "Seattle", state: "WA", zip: "98101" },
+    employees: [
+      { id: 1, fullName: "Ada Lovelace", startDate: "2019-04-01", salary: 95000, manager: false },
+      { id: 2, fullName: "Alan Turing",  startDate: "2020-09-15", salary: 105000, manager: true }
+    ],
+    tags: ["software", "ai", "cloud"]
+  };
+  $('sampleBtn').addEventListener('click', () => {
+    jsonInput.value = JSON.stringify(SAMPLE, null, 2);
+    generate();
+  });
+
+  /* ---------- init ---------- */
+  renderEmpty();
+</script>
+</body>
+</html>
