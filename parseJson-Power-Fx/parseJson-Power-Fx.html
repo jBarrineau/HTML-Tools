@@ -263,6 +263,20 @@
     border-color: var(--accent);
     box-shadow: 0 0 0 3px var(--accent-soft);
   }
+  .toggle-field {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--text-muted);
+    cursor: pointer;
+    user-select: none;
+  }
+  .toggle-field input {
+    accent-color: var(--accent);
+    width: 15px;
+    height: 15px;
+    cursor: pointer;
+  }
 
   /* Output */
   .output-scroll {
@@ -522,6 +536,10 @@
             <input type="text" id="varName" value="varTestJSON" spellcheck="false" />
             <button class="btn small primary" id="copySetupBtn">Copy — Set Variable in Canvas App</button>
           </div>
+          <label class="toggle-field" title="Wrap scalar accessors in Coalesce() so missing/blank fields fall back to a safe default instead of erroring.">
+            <input type="checkbox" id="defensiveToggle" />
+            <span>Defensive (Coalesce)</span>
+          </label>
         </div>
       </section>
 
@@ -555,6 +573,7 @@
   const varNameInput= $('varName');
 
   let viewMode      = 'tree';     // 'list' | 'tree'
+  let defensiveMode = false;      // wrap scalar accessors in Coalesce(...)
   let lastSetupCode = '';        // Set(...) block for the copy button
   let lastParsed = undefined;    // last successfully parsed JSON (for the tree)
   const MAX_ARRAY_NODES = 100;   // cap tree children for very large arrays
@@ -593,10 +612,11 @@
       const iso = isoKind(value);
       if (iso === 'date')     return { code: `DateValue(${expr})`,     kind: 'date' };
       if (iso === 'datetime') return { code: `DateTimeValue(${expr})`, kind: 'date' };
-      return { code: `Text(${expr})`, kind: 'string' };
+      const code = defensiveMode ? `Coalesce(Text(${expr}), "")` : `Text(${expr})`;
+      return { code, kind: 'string' };
     }
-    if (t === 'number')  return { code: `Value(${expr})`, kind: 'number' };
-    if (t === 'boolean') return { code: `Boolean(${expr})`, kind: 'boolean' };
+    if (t === 'number')  return { code: defensiveMode ? `Coalesce(Value(${expr}), 0)` : `Value(${expr})`, kind: 'number' };
+    if (t === 'boolean') return { code: defensiveMode ? `Coalesce(Boolean(${expr}), false)` : `Boolean(${expr})`, kind: 'boolean' };
     if (t === 'null')    return { code: `Text(${expr})`, kind: 'null' };
     return { code: expr, kind: t };
   }
@@ -624,6 +644,31 @@
     return `ForAll(${arrayExpr} As ${alias}, ${coerce(sample, alias).code})`;
   }
 
+  // Indent every line of a code block by `spaces` spaces.
+  function indent(code, spaces){
+    const pad = ' '.repeat(spaces);
+    return code.split('\n').map(l => pad + l).join('\n');
+  }
+
+  // Derive a Power Fx collection name (e.g. "colEmployees") from a path/label.
+  function collectionName(disp, label){
+    let seg = '';
+    if (disp){
+      const parts = disp.split('.');
+      seg = parts[parts.length - 1] || '';
+    }
+    if (!seg && label) seg = label;
+    seg = seg.replace(/\[\d+\]/g, '').replace(/[^A-Za-z0-9_]/g, '');
+    if (!seg || /^root$/i.test(seg)) seg = 'Items';
+    return 'col' + seg.charAt(0).toUpperCase() + seg.slice(1);
+  }
+
+  // ClearCollect(...) wrapping the typed ForAll — turns a JSON array into a collection.
+  function buildClearCollect(arrayExpr, sample, name){
+    const forAll = buildForAll(arrayExpr, sample);
+    return `ClearCollect(\n    ${name},\n${indent(forAll, 4)}\n)`;
+  }
+
   // Type used for the tree row badge (objects/arrays included, ISO strings -> date)
   function displayKind(value){
     const t = jsonType(value);
@@ -632,7 +677,7 @@
   }
 
   // Formula block(s) + badge kind/meta for a single node — used by the tree detail panel.
-  function nodeFormula(value, expr){
+  function nodeFormula(value, expr, disp){
     const t = jsonType(value);
     if (t === 'object'){
       const keys = Object.keys(value);
@@ -648,6 +693,8 @@
         blocks.push({ label: 'Empty array', code: expr });
       } else {
         blocks.push({ label: 'Map every item into a table', code: buildForAll(expr, value[0]) });
+        blocks.push({ label: 'Build a collection',
+                      code: buildClearCollect(expr, value[0], collectionName(disp)) });
       }
       return { kind: 'array', meta: `${n} item${n === 1 ? '' : 's'}`, blocks };
     }
@@ -691,6 +738,8 @@
         blocks.push({ label: `Empty array`, code: expr });
       } else {
         blocks.push({ label: `Map every item into a table`, code: buildForAll(expr, value[0]) });
+        blocks.push({ label: `Build a collection`,
+                     code: buildClearCollect(expr, value[0], collectionName(disp)) });
       }
       cards.push({ path: disp || '(root array)', kind: 'array',
                    meta: `${n} item${n === 1 ? '' : 's'}`, blocks });
@@ -774,7 +823,7 @@
 
   function showTreeDetail(value, expr, disp){
     treeDetail.innerHTML = '';
-    const info = nodeFormula(value, expr);
+    const info = nodeFormula(value, expr, disp);
 
     const card = el('div', 'card');
     const head = el('div', 'card-head');
@@ -970,6 +1019,11 @@
   });
 
   varNameInput.addEventListener('input', generate);
+
+  $('defensiveToggle').addEventListener('change', e => {
+    defensiveMode = e.target.checked;
+    generate();
+  });
 
   document.querySelectorAll('input[name="view"]').forEach(r => {
     r.addEventListener('change', e => {
