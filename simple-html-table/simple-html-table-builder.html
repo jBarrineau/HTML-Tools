@@ -1038,7 +1038,7 @@
   // Full <td>…</td> expression for one column, with conditional bg on the td itself.
   function columnCellExpr(col, baseTdStyle) {
     function tdOpen(fmt) {
-      const bg = fmt && fmt.bg ? `background-color:${fmt.bg};` : '';
+      const bg = (fmt && fmt.bg && fmt.scope !== 'row') ? `background-color:${fmt.bg};` : '';
       const style = baseTdStyle + bg;
       return style ? paStr(`<td style="${style}">`) : paStr('<td>');
     }
@@ -1095,12 +1095,26 @@
       : '';
     // Zebra: inline <tr> style via row index (item() when From = range(0, length(...))).
     // This works in all email clients including Outlook desktop, unlike a <style> block.
+    // Row-scope rules: bg applied to <tr> (first match across columns wins)
+    const rowRuleEntries = [];
+    cols.forEach(col => col.rules.forEach(rule => {
+      if (rule.scope === 'row' && rule.bg) rowRuleEntries.push({ col, rule });
+    }));
+
     let trOpen;
     if (s.enabled && s.zebra) {
       const zebraStyle = `background-color:${s.zebraColor};`;
       trOpen = `if(equals(mod(item(), 2), 1), ${paStr(`<tr style="${zebraStyle}">`)}, ${paStr('<tr>')})`;
     } else {
       trOpen = paStr('<tr>');
+    }
+    if (rowRuleEntries.length) {
+      let inner = trOpen;
+      for (let i = rowRuleEntries.length - 1; i >= 0; i--) {
+        const { col, rule } = rowRuleEntries[i];
+        inner = `if(${ruleCondition(col, rule)}, ${paStr(`<tr style="background-color:${rule.bg};">`)}, ${inner})`;
+      }
+      trOpen = inner;
     }
     const parts = [trOpen];
     cols.forEach(col => {
@@ -1213,16 +1227,24 @@
 
     const rows = limit != null ? state.rows.slice(0, limit) : state.rows;
     const body = '  <tbody>\n' + rows.map((row, i) => {
+      let rowBg = '';
+      outer: for (const col of cols) {
+        for (const r of col.rules) {
+          if (r.scope === 'row' && r.bg && matchRule(row[col.key], r)) { rowBg = r.bg; break outer; }
+        }
+      }
       const zebraStyle = s.enabled && s.zebra && i % 2 === 1 ? `background-color:${s.zebraColor};` : '';
       const cells = cols.map(c => {
         const fmt = effectiveFmt(c, row[c.key]);
-        const bgStyle = fmt && fmt.bg ? `background-color:${fmt.bg};` : '';
-        const cellStyle = tdStyle + zebraStyle + bgStyle;
+        const skipBg = fmt && fmt.scope === 'row';
+        const bgStyle = (fmt && fmt.bg && !skipBg) ? `background-color:${fmt.bg};` : '';
+        const cellStyle = tdStyle + (rowBg ? '' : zebraStyle) + bgStyle;
         return cellStyle
           ? `<td style="${cellStyle}">${cellInnerHtml(c, row[c.key])}</td>`
           : `<td>${cellInnerHtml(c, row[c.key])}</td>`;
       }).join('');
-      return `    <tr>${cells}</tr>`;
+      const trStyle = rowBg ? ` style="background-color:${rowBg};"` : '';
+      return `    <tr${trStyle}>${cells}</tr>`;
     }).join('\n') + '\n  </tbody>';
 
     return `<table style="${tableStyle}">\n${head}\n${body}\n</table>`;
@@ -1392,12 +1414,17 @@
     const boldBox = el('input', { type: 'checkbox', onchange: e => { rule.bold = e.target.checked; updateRulePreview(); refresh(); } });
     boldBox.checked = !!rule.bold;
 
+    const rowBox = el('input', { type: 'checkbox', title: 'Apply background colour to the entire row instead of just this cell',
+      onchange: e => { rule.scope = e.target.checked ? 'row' : 'cell'; refresh(); } });
+    rowBox.checked = rule.scope === 'row';
+
     updateRulePreview();
 
     const fmtLine = el('div', { class: 'rule-line rule-fmt' },
       el('span', { class: 'swatch-label' }, 'text', colorBox, clearColor),
       el('span', { class: 'swatch-label' }, 'bg', bgBox, clearBg),
       el('label', { class: 'swatch-label', style: 'cursor:pointer;' }, boldBox, 'bold'),
+      el('label', { class: 'swatch-label', style: 'cursor:pointer;' }, rowBox, 'Apply to row'),
       el('span', { style: 'flex:1;' }),
       preview,
       el('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Move rule up', disabled: ri === 0,
