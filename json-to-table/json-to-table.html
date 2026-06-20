@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:">
+  <title>JSON → Table | Power Automate to Excel</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:          #0f172a;
+      --surface:     #1e293b;
+      --raised:      #273549;
+      --line:        #2c3a50;
+      --line-2:      #1a2740;
+      --text:        #f1f5f9;
+      --text-2:      #94a3b8;
+      --text-3:      #475569;
+      --amber:       #f59e0b;
+      --amber-soft:  rgba(245,158,11,0.12);
+      --amber-dim:   rgba(245,158,11,0.06);
+      --blue:        #3b82f6;
+      --blue-soft:   rgba(59,130,246,0.12);
+      --green:       #10b981;
+      --green-soft:  rgba(16,185,129,0.12);
+      --red:         #ef4444;
+      --red-soft:    rgba(239,68,68,0.12);
+      --cyan:        #06b6d4;
+      --mono:        'Cascadia Code', 'Cascadia Mono', Consolas, 'Courier New', monospace;
+      --sans:        'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, sans-serif;
+      --r-sm: 5px;
+      --r-md: 9px;
+      --r-lg: 13px;
+    }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      background-image:
+        linear-gradient(rgba(59,130,246,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(59,130,246,0.04) 1px, transparent 1px);
+      background-size: 28px 28px;
+      color: var(--text);
+      min-height: 100vh;
+      font-size: 14px;
+      line-height: 1.5;
+      display: flex;
+      flex-direction: column;
+    }
+
+    :focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; border-radius: 3px; }
+
+    /* ===== HEADER ===== */
+    .app-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(15,23,42,0.9);
+      backdrop-filter: blur(8px);
+      position: sticky;
+      top: 0;
+      z-index: 40;
+    }
+    .brand-mark {
+      width: 36px; height: 36px;
+      border: 1.5px solid var(--amber);
+      border-radius: var(--r-sm);
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      grid-template-rows: 10px 1fr 1fr;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .brand-mark span { border: 1px solid rgba(245,158,11,0.4); }
+    .brand-mark span:nth-child(-n+3) { background: var(--amber); }
+    .brand-mark span:nth-child(4) { background: var(--amber-soft); }
+
+    .header-text h1 { font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
+    .header-text p  { font-size: 12px; color: var(--text-2); }
+
+    /* ===== LAYOUT ===== */
+    .workspace {
+      display: grid;
+      grid-template-columns: 420px 1fr;
+      grid-template-rows: 1fr;
+      flex: 1;
+      min-height: 0;
+    }
+    .workspace.sidebar-hidden {
+      grid-template-columns: 0 1fr;
+    }
+    .workspace.sidebar-hidden .left-panel {
+      overflow: hidden;
+      border-right: none;
+    }
+    #sidebarToggle {
+      padding: 5px 7px;
+      border-radius: var(--r-sm);
+      background: transparent;
+      border: 1px solid var(--line);
+      color: var(--text-2);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      transition: all .12s;
+      flex-shrink: 0;
+    }
+    #sidebarToggle:hover { background: var(--raised); color: var(--text); }
+    #sidebarToggle svg { width: 15px; height: 15px; display: block; }
+
+    /* ===== LEFT PANEL ===== */
+    .left-panel {
+      border-right: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      background: rgba(15,23,42,0.4);
+    }
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--line);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--text-2);
+    }
+
+    .paste-area {
+      flex: 1;
+      min-height: 0;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .paste-area.collapsed {
+      flex: 0;
+      min-height: 0;
+      padding: 0;
+      overflow: hidden;
+    }
+    #changeBtn {
+      display: none;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: none;
+      letter-spacing: .02em;
+      padding: 3px 10px;
+      border-radius: 999px;
+      cursor: pointer;
+      border: 1px solid rgba(245,158,11,0.4);
+      background: var(--amber-soft);
+      color: var(--amber);
+      transition: all .12s;
+    }
+    #changeBtn:hover { background: rgba(245,158,11,0.2); border-color: var(--amber); }
+    #changeBtn.visible { display: inline-block; }
+    #jsonInput {
+      flex: 1;
+      min-height: 0;
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r-md);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 11.5px;
+      line-height: 1.6;
+      padding: 12px;
+      resize: none;
+      transition: border-color .15s;
+    }
+    #jsonInput::placeholder { color: var(--text-3); }
+    #jsonInput:focus { border-color: var(--amber); outline: none; }
+    #jsonInput.error { border-color: var(--red); }
+
+    .parse-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 14px;
+      border-radius: var(--r-sm);
+      font-family: var(--sans);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all .15s;
+      white-space: nowrap;
+    }
+    .btn-primary {
+      background: var(--amber);
+      color: #0f172a;
+      border-color: var(--amber);
+    }
+    .btn-primary:hover { background: #fbbf24; }
+    .btn-secondary {
+      background: var(--surface);
+      color: var(--text);
+      border-color: var(--line);
+    }
+    .btn-secondary:hover { background: var(--raised); border-color: var(--text-3); }
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-2);
+      border-color: var(--line);
+    }
+    .btn-ghost:hover { background: var(--raised); color: var(--text); }
+    .btn-green {
+      background: var(--green-soft);
+      color: var(--green);
+      border-color: rgba(16,185,129,0.3);
+    }
+    .btn-green:hover { background: rgba(16,185,129,0.2); }
+    .btn-blue {
+      background: var(--blue-soft);
+      color: var(--blue);
+      border-color: rgba(59,130,246,0.3);
+    }
+    .btn-blue:hover { background: rgba(59,130,246,0.2); }
+    .btn:disabled { opacity: .4; cursor: not-allowed; pointer-events: none; }
+    .btn svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+    .error-msg {
+      font-size: 12px;
+      color: var(--red);
+      background: var(--red-soft);
+      border: 1px solid rgba(239,68,68,0.25);
+      border-radius: var(--r-sm);
+      padding: 6px 10px;
+      display: none;
+    }
+    .error-msg.visible { display: block; }
+
+    /* ===== COLUMN PANEL ===== */
+    .col-panel {
+      border-top: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+      max-height: 340px;
+      position: relative;
+    }
+    /* When input is collapsed, fill remaining vertical space */
+    .paste-area.collapsed ~ .col-panel {
+      max-height: none;
+      flex: 1;
+      min-height: 0;
+    }
+    /* Fade hint at bottom to signal more columns below */
+    .col-panel::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 36px;
+      background: linear-gradient(transparent, var(--bg));
+      pointer-events: none;
+      transition: opacity .2s;
+    }
+    .col-panel.scrolled-to-end::after {
+      opacity: 0;
+    }
+    .col-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--line);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--text-2);
+    }
+    .col-panel-header .col-actions {
+      display: flex;
+      gap: 6px;
+    }
+    .col-toggle-btn {
+      font-size: 10px;
+      font-weight: 500;
+      padding: 2px 8px;
+      border-radius: 999px;
+      cursor: pointer;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      color: var(--text-2);
+      transition: all .12s;
+    }
+    .col-toggle-btn:hover { background: var(--raised); color: var(--text); }
+
+    .col-list {
+      overflow-y: auto;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .col-list::-webkit-scrollbar { width: 7px; }
+    .col-list::-webkit-scrollbar-track { background: var(--surface); border-radius: 4px; }
+    .col-list::-webkit-scrollbar-thumb { background: var(--text-3); border-radius: 4px; }
+    .col-list::-webkit-scrollbar-thumb:hover { background: var(--text-2); }
+
+    .col-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 8px;
+      border-radius: var(--r-sm);
+      cursor: pointer;
+      transition: background .1s;
+      user-select: none;
+    }
+    .col-item:hover { background: var(--raised); }
+    .col-item input[type=checkbox] {
+      width: 14px; height: 14px;
+      accent-color: var(--amber);
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .col-name {
+      font-family: var(--mono);
+      font-size: 11.5px;
+      color: var(--text);
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .col-item.is-meta .col-name { color: var(--text-3); }
+    .meta-tag {
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      padding: 1px 5px;
+      border-radius: 3px;
+      background: rgba(100,116,139,0.15);
+      color: var(--text-3);
+      border: 1px solid rgba(100,116,139,0.2);
+      flex-shrink: 0;
+    }
+    .col-empty {
+      padding: 20px;
+      text-align: center;
+      color: var(--text-3);
+      font-size: 12px;
+    }
+
+    /* ===== RIGHT PANEL ===== */
+    .right-panel {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      min-width: 0;
+    }
+
+    .output-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--line);
+      flex-shrink: 0;
+    }
+    .output-meta {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      color: var(--text-2);
+    }
+    .output-meta .badge {
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--blue-soft);
+      color: var(--blue);
+      border: 1px solid rgba(59,130,246,0.25);
+    }
+    .output-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .table-scroll {
+      flex: 1;
+      overflow: auto;
+      min-height: 0;
+    }
+    .table-scroll::-webkit-scrollbar { width: 7px; height: 7px; }
+    .table-scroll::-webkit-scrollbar-track { background: transparent; }
+    .table-scroll::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+    .table-scroll::-webkit-scrollbar-corner { background: transparent; }
+
+    #outputTable {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: 12.5px;
+    }
+    #outputTable th {
+      position: sticky;
+      top: 0;
+      background: var(--surface);
+      color: var(--amber);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .03em;
+      text-align: left;
+      padding: 8px 12px;
+      border-bottom: 2px solid var(--amber);
+      border-right: 1px solid var(--line);
+      white-space: nowrap;
+      z-index: 2;
+    }
+    #outputTable th:last-child { border-right: none; }
+    #outputTable td {
+      padding: 6px 12px;
+      border-bottom: 1px solid var(--line-2);
+      border-right: 1px solid var(--line-2);
+      color: var(--text);
+      max-width: 280px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      vertical-align: top;
+    }
+    #outputTable td:last-child { border-right: none; }
+    #outputTable tr:hover td { background: rgba(245,158,11,0.04); }
+    #outputTable td.null-val { color: var(--text-3); font-style: italic; }
+    #outputTable td.bool-true { color: var(--green); }
+    #outputTable td.bool-false { color: var(--red); }
+
+    .cap-notice td {
+      padding: 10px 12px;
+      font-size: 12px;
+      color: var(--amber);
+      background: var(--amber-dim);
+      border-top: 1px solid rgba(245,158,11,0.2);
+      text-align: center;
+    }
+
+    /* Empty/placeholder state */
+    .empty-state {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      color: var(--text-3);
+      padding: 40px;
+      text-align: center;
+    }
+    .empty-state svg { opacity: .25; }
+    .empty-state p { font-size: 13px; }
+
+    /* Copy feedback */
+    .copy-feedback {
+      font-size: 11px;
+      color: var(--green);
+      opacity: 0;
+      transition: opacity .3s;
+      white-space: nowrap;
+    }
+    .copy-feedback.show { opacity: 1; }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(8px);
+      background: var(--green);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 500;
+      padding: 8px 18px;
+      border-radius: 999px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity .2s, transform .2s;
+      z-index: 100;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  </style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="brand-mark" aria-hidden="true">
+    <span></span><span></span><span></span>
+    <span></span><span></span><span></span>
+    <span></span><span></span><span></span>
+  </div>
+  <div class="header-text">
+    <h1>JSON &rarr; Table</h1>
+    <p>Paste Power Automate JSON &mdash; get an Excel-ready table</p>
+  </div>
+</header>
+
+<div class="workspace">
+
+  <!-- ===== LEFT PANEL ===== -->
+  <div class="left-panel">
+    <div class="panel-header">
+      Input
+      <button id="changeBtn" onclick="expandInput()">Change</button>
+    </div>
+
+    <div class="paste-area">
+      <textarea id="jsonInput" spellcheck="false"
+        placeholder="Paste your Power Automate JSON here&#10;&#10;Accepts any of:&#10;  • An array directly&#10;  • { value: [...] }&#10;  • { body: [...] }&#10;  • { body: { value: [...] } }&#10;  • Full HTTP response with headers"></textarea>
+
+      <div class="error-msg" id="errorMsg"></div>
+
+      <div class="parse-row">
+        <button class="btn btn-primary" id="parseBtn" onclick="parseInput()">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M3 4h10M3 8h7M3 12h5"/><path d="M13 10l2 2-2 2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Parse JSON
+        </button>
+        <button class="btn btn-ghost" onclick="clearAll()">Clear</button>
+        <span class="copy-feedback" id="parseFeedback"></span>
+      </div>
+
+    </div>
+
+    <!-- Column selector -->
+    <div class="col-panel" id="colPanel">
+      <div class="col-panel-header">
+        Columns
+        <div class="col-actions">
+          <button class="col-toggle-btn" onclick="setAllCols(true)">All</button>
+          <button class="col-toggle-btn" onclick="setAllCols(false)">None</button>
+          <button class="col-toggle-btn" onclick="resetCols()">Reset</button>
+        </div>
+      </div>
+      <div class="col-list" id="colList">
+        <div class="col-empty">Parse JSON to see columns</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== RIGHT PANEL ===== -->
+  <div class="right-panel">
+    <div class="output-header">
+      <div class="output-meta">
+        <button id="sidebarToggle" onclick="toggleSidebar()" title="Toggle panel">
+          <svg viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+            <rect x="1" y="1" width="13" height="13" rx="1.5"/>
+            <path d="M5 1v13"/>
+          </svg>
+        </button>
+        <span id="rowBadge" class="badge" style="display:none"></span>
+        <span id="colBadge" class="badge" style="display:none; background:var(--amber-soft); color:var(--amber); border-color:rgba(245,158,11,.25)"></span>
+      </div>
+      <div class="output-actions">
+        <button class="btn btn-blue" id="copyTsvBtn" onclick="copyTSV()" disabled>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+            <rect x="4" y="2" width="10" height="12" rx="1.5"/>
+            <path d="M2 4v10a1.5 1.5 0 001.5 1.5H11"/>
+            <path d="M7 6h4M7 9h4M7 12h2"/>
+          </svg>
+          Copy for Excel
+        </button>
+        <button class="btn btn-green" id="csvBtn" onclick="downloadCSV()" disabled>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+            <path d="M8 2v8M5 7l3 3 3-3"/><path d="M2 11v1.5A1.5 1.5 0 003.5 14h9a1.5 1.5 0 001.5-1.5V11"/>
+          </svg>
+          Download CSV
+        </button>
+      </div>
+    </div>
+
+    <div id="emptyState" class="empty-state">
+      <svg width="64" height="64" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.5">
+        <rect x="8" y="12" width="48" height="40" rx="3"/>
+        <path d="M8 22h48M22 22v30M38 22v30"/>
+        <path d="M8 32h48M8 42h48"/>
+      </svg>
+      <p>Paste JSON on the left and click <strong>Parse JSON</strong></p>
+    </div>
+
+    <div class="table-scroll" id="tableWrap" style="display:none">
+      <table id="outputTable"><thead></thead><tbody></tbody><tfoot class="cap-notice" id="capFoot" style="display:none"><tr><td id="capNotice" colspan="999"></td></tr></tfoot></table>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+
+// ─── State ────────────────────────────────────────────────────────────────────
+const RENDER_LIMIT = 2000;
+
+let parsedRows = [];
+let allColumns = [];   // [{key, isMeta}]
+let colState   = {};   // key → boolean (checked)
+
+// ─── SharePoint / PA metadata detection ──────────────────────────────────────
+const KNOWN_META = new Set([
+  'ItemInternalId',
+  'odata.metadata', 'odata.nextLink', 'odata.count',
+  '@odata.context', '@odata.count', '@odata.nextLink',
+]);
+
+function isMetaKey(key, rows) {
+  if (KNOWN_META.has(key))                          return true;
+  if (key.startsWith('@'))                          return true;  // @odata.etag etc
+  if (key.startsWith('{'))                          return true;  // {Identifier}, {Link} etc
+  if (key.includes('@odata'))                       return true;  // Skills@odata.type
+  if (key.endsWith('#Claims'))                      return true;  // Author#Claims
+  if (key !== 'ID' && /#Id$/.test(key))             return true;  // FavoriteColor#Id, Skills#Id
+
+  // Value-based: SP expanded user objects
+  for (const row of rows) {
+    const val = row[key];
+    if (val == null) continue;
+    if (typeof val === 'object' && !Array.isArray(val)) {
+      const t = val['@odata.type'] || '';
+      if (t.includes('SPListExpandedUser')) return true;
+    }
+    break;
+  }
+  return false;
+}
+
+// ─── Value flattening ─────────────────────────────────────────────────────────
+function flattenValue(val) {
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'boolean') return val ? 'TRUE' : 'FALSE';
+  if (typeof val !== 'object') return String(val);
+
+  if (Array.isArray(val)) {
+    if (val.length === 0) return '';
+    // Array of SP lookup objects → join .Value
+    if (val[0] != null && typeof val[0] === 'object' && 'Value' in val[0]) {
+      return val.map(v => v.Value ?? '').join('; ');
+    }
+    return val.map(v => (v != null && typeof v === 'object') ? JSON.stringify(v) : String(v)).join('; ');
+  }
+
+  // SP single lookup/choice → .Value
+  if ('Value' in val) return String(val.Value ?? '');
+
+  // SP user object → DisplayName
+  if (val['@odata.type'] && val['@odata.type'].includes('SPListExpandedUser')) {
+    return val.DisplayName || val.Email || '';
+  }
+
+  // SP content type
+  if (val['@odata.type'] && 'Name' in val) return val.Name || '';
+
+  // Generic object
+  return JSON.stringify(val);
+}
+
+// ─── Data path detection ──────────────────────────────────────────────────────
+function detectRows(data) {
+  const tests = [
+    { rows: data,                    path: '(root)'      },
+    { rows: data?.value,             path: 'value'       },
+    { rows: data?.body,              path: 'body'        },
+    { rows: data?.body?.value,       path: 'body.value'  },
+    { rows: data?.data,              path: 'data'        },
+    { rows: data?.body?.data,        path: 'body.data'   },
+    { rows: data?.result,            path: 'result'      },
+    { rows: data?.items,             path: 'items'       },
+  ];
+  for (const t of tests) {
+    if (Array.isArray(t.rows) && t.rows.length > 0 && typeof t.rows[0] === 'object') {
+      return t;
+    }
+  }
+  return null;
+}
+
+// ─── Parse ────────────────────────────────────────────────────────────────────
+function parseInput() {
+  const raw = document.getElementById('jsonInput').value.trim();
+  if (!raw) return;
+
+  const input = document.getElementById('jsonInput');
+  const errEl = document.getElementById('errorMsg');
+  input.classList.remove('error');
+  errEl.classList.remove('visible');
+
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch (e) {
+    input.classList.add('error');
+    showError('Invalid JSON: ' + e.message);
+    return;
+  }
+
+  const found = detectRows(data);
+  if (!found) {
+    showError('Could not find an array of objects. Expected a JSON array, or an object with a "value", "body", or "body.value" array.');
+    input.classList.add('error');
+    return;
+  }
+
+  parsedRows = found.rows;
+
+  // Collect all keys across all rows (union)
+  const keySet = new Set();
+  for (const row of parsedRows) {
+    if (row && typeof row === 'object' && !Array.isArray(row)) {
+      for (const k of Object.keys(row)) keySet.add(k);
+    }
+  }
+
+  allColumns = [...keySet].map(key => ({
+    key,
+    isMeta: isMetaKey(key, parsedRows),
+  }));
+
+  // Default state: include non-meta, exclude meta
+  colState = {};
+  for (const col of allColumns) {
+    colState[col.key] = !col.isMeta;
+  }
+
+  renderColumnPanel();
+  renderTable();
+  collapseInput();
+  updateColFade();
+}
+
+// ─── Column panel ─────────────────────────────────────────────────────────────
+function renderColumnPanel() {
+  const list = document.getElementById('colList');
+  if (allColumns.length === 0) {
+    list.innerHTML = '<div class="col-empty">No columns found</div>';
+    return;
+  }
+
+  list.innerHTML = '';
+  for (const col of allColumns) {
+    const item = document.createElement('label');
+    item.className = 'col-item' + (col.isMeta ? ' is-meta' : '');
+    item.innerHTML = `
+      <input type="checkbox" ${colState[col.key] ? 'checked' : ''} data-key="${escAttr(col.key)}" onchange="onColToggle(this)">
+      <span class="col-name" title="${escAttr(col.key)}">${escHtml(col.key)}</span>
+      ${col.isMeta ? '<span class="meta-tag">meta</span>' : ''}
+    `;
+    list.appendChild(item);
+  }
+}
+
+function onColToggle(cb) {
+  colState[cb.dataset.key] = cb.checked;
+  renderTable();
+}
+
+function setAllCols(state) {
+  for (const key of Object.keys(colState)) colState[key] = state;
+  renderColumnPanel();
+  renderTable();
+}
+
+function resetCols() {
+  for (const col of allColumns) colState[col.key] = !col.isMeta;
+  renderColumnPanel();
+  renderTable();
+}
+
+// ─── Table render ─────────────────────────────────────────────────────────────
+function getVisibleKeys() {
+  return allColumns.map(c => c.key).filter(k => colState[k]);
+}
+
+function renderTable() {
+  const keys = getVisibleKeys();
+  const empty = document.getElementById('emptyState');
+  const wrap  = document.getElementById('tableWrap');
+  const thead = document.querySelector('#outputTable thead');
+  const tbody = document.querySelector('#outputTable tbody');
+  const rowBadge = document.getElementById('rowBadge');
+  const colBadge = document.getElementById('colBadge');
+  const copyBtn  = document.getElementById('copyTsvBtn');
+  const csvBtn   = document.getElementById('csvBtn');
+
+  if (parsedRows.length === 0 || keys.length === 0) {
+    empty.style.display = '';
+    wrap.style.display  = 'none';
+    rowBadge.style.display = 'none';
+    colBadge.style.display = 'none';
+    copyBtn.disabled = true;
+    csvBtn.disabled  = true;
+    return;
+  }
+
+  empty.style.display = 'none';
+  wrap.style.display  = '';
+  copyBtn.disabled = false;
+  csvBtn.disabled  = false;
+
+  rowBadge.style.display = '';
+  colBadge.style.display = '';
+  rowBadge.textContent = parsedRows.length + ' row' + (parsedRows.length !== 1 ? 's' : '');
+  colBadge.textContent = keys.length + ' col' + (keys.length !== 1 ? 's' : '');
+
+  // Header
+  thead.innerHTML = '<tr>' + keys.map(k => `<th>${escHtml(k)}</th>`).join('') + '</tr>';
+
+  // Body — capped to RENDER_LIMIT rows to avoid DOM bloat
+  const visibleRows = parsedRows.length > RENDER_LIMIT
+    ? parsedRows.slice(0, RENDER_LIMIT)
+    : parsedRows;
+
+  const frag = document.createDocumentFragment();
+  for (const row of visibleRows) {
+    const tr = document.createElement('tr');
+    for (const key of keys) {
+      const raw = row[key];
+      const flat = flattenValue(raw);
+      const td = document.createElement('td');
+
+      if (flat === '') {
+        td.className = 'null-val';
+        td.textContent = '—';
+      } else if (typeof raw === 'boolean') {
+        td.className = raw ? 'bool-true' : 'bool-false';
+        td.textContent = flat;
+      } else {
+        td.textContent = flat;
+        td.title = flat;
+      }
+      tr.appendChild(td);
+    }
+    frag.appendChild(tr);
+  }
+  tbody.innerHTML = '';
+  tbody.appendChild(frag);
+
+  const capFoot = document.getElementById('capFoot');
+  if (parsedRows.length > RENDER_LIMIT) {
+    capFoot.style.display = '';
+    document.getElementById('capNotice').textContent =
+      `Showing first ${RENDER_LIMIT.toLocaleString()} of ${parsedRows.length.toLocaleString()} rows — exports include all rows`;
+  } else {
+    capFoot.style.display = 'none';
+  }
+}
+
+// ─── Export ───────────────────────────────────────────────────────────────────
+function buildTSV() {
+  const keys = getVisibleKeys();
+  const lines = [keys.join('\t')];
+  for (const row of parsedRows) {
+    lines.push(keys.map(k => {
+      const v = flattenValue(row[k]);
+      // Escape tabs/newlines for TSV
+      return v.replace(/\t/g, ' ').replace(/\r?\n/g, ' ');
+    }).join('\t'));
+  }
+  return lines.join('\r\n');
+}
+
+function buildCSVParts() {
+  const keys = getVisibleKeys();
+  const esc = v => '"' + String(v).replace(/"/g, '""') + '"';
+  const parts = ['﻿' + keys.map(esc).join(',') + '\r\n'];
+  for (const row of parsedRows) {
+    parts.push(keys.map(k => esc(flattenValue(row[k]))).join(',') + '\r\n');
+  }
+  return parts;
+}
+
+function copyTSV() {
+  const tsv = buildTSV();
+  navigator.clipboard.writeText(tsv).then(() => {
+    showToast('Copied! Paste directly into Excel');
+  }).catch(() => {
+    // Fallback for non-secure contexts
+    const ta = document.createElement('textarea');
+    ta.value = tsv;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast('Copied! Paste directly into Excel');
+  });
+}
+
+function downloadCSV() {
+  const blob = new Blob(buildCSVParts(), { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'data.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function showError(msg) {
+  const el = document.getElementById('errorMsg');
+  el.textContent = msg;
+  el.classList.add('visible');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+function toggleSidebar() {
+  document.querySelector('.workspace').classList.toggle('sidebar-hidden');
+}
+
+function collapseInput() {
+  document.querySelector('.paste-area').classList.add('collapsed');
+  document.getElementById('changeBtn').classList.add('visible');
+}
+
+function expandInput() {
+  document.querySelector('.paste-area').classList.remove('collapsed');
+  document.getElementById('changeBtn').classList.remove('visible');
+  document.getElementById('jsonInput').focus();
+}
+
+function clearAll() {
+  document.querySelector('.paste-area').classList.remove('collapsed');
+  document.getElementById('changeBtn').classList.remove('visible');
+  document.getElementById('jsonInput').value = '';
+  document.getElementById('jsonInput').classList.remove('error');
+  document.getElementById('errorMsg').classList.remove('visible');
+
+  parsedRows = [];
+  allColumns = [];
+  colState   = {};
+  document.getElementById('colList').innerHTML = '<div class="col-empty">Parse JSON to see columns</div>';
+  document.getElementById('emptyState').style.display = '';
+  document.getElementById('tableWrap').style.display = 'none';
+  document.getElementById('rowBadge').style.display = 'none';
+  document.getElementById('colBadge').style.display = 'none';
+  document.getElementById('copyTsvBtn').disabled = true;
+  document.getElementById('csvBtn').disabled = true;
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function escAttr(s) {
+  return s.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+}
+
+// ─── Column list scroll fade ──────────────────────────────────────────────────
+function updateColFade() {
+  const list  = document.getElementById('colList');
+  const panel = list.closest('.col-panel');
+  const atEnd = list.scrollHeight - list.scrollTop <= list.clientHeight + 2;
+  panel.classList.toggle('scrolled-to-end', atEnd);
+}
+document.getElementById('colList').addEventListener('scroll', updateColFade);
+
+// ─── Auto-parse on paste ──────────────────────────────────────────────────────
+document.getElementById('jsonInput').addEventListener('paste', () => {
+  setTimeout(parseInput, 0);
+});
+
+// ─── Keyboard shortcut ────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    e.preventDefault();
+    parseInput();
+  }
+});
+</script>
+</body>
+</html>
