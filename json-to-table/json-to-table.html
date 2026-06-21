@@ -43,7 +43,8 @@
         linear-gradient(90deg, rgba(59,130,246,0.04) 1px, transparent 1px);
       background-size: 28px 28px;
       color: var(--text);
-      min-height: 100vh;
+      height: 100vh;
+      overflow: hidden;
       font-size: 14px;
       line-height: 1.5;
       display: flex;
@@ -231,6 +232,11 @@
       border-color: rgba(59,130,246,0.3);
     }
     .btn-blue:hover { background: rgba(59,130,246,0.2); }
+    .btn-blue.copied {
+      background: var(--green-soft);
+      color: var(--green);
+      border-color: rgba(16,185,129,0.3);
+    }
     .btn:disabled { opacity: .4; cursor: not-allowed; pointer-events: none; }
     .btn svg { width: 14px; height: 14px; flex-shrink: 0; }
 
@@ -304,6 +310,8 @@
     .col-toggle-btn:hover { background: var(--raised); color: var(--text); }
 
     .col-list {
+      flex: 1;
+      min-height: 0;
       overflow-y: auto;
       padding: 8px;
       display: flex;
@@ -394,10 +402,72 @@
       color: var(--blue);
       border: 1px solid rgba(59,130,246,0.25);
     }
+    .cap-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      padding: 2px 9px 2px 7px;
+      border-radius: 999px;
+      background: var(--amber-soft);
+      color: var(--amber);
+      border: 1px solid rgba(245,158,11,0.3);
+      white-space: nowrap;
+    }
+    .cap-badge svg { width: 12px; height: 12px; flex-shrink: 0; }
     .output-actions {
       display: flex;
       align-items: center;
       gap: 6px;
+    }
+
+    /* ===== SEARCH BAR ===== */
+    .search-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-bottom: 1px solid var(--line);
+      flex-shrink: 0;
+    }
+    .search-bar svg.search-icon {
+      width: 14px; height: 14px;
+      color: var(--text-3);
+      flex-shrink: 0;
+    }
+    .search-bar input {
+      flex: 1;
+      min-width: 0;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r-sm);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 13px;
+      padding: 6px 10px;
+      transition: border-color .15s;
+    }
+    .search-bar input::placeholder { color: var(--text-3); }
+    .search-bar input:focus { border-color: var(--amber); outline: none; }
+    #searchClear {
+      display: none;
+      background: transparent;
+      border: 1px solid var(--line);
+      color: var(--text-2);
+      border-radius: var(--r-sm);
+      padding: 5px 9px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all .12s;
+      flex-shrink: 0;
+    }
+    #searchClear:hover { background: var(--raised); color: var(--text); }
+    #searchClear.visible { display: inline-block; }
+    .search-count {
+      font-size: 12px;
+      color: var(--text-2);
+      white-space: nowrap;
+      flex-shrink: 0;
     }
 
     .table-scroll {
@@ -431,6 +501,28 @@
       z-index: 2;
     }
     #outputTable th:last-child { border-right: none; }
+    #outputTable th.sortable { cursor: pointer; user-select: none; }
+    #outputTable th.sortable:hover { background: var(--raised); }
+    #outputTable th .th-inner {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    #outputTable th .sort-ind {
+      font-size: 9px;
+      line-height: 1;
+      opacity: 0;
+      transition: opacity .12s;
+    }
+    #outputTable th.sortable:hover .sort-ind { opacity: .4; }
+    #outputTable th.sorted .sort-ind { opacity: 1; }
+    .no-match td {
+      padding: 24px 12px;
+      text-align: center;
+      color: var(--text-3);
+      font-size: 13px;
+      font-style: italic;
+    }
     #outputTable td {
       padding: 6px 12px;
       border-bottom: 1px solid var(--line-2);
@@ -447,15 +539,6 @@
     #outputTable td.null-val { color: var(--text-3); font-style: italic; }
     #outputTable td.bool-true { color: var(--green); }
     #outputTable td.bool-false { color: var(--red); }
-
-    .cap-notice td {
-      padding: 10px 12px;
-      font-size: 12px;
-      color: var(--amber);
-      background: var(--amber-dim);
-      border-top: 1px solid rgba(245,158,11,0.2);
-      text-align: center;
-    }
 
     /* Empty/placeholder state */
     .empty-state {
@@ -572,6 +655,12 @@
         </button>
         <span id="rowBadge" class="badge" style="display:none"></span>
         <span id="colBadge" class="badge" style="display:none; background:var(--amber-soft); color:var(--amber); border-color:rgba(245,158,11,.25)"></span>
+        <span id="capBadge" class="cap-badge" style="display:none">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 1l7 12H1L8 1z"/><path d="M8 6v3"/><path d="M8 11.5v.5"/>
+          </svg>
+          <span id="capBadgeText"></span>
+        </span>
       </div>
       <div class="output-actions">
         <button class="btn btn-blue" id="copyTsvBtn" onclick="copyTSV()" disabled>
@@ -591,6 +680,15 @@
       </div>
     </div>
 
+    <div class="search-bar" id="searchBar" style="display:none">
+      <svg class="search-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+        <circle cx="7" cy="7" r="5"/><path d="M11 11l4 4"/>
+      </svg>
+      <input id="searchInput" type="text" spellcheck="false" placeholder="Filter rows — matches any visible cell">
+      <span class="search-count" id="searchCount"></span>
+      <button id="searchClear" onclick="clearSearch()">Clear</button>
+    </div>
+
     <div id="emptyState" class="empty-state">
       <svg width="64" height="64" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.5">
         <rect x="8" y="12" width="48" height="40" rx="3"/>
@@ -601,7 +699,7 @@
     </div>
 
     <div class="table-scroll" id="tableWrap" style="display:none">
-      <table id="outputTable"><thead></thead><tbody></tbody><tfoot class="cap-notice" id="capFoot" style="display:none"><tr><td id="capNotice" colspan="999"></td></tr></tfoot></table>
+      <table id="outputTable"><thead></thead><tbody></tbody></table>
     </div>
   </div>
 </div>
@@ -612,11 +710,29 @@
 'use strict';
 
 // ─── State ────────────────────────────────────────────────────────────────────
-const RENDER_LIMIT = 2000;
+const RENDER_LIMIT     = 2000;
+const COL_SAMPLE_LIMIT = 250;     // rows sampled for column discovery on large arrays
+const PASTE_INLINE_MAX = 100000;  // pastes larger than this bypass the textarea
 
 let parsedRows = [];
 let allColumns = [];   // [{key, isMeta}]
 let colState   = {};   // key → boolean (checked)
+let searchTerm = '';
+let sortKey    = null; // column key currently sorted by
+let sortDir    = 0;    // 1 asc, -1 desc, 0 none
+
+let rawJsonText  = '';            // holds source text for large pastes kept out of the textarea
+let flatCache    = new WeakMap(); // row object → Map(key → flattened string), reset per parse
+let searchDebounce = null;
+
+// Memoized cell flattening — avoids re-running flattenValue on every render/search/sort/export
+function flatCell(row, key) {
+  let m = flatCache.get(row);
+  if (!m) { m = new Map(); flatCache.set(row, m); }
+  let v = m.get(key);
+  if (v === undefined) { v = flattenValue(row[key]); m.set(key, v); }
+  return v;
+}
 
 // ─── SharePoint / PA metadata detection ──────────────────────────────────────
 const KNOWN_META = new Set([
@@ -698,10 +814,11 @@ function detectRows(data) {
 
 // ─── Parse ────────────────────────────────────────────────────────────────────
 function parseInput() {
-  const raw = document.getElementById('jsonInput').value.trim();
+  const input = document.getElementById('jsonInput');
+  // For large pastes the full text lives in rawJsonText, not the textarea (which holds a preview)
+  const raw = (rawJsonText || input.value).trim();
   if (!raw) return;
 
-  const input = document.getElementById('jsonInput');
   const errEl = document.getElementById('errorMsg');
   input.classList.remove('error');
   errEl.classList.remove('visible');
@@ -723,10 +840,25 @@ function parseInput() {
   }
 
   parsedRows = found.rows;
+  flatCache = new WeakMap();  // drop memoized cells from any previous dataset
 
-  // Collect all keys across all rows (union)
+  // Column discovery samples a bounded set of rows rather than scanning the whole array.
+  // On large arrays a full scan is the dominant paste cost; stride sampling (plus the last
+  // row) catches schema variation anywhere in the array at O(COL_SAMPLE_LIMIT) cost.
+  const n = parsedRows.length;
+  let sampleRows;
+  if (n <= COL_SAMPLE_LIMIT) {
+    sampleRows = parsedRows;
+  } else {
+    sampleRows = [];
+    const stride = n / COL_SAMPLE_LIMIT;
+    for (let i = 0; i < COL_SAMPLE_LIMIT; i++) sampleRows.push(parsedRows[Math.floor(i * stride)]);
+    sampleRows.push(parsedRows[n - 1]);
+  }
+
+  // Collect all keys across the sampled rows (union)
   const keySet = new Set();
-  for (const row of parsedRows) {
+  for (const row of sampleRows) {
     if (row && typeof row === 'object' && !Array.isArray(row)) {
       for (const k of Object.keys(row)) keySet.add(k);
     }
@@ -734,7 +866,7 @@ function parseInput() {
 
   allColumns = [...keySet].map(key => ({
     key,
-    isMeta: isMetaKey(key, parsedRows),
+    isMeta: isMetaKey(key, sampleRows),
   }));
 
   // Default state: include non-meta, exclude meta
@@ -742,6 +874,13 @@ function parseInput() {
   for (const col of allColumns) {
     colState[col.key] = !col.isMeta;
   }
+
+  // Reset view state for the new dataset
+  searchTerm = '';
+  sortKey = null;
+  sortDir = 0;
+  document.getElementById('searchInput').value = '';
+  document.getElementById('searchClear').classList.remove('visible');
 
   renderColumnPanel();
   renderTable();
@@ -792,6 +931,54 @@ function getVisibleKeys() {
   return allColumns.map(c => c.key).filter(k => colState[k]);
 }
 
+// Apply current search filter + sort to parsedRows (used by both table + export)
+function getDisplayRows() {
+  const keys = getVisibleKeys();
+  let rows = parsedRows;
+
+  if (searchTerm) {
+    const term = searchTerm.toLowerCase();
+    rows = rows.filter(row =>
+      keys.some(k => flatCell(row, k).toLowerCase().includes(term))
+    );
+  }
+
+  if (sortKey && sortDir !== 0 && colState[sortKey]) {
+    rows = [...rows].sort((a, b) => {
+      const av = a[sortKey], bv = b[sortKey];
+      const ae = av === null || av === undefined || av === '';
+      const be = bv === null || bv === undefined || bv === '';
+      if (ae && be) return 0;
+      if (ae) return 1;   // empties always sort last
+      if (be) return -1;
+      let cmp;
+      if (typeof av === 'number' && typeof bv === 'number') {
+        cmp = av - bv;
+      } else {
+        const as = flatCell(a, sortKey).toLowerCase();
+        const bs = flatCell(b, sortKey).toLowerCase();
+        cmp = as < bs ? -1 : as > bs ? 1 : 0;
+      }
+      return cmp * sortDir;
+    });
+  }
+
+  return rows;
+}
+
+// Tri-state header sort: none → asc → desc → none
+function onSortClick(th) {
+  const key = th.dataset.key;
+  if (sortKey === key) {
+    sortDir = sortDir === 1 ? -1 : (sortDir === -1 ? 0 : 1);
+    if (sortDir === 0) sortKey = null;
+  } else {
+    sortKey = key;
+    sortDir = 1;
+  }
+  renderTable();
+}
+
 function renderTable() {
   const keys = getVisibleKeys();
   const empty = document.getElementById('emptyState');
@@ -802,41 +989,74 @@ function renderTable() {
   const colBadge = document.getElementById('colBadge');
   const copyBtn  = document.getElementById('copyTsvBtn');
   const csvBtn   = document.getElementById('csvBtn');
+  const searchBar = document.getElementById('searchBar');
+  const capBadge = document.getElementById('capBadge');
 
   if (parsedRows.length === 0 || keys.length === 0) {
     empty.style.display = '';
     wrap.style.display  = 'none';
+    searchBar.style.display = 'none';
     rowBadge.style.display = 'none';
     colBadge.style.display = 'none';
+    capBadge.style.display = 'none';
     copyBtn.disabled = true;
     csvBtn.disabled  = true;
     return;
   }
 
+  const displayRows = getDisplayRows();
+
+  // Render-cap notice (in header, so it's visible without scrolling)
+  if (displayRows.length > RENDER_LIMIT) {
+    capBadge.style.display = '';
+    capBadge.title = `The table renders only the first ${RENDER_LIMIT.toLocaleString()} rows for performance. Copy & Download include all ${displayRows.length.toLocaleString()} rows.`;
+    document.getElementById('capBadgeText').textContent =
+      `First ${RENDER_LIMIT.toLocaleString()} of ${displayRows.length.toLocaleString()} shown · exports include all rows`;
+  } else {
+    capBadge.style.display = 'none';
+  }
+
   empty.style.display = 'none';
   wrap.style.display  = '';
-  copyBtn.disabled = false;
-  csvBtn.disabled  = false;
+  searchBar.style.display = '';
+  copyBtn.disabled = displayRows.length === 0;
+  csvBtn.disabled  = displayRows.length === 0;
 
   rowBadge.style.display = '';
   colBadge.style.display = '';
   rowBadge.textContent = parsedRows.length + ' row' + (parsedRows.length !== 1 ? 's' : '');
   colBadge.textContent = keys.length + ' col' + (keys.length !== 1 ? 's' : '');
 
-  // Header
-  thead.innerHTML = '<tr>' + keys.map(k => `<th>${escHtml(k)}</th>`).join('') + '</tr>';
+  // Search result count
+  const searchCount = document.getElementById('searchCount');
+  searchCount.textContent = searchTerm
+    ? `${displayRows.length.toLocaleString()} of ${parsedRows.length.toLocaleString()} match`
+    : '';
+
+  // Header — sortable
+  thead.innerHTML = '<tr>' + keys.map(k => {
+    const isSorted = sortKey === k && sortDir !== 0;
+    const arrow = isSorted ? (sortDir === 1 ? '▲' : '▼') : '▲';
+    return `<th class="sortable${isSorted ? ' sorted' : ''}" data-key="${escAttr(k)}" onclick="onSortClick(this)" title="Sort by ${escAttr(k)}"><span class="th-inner"><span>${escHtml(k)}</span><span class="sort-ind">${arrow}</span></span></th>`;
+  }).join('') + '</tr>';
+
+  // No rows match the current search
+  if (displayRows.length === 0) {
+    tbody.innerHTML = `<tr class="no-match"><td colspan="${keys.length}">No rows match “${escHtml(searchTerm)}”</td></tr>`;
+    return;
+  }
 
   // Body — capped to RENDER_LIMIT rows to avoid DOM bloat
-  const visibleRows = parsedRows.length > RENDER_LIMIT
-    ? parsedRows.slice(0, RENDER_LIMIT)
-    : parsedRows;
+  const visibleRows = displayRows.length > RENDER_LIMIT
+    ? displayRows.slice(0, RENDER_LIMIT)
+    : displayRows;
 
   const frag = document.createDocumentFragment();
   for (const row of visibleRows) {
     const tr = document.createElement('tr');
     for (const key of keys) {
       const raw = row[key];
-      const flat = flattenValue(raw);
+      const flat = flatCell(row, key);
       const td = document.createElement('td');
 
       if (flat === '') {
@@ -855,24 +1075,15 @@ function renderTable() {
   }
   tbody.innerHTML = '';
   tbody.appendChild(frag);
-
-  const capFoot = document.getElementById('capFoot');
-  if (parsedRows.length > RENDER_LIMIT) {
-    capFoot.style.display = '';
-    document.getElementById('capNotice').textContent =
-      `Showing first ${RENDER_LIMIT.toLocaleString()} of ${parsedRows.length.toLocaleString()} rows — exports include all rows`;
-  } else {
-    capFoot.style.display = 'none';
-  }
 }
 
 // ─── Export ───────────────────────────────────────────────────────────────────
 function buildTSV() {
   const keys = getVisibleKeys();
   const lines = [keys.join('\t')];
-  for (const row of parsedRows) {
+  for (const row of getDisplayRows()) {
     lines.push(keys.map(k => {
-      const v = flattenValue(row[k]);
+      const v = flatCell(row, k);
       // Escape tabs/newlines for TSV
       return v.replace(/\t/g, ' ').replace(/\r?\n/g, ' ');
     }).join('\t'));
@@ -884,8 +1095,8 @@ function buildCSVParts() {
   const keys = getVisibleKeys();
   const esc = v => '"' + String(v).replace(/"/g, '""') + '"';
   const parts = ['﻿' + keys.map(esc).join(',') + '\r\n'];
-  for (const row of parsedRows) {
-    parts.push(keys.map(k => esc(flattenValue(row[k]))).join(',') + '\r\n');
+  for (const row of getDisplayRows()) {
+    parts.push(keys.map(k => esc(flatCell(row, k))).join(',') + '\r\n');
   }
   return parts;
 }
@@ -893,6 +1104,7 @@ function buildCSVParts() {
 function copyTSV() {
   const tsv = buildTSV();
   navigator.clipboard.writeText(tsv).then(() => {
+    flashCopyBtn();
     showToast('Copied! Paste directly into Excel');
   }).catch(() => {
     // Fallback for non-secure contexts
@@ -904,8 +1116,24 @@ function copyTSV() {
     ta.select();
     document.execCommand('copy');
     document.body.removeChild(ta);
+    flashCopyBtn();
     showToast('Copied! Paste directly into Excel');
   });
+}
+
+// Briefly swap the copy button to a "Copied!" confirmation state
+function flashCopyBtn() {
+  const btn = document.getElementById('copyTsvBtn');
+  if (btn._origHTML) return;  // already flashing
+  btn._origHTML = btn.innerHTML;
+  btn.classList.add('copied');
+  btn.innerHTML =
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.5 3.5L13 4"/></svg> Copied!';
+  setTimeout(() => {
+    btn.innerHTML = btn._origHTML;
+    btn._origHTML = null;
+    btn.classList.remove('copied');
+  }, 1600);
 }
 
 function downloadCSV() {
@@ -946,7 +1174,10 @@ function collapseInput() {
 function expandInput() {
   document.querySelector('.paste-area').classList.remove('collapsed');
   document.getElementById('changeBtn').classList.remove('visible');
-  document.getElementById('jsonInput').focus();
+  const input = document.getElementById('jsonInput');
+  // Restore the full source on explicit edit (large pastes only kept a preview in the box)
+  if (rawJsonText) { input.value = rawJsonText; rawJsonText = ''; }
+  input.focus();
 }
 
 function clearAll() {
@@ -959,6 +1190,15 @@ function clearAll() {
   parsedRows = [];
   allColumns = [];
   colState   = {};
+  searchTerm = '';
+  sortKey    = null;
+  sortDir    = 0;
+  rawJsonText = '';
+  flatCache   = new WeakMap();
+  clearTimeout(searchDebounce);
+  document.getElementById('searchInput').value = '';
+  document.getElementById('searchClear').classList.remove('visible');
+  document.getElementById('searchBar').style.display = 'none';
   document.getElementById('colList').innerHTML = '<div class="col-empty">Parse JSON to see columns</div>';
   document.getElementById('emptyState').style.display = '';
   document.getElementById('tableWrap').style.display = 'none';
@@ -984,9 +1224,51 @@ function updateColFade() {
 }
 document.getElementById('colList').addEventListener('scroll', updateColFade);
 
+// ─── Row search ───────────────────────────────────────────────────────────────
+function clearSearch() {
+  clearTimeout(searchDebounce);
+  searchTerm = '';
+  const input = document.getElementById('searchInput');
+  input.value = '';
+  document.getElementById('searchClear').classList.remove('visible');
+  renderTable();
+  input.focus();
+}
+
+// Debounced so filtering a large array doesn't run on every keystroke
+document.getElementById('searchInput').addEventListener('input', e => {
+  const val = e.target.value.trim();
+  document.getElementById('searchClear').classList.toggle('visible', val !== '');
+  clearTimeout(searchDebounce);
+  searchDebounce = setTimeout(() => {
+    searchTerm = val;
+    renderTable();
+  }, 150);
+});
+
 // ─── Auto-parse on paste ──────────────────────────────────────────────────────
-document.getElementById('jsonInput').addEventListener('paste', () => {
-  setTimeout(parseInput, 0);
+// A multi-MB string dropped into a <textarea> is itself janky to render, scroll, and
+// select — well before any parsing runs. For large pastes we keep the full text in a JS
+// variable (rawJsonText), show only a short preview in the textarea, and parse from memory.
+document.getElementById('jsonInput').addEventListener('paste', e => {
+  const input = e.currentTarget;
+  const text = e.clipboardData && e.clipboardData.getData('text');
+
+  if (text && text.length > PASTE_INLINE_MAX) {
+    e.preventDefault();
+    rawJsonText = text;
+    input.value = text.slice(0, 2000) +
+      `\n\n… +${(text.length - 2000).toLocaleString()} more chars (kept out of this box for speed — parsing…)`;
+    setTimeout(parseInput, 0);
+  } else {
+    rawJsonText = '';  // small paste lands in the textarea, which becomes the source of truth
+    setTimeout(parseInput, 0);
+  }
+});
+
+// Any manual edit invalidates a stashed large-paste preview — the textarea is now authoritative.
+document.getElementById('jsonInput').addEventListener('input', () => {
+  rawJsonText = '';
 });
 
 // ─── Keyboard shortcut ────────────────────────────────────────────────────────
