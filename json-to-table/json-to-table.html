@@ -183,6 +183,12 @@
     #jsonInput:focus { border-color: var(--amber); outline: none; }
     #jsonInput.error { border-color: var(--red); }
 
+    .left-panel.drag-over { background: var(--amber-dim); }
+    .left-panel.drag-over #jsonInput {
+      border-color: var(--amber);
+      border-style: dashed;
+    }
+
     .parse-row {
       display: flex;
       gap: 8px;
@@ -308,6 +314,26 @@
       transition: all .12s;
     }
     .col-toggle-btn:hover { background: var(--raised); color: var(--text); }
+
+    .col-filter {
+      display: none;
+      padding: 8px 10px 4px;
+      border-bottom: 1px solid var(--line-2);
+    }
+    .col-filter.visible { display: block; }
+    .col-filter input {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r-sm);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 12px;
+      padding: 5px 9px;
+      transition: border-color .15s;
+    }
+    .col-filter input::placeholder { color: var(--text-3); }
+    .col-filter input:focus { border-color: var(--amber); outline: none; }
 
     .col-list {
       flex: 1;
@@ -438,6 +464,7 @@
     .search-bar input {
       flex: 1;
       min-width: 0;
+      max-width: 360px;
       background: var(--surface);
       border: 1px solid var(--line);
       border-radius: var(--r-sm);
@@ -450,7 +477,7 @@
     .search-bar input::placeholder { color: var(--text-3); }
     .search-bar input:focus { border-color: var(--amber); outline: none; }
     #searchClear {
-      display: none;
+      display: inline-block;
       background: transparent;
       border: 1px solid var(--line);
       color: var(--text-2);
@@ -460,9 +487,10 @@
       cursor: pointer;
       transition: all .12s;
       flex-shrink: 0;
+      white-space: nowrap;
     }
-    #searchClear:hover { background: var(--raised); color: var(--text); }
-    #searchClear.visible { display: inline-block; }
+    #searchClear:hover:not(:disabled) { background: var(--raised); color: var(--text); }
+    #searchClear:disabled { opacity: .4; cursor: not-allowed; }
     .search-count {
       font-size: 12px;
       color: var(--text-2);
@@ -539,6 +567,7 @@
     #outputTable td.null-val { color: var(--text-3); font-style: italic; }
     #outputTable td.bool-true { color: var(--green); }
     #outputTable td.bool-false { color: var(--red); }
+    #outputTable td.num-val { text-align: right; font-variant-numeric: tabular-nums; }
 
     /* Empty/placeholder state */
     .empty-state {
@@ -605,12 +634,12 @@
   <div class="left-panel">
     <div class="panel-header">
       Input
-      <button id="changeBtn" onclick="expandInput()">Change</button>
+      <button id="changeBtn" onclick="clearAll()">Clear</button>
     </div>
 
     <div class="paste-area">
       <textarea id="jsonInput" spellcheck="false"
-        placeholder="Paste your Power Automate JSON here&#10;&#10;Accepts any of:&#10;  • An array directly&#10;  • { value: [...] }&#10;  • { body: [...] }&#10;  • { body: { value: [...] } }&#10;  • Full HTTP response with headers"></textarea>
+        placeholder="Paste your Power Automate JSON here&#10;&#10;Accepts any of:&#10;  • An array directly&#10;  • { value: [...] }&#10;  • { body: [...] }&#10;  • { body: { value: [...] } }&#10;  • Full HTTP response with headers&#10;&#10;Or drop a .json file anywhere on this panel."></textarea>
 
       <div class="error-msg" id="errorMsg"></div>
 
@@ -636,6 +665,9 @@
           <button class="col-toggle-btn" onclick="setAllCols(false)">None</button>
           <button class="col-toggle-btn" onclick="resetCols()">Reset</button>
         </div>
+      </div>
+      <div class="col-filter" id="colFilter">
+        <input id="colFilterInput" type="text" spellcheck="false" placeholder="Filter columns…">
       </div>
       <div class="col-list" id="colList">
         <div class="col-empty">Parse JSON to see columns</div>
@@ -669,13 +701,13 @@
             <path d="M2 4v10a1.5 1.5 0 001.5 1.5H11"/>
             <path d="M7 6h4M7 9h4M7 12h2"/>
           </svg>
-          Copy for Excel
+          <span id="copyBtnLabel">Copy for Excel</span>
         </button>
         <button class="btn btn-green" id="csvBtn" onclick="downloadCSV()" disabled>
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
             <path d="M8 2v8M5 7l3 3 3-3"/><path d="M2 11v1.5A1.5 1.5 0 003.5 14h9a1.5 1.5 0 001.5-1.5V11"/>
           </svg>
-          Download CSV
+          <span id="csvBtnLabel">Download CSV</span>
         </button>
       </div>
     </div>
@@ -686,7 +718,7 @@
       </svg>
       <input id="searchInput" type="text" spellcheck="false" placeholder="Filter rows — matches any visible cell">
       <span class="search-count" id="searchCount"></span>
-      <button id="searchClear" onclick="clearSearch()">Clear</button>
+      <button id="searchClear" onclick="clearSearch()" disabled>Clear search</button>
     </div>
 
     <div id="emptyState" class="empty-state">
@@ -880,7 +912,8 @@ function parseInput() {
   sortKey = null;
   sortDir = 0;
   document.getElementById('searchInput').value = '';
-  document.getElementById('searchClear').classList.remove('visible');
+  document.getElementById('searchClear').disabled = true;
+  document.getElementById('colFilterInput').value = '';
 
   renderColumnPanel();
   renderTable();
@@ -891,10 +924,14 @@ function parseInput() {
 // ─── Column panel ─────────────────────────────────────────────────────────────
 function renderColumnPanel() {
   const list = document.getElementById('colList');
+  const filterRow = document.getElementById('colFilter');
   if (allColumns.length === 0) {
+    filterRow.classList.remove('visible');
     list.innerHTML = '<div class="col-empty">No columns found</div>';
     return;
   }
+
+  filterRow.classList.toggle('visible', allColumns.length > 8);
 
   list.innerHTML = '';
   for (const col of allColumns) {
@@ -907,6 +944,37 @@ function renderColumnPanel() {
     `;
     list.appendChild(item);
   }
+
+  applyColFilter();
+}
+
+// Filter the column checklist by name — toggles visibility without re-rendering,
+// so checkbox state (which lives in colState) is preserved.
+function applyColFilter() {
+  const term = (document.getElementById('colFilterInput').value || '').trim().toLowerCase();
+  const list = document.getElementById('colList');
+  let anyVisible = false;
+  for (const item of list.querySelectorAll('.col-item')) {
+    const key = item.querySelector('.col-name').textContent.toLowerCase();
+    const match = !term || key.includes(term);
+    item.style.display = match ? '' : 'none';
+    if (match) anyVisible = true;
+  }
+
+  let noMatch = list.querySelector('.col-filter-empty');
+  if (!anyVisible && term) {
+    if (!noMatch) {
+      noMatch = document.createElement('div');
+      noMatch.className = 'col-empty col-filter-empty';
+      list.appendChild(noMatch);
+    }
+    noMatch.textContent = `No columns match “${term}”`;
+    noMatch.style.display = '';
+  } else if (noMatch) {
+    noMatch.style.display = 'none';
+  }
+
+  updateColFade();
 }
 
 function onColToggle(cb) {
@@ -1001,6 +1069,7 @@ function renderTable() {
     capBadge.style.display = 'none';
     copyBtn.disabled = true;
     csvBtn.disabled  = true;
+    setExportLabels(null);
     return;
   }
 
@@ -1021,6 +1090,7 @@ function renderTable() {
   searchBar.style.display = '';
   copyBtn.disabled = displayRows.length === 0;
   csvBtn.disabled  = displayRows.length === 0;
+  setExportLabels(displayRows.length);
 
   rowBadge.style.display = '';
   colBadge.style.display = '';
@@ -1065,6 +1135,10 @@ function renderTable() {
       } else if (typeof raw === 'boolean') {
         td.className = raw ? 'bool-true' : 'bool-false';
         td.textContent = flat;
+      } else if (typeof raw === 'number') {
+        td.className = 'num-val';
+        td.textContent = flat;
+        td.title = flat;
       } else {
         td.textContent = flat;
         td.title = flat;
@@ -1075,6 +1149,22 @@ function renderTable() {
   }
   tbody.innerHTML = '';
   tbody.appendChild(frag);
+}
+
+// Reflect the number of rows an export will produce (filtered count) on the buttons,
+// so it's clear Copy/Download include every row even when the table view is capped.
+function setExportLabels(n) {
+  const copyLabel = document.getElementById('copyBtnLabel');
+  const csvLabel  = document.getElementById('csvBtnLabel');
+  if (n == null) {
+    if (copyLabel) copyLabel.textContent = 'Copy for Excel';
+    if (csvLabel)  csvLabel.textContent  = 'Download CSV';
+    return;
+  }
+  const word = n === 1 ? 'row' : 'rows';
+  const count = `${n.toLocaleString()} ${word}`;
+  if (copyLabel) copyLabel.textContent = `Copy ${count} for Excel`;
+  if (csvLabel)  csvLabel.textContent  = `Download CSV · ${count}`;
 }
 
 // ─── Export ───────────────────────────────────────────────────────────────────
@@ -1171,15 +1261,6 @@ function collapseInput() {
   document.getElementById('changeBtn').classList.add('visible');
 }
 
-function expandInput() {
-  document.querySelector('.paste-area').classList.remove('collapsed');
-  document.getElementById('changeBtn').classList.remove('visible');
-  const input = document.getElementById('jsonInput');
-  // Restore the full source on explicit edit (large pastes only kept a preview in the box)
-  if (rawJsonText) { input.value = rawJsonText; rawJsonText = ''; }
-  input.focus();
-}
-
 function clearAll() {
   document.querySelector('.paste-area').classList.remove('collapsed');
   document.getElementById('changeBtn').classList.remove('visible');
@@ -1197,8 +1278,10 @@ function clearAll() {
   flatCache   = new WeakMap();
   clearTimeout(searchDebounce);
   document.getElementById('searchInput').value = '';
-  document.getElementById('searchClear').classList.remove('visible');
+  document.getElementById('searchClear').disabled = true;
   document.getElementById('searchBar').style.display = 'none';
+  document.getElementById('colFilterInput').value = '';
+  document.getElementById('colFilter').classList.remove('visible');
   document.getElementById('colList').innerHTML = '<div class="col-empty">Parse JSON to see columns</div>';
   document.getElementById('emptyState').style.display = '';
   document.getElementById('tableWrap').style.display = 'none';
@@ -1223,6 +1306,7 @@ function updateColFade() {
   panel.classList.toggle('scrolled-to-end', atEnd);
 }
 document.getElementById('colList').addEventListener('scroll', updateColFade);
+document.getElementById('colFilterInput').addEventListener('input', applyColFilter);
 
 // ─── Row search ───────────────────────────────────────────────────────────────
 function clearSearch() {
@@ -1230,7 +1314,7 @@ function clearSearch() {
   searchTerm = '';
   const input = document.getElementById('searchInput');
   input.value = '';
-  document.getElementById('searchClear').classList.remove('visible');
+  document.getElementById('searchClear').disabled = true;
   renderTable();
   input.focus();
 }
@@ -1238,7 +1322,7 @@ function clearSearch() {
 // Debounced so filtering a large array doesn't run on every keystroke
 document.getElementById('searchInput').addEventListener('input', e => {
   const val = e.target.value.trim();
-  document.getElementById('searchClear').classList.toggle('visible', val !== '');
+  document.getElementById('searchClear').disabled = val === '';
   clearTimeout(searchDebounce);
   searchDebounce = setTimeout(() => {
     searchTerm = val;
@@ -1250,21 +1334,71 @@ document.getElementById('searchInput').addEventListener('input', e => {
 // A multi-MB string dropped into a <textarea> is itself janky to render, scroll, and
 // select — well before any parsing runs. For large pastes we keep the full text in a JS
 // variable (rawJsonText), show only a short preview in the textarea, and parse from memory.
+// Load text from a programmatic source (large paste, dropped file) into the input and parse it.
+// Multi-MB strings are kept in rawJsonText, out of the textarea, with only a short preview shown.
+function ingestText(text) {
+  const input = document.getElementById('jsonInput');
+  if (text && text.length > PASTE_INLINE_MAX) {
+    rawJsonText = text;
+    input.value = text.slice(0, 2000) +
+      `\n\n… +${(text.length - 2000).toLocaleString()} more chars (kept out of this box for speed — parsing…)`;
+  } else {
+    rawJsonText = '';
+    input.value = text;
+  }
+  setTimeout(parseInput, 0);  // let the preview paint before a big parse blocks the thread
+}
+
 document.getElementById('jsonInput').addEventListener('paste', e => {
-  const input = e.currentTarget;
   const text = e.clipboardData && e.clipboardData.getData('text');
 
   if (text && text.length > PASTE_INLINE_MAX) {
     e.preventDefault();
-    rawJsonText = text;
-    input.value = text.slice(0, 2000) +
-      `\n\n… +${(text.length - 2000).toLocaleString()} more chars (kept out of this box for speed — parsing…)`;
-    setTimeout(parseInput, 0);
+    ingestText(text);
   } else {
     rawJsonText = '';  // small paste lands in the textarea, which becomes the source of truth
     setTimeout(parseInput, 0);
   }
 });
+
+// ─── Drag & drop a .json file ───────────────────────────────────────────────────
+const leftPanel = document.querySelector('.left-panel');
+
+['dragenter', 'dragover'].forEach(ev =>
+  leftPanel.addEventListener(ev, e => {
+    if (!e.dataTransfer || ![...e.dataTransfer.types].includes('Files')) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    leftPanel.classList.add('drag-over');
+  })
+);
+
+leftPanel.addEventListener('dragleave', e => {
+  if (!leftPanel.contains(e.relatedTarget)) leftPanel.classList.remove('drag-over');
+});
+
+leftPanel.addEventListener('drop', e => {
+  if (!e.dataTransfer || !e.dataTransfer.files.length) return;
+  e.preventDefault();
+  leftPanel.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  const reader = new FileReader();
+  reader.onload = () => {
+    // A dropped file replaces any current dataset — re-open the input area if it was collapsed.
+    document.querySelector('.paste-area').classList.remove('collapsed');
+    document.getElementById('changeBtn').classList.remove('visible');
+    ingestText(String(reader.result || ''));
+  };
+  reader.onerror = () => showError('Could not read file: ' + file.name);
+  reader.readAsText(file);
+});
+
+// Stop a stray drop outside the zone from navigating the page to the file.
+['dragover', 'drop'].forEach(ev =>
+  window.addEventListener(ev, e => {
+    if (!leftPanel.contains(e.target)) e.preventDefault();
+  })
+);
 
 // Any manual edit invalidates a stashed large-paste preview — the textarea is now authoritative.
 document.getElementById('jsonInput').addEventListener('input', () => {
