@@ -1,0 +1,1564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:">
+  <title>XML → Table | SharePoint / OData to Excel</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:          #0f172a;
+      --surface:     #1e293b;
+      --raised:      #273549;
+      --line:        #2c3a50;
+      --line-2:      #1a2740;
+      --text:        #f1f5f9;
+      --text-2:      #94a3b8;
+      --text-3:      #475569;
+      --amber:       #f59e0b;
+      --amber-soft:  rgba(245,158,11,0.12);
+      --amber-dim:   rgba(245,158,11,0.06);
+      --blue:        #3b82f6;
+      --blue-soft:   rgba(59,130,246,0.12);
+      --green:       #10b981;
+      --green-soft:  rgba(16,185,129,0.12);
+      --red:         #ef4444;
+      --red-soft:    rgba(239,68,68,0.12);
+      --cyan:        #06b6d4;
+      --mono:        'Cascadia Code', 'Cascadia Mono', Consolas, 'Courier New', monospace;
+      --sans:        'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, sans-serif;
+      --r-sm: 5px;
+      --r-md: 9px;
+      --r-lg: 13px;
+    }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      background-image:
+        linear-gradient(rgba(59,130,246,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(59,130,246,0.04) 1px, transparent 1px);
+      background-size: 28px 28px;
+      color: var(--text);
+      height: 100vh;
+      overflow: hidden;
+      font-size: 14px;
+      line-height: 1.5;
+      display: flex;
+      flex-direction: column;
+    }
+
+    :focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; border-radius: 3px; }
+
+    /* ===== HEADER ===== */
+    .app-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(15,23,42,0.9);
+      backdrop-filter: blur(8px);
+      position: sticky;
+      top: 0;
+      z-index: 40;
+    }
+    .brand-mark {
+      width: 36px; height: 36px;
+      border: 1.5px solid var(--amber);
+      border-radius: var(--r-sm);
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      grid-template-rows: 10px 1fr 1fr;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .brand-mark span { border: 1px solid rgba(245,158,11,0.4); }
+    .brand-mark span:nth-child(-n+3) { background: var(--amber); }
+    .brand-mark span:nth-child(4) { background: var(--amber-soft); }
+
+    .header-text h1 { font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
+    .header-text p  { font-size: 12px; color: var(--text-2); }
+
+    /* ===== LAYOUT ===== */
+    .workspace {
+      display: grid;
+      grid-template-columns: 420px 1fr;
+      grid-template-rows: 1fr;
+      flex: 1;
+      min-height: 0;
+    }
+    .workspace.sidebar-hidden {
+      grid-template-columns: 0 1fr;
+    }
+    .workspace.sidebar-hidden .left-panel {
+      overflow: hidden;
+      border-right: none;
+    }
+    #sidebarToggle {
+      padding: 5px 7px;
+      border-radius: var(--r-sm);
+      background: transparent;
+      border: 1px solid var(--line);
+      color: var(--text-2);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      transition: all .12s;
+      flex-shrink: 0;
+    }
+    #sidebarToggle:hover { background: var(--raised); color: var(--text); }
+    #sidebarToggle svg { width: 15px; height: 15px; display: block; }
+
+    /* ===== LEFT PANEL ===== */
+    .left-panel {
+      border-right: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      background: rgba(15,23,42,0.4);
+    }
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--line);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--text-2);
+    }
+
+    .paste-area {
+      flex: 1;
+      min-height: 0;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .paste-area.collapsed {
+      flex: 0;
+      min-height: 0;
+      padding: 0;
+      overflow: hidden;
+    }
+    #changeBtn {
+      display: none;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: none;
+      letter-spacing: .02em;
+      padding: 3px 10px;
+      border-radius: 999px;
+      cursor: pointer;
+      border: 1px solid rgba(245,158,11,0.4);
+      background: var(--amber-soft);
+      color: var(--amber);
+      transition: all .12s;
+    }
+    #changeBtn:hover { background: rgba(245,158,11,0.2); border-color: var(--amber); }
+    #changeBtn.visible { display: inline-block; }
+    #xmlInput {
+      flex: 1;
+      min-height: 0;
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r-md);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 11.5px;
+      line-height: 1.6;
+      padding: 12px;
+      resize: none;
+      transition: border-color .15s;
+    }
+    #xmlInput::placeholder { color: var(--text-3); }
+    #xmlInput:focus { border-color: var(--amber); outline: none; }
+    #xmlInput.error { border-color: var(--red); }
+
+    .left-panel.drag-over { background: var(--amber-dim); }
+    .left-panel.drag-over #xmlInput {
+      border-color: var(--amber);
+      border-style: dashed;
+    }
+
+    .parse-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 14px;
+      border-radius: var(--r-sm);
+      font-family: var(--sans);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all .15s;
+      white-space: nowrap;
+    }
+    .btn-primary {
+      background: var(--amber);
+      color: #0f172a;
+      border-color: var(--amber);
+    }
+    .btn-primary:hover { background: #fbbf24; }
+    .btn-secondary {
+      background: var(--surface);
+      color: var(--text);
+      border-color: var(--line);
+    }
+    .btn-secondary:hover { background: var(--raised); border-color: var(--text-3); }
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-2);
+      border-color: var(--line);
+    }
+    .btn-ghost:hover { background: var(--raised); color: var(--text); }
+    .btn-green {
+      background: var(--green-soft);
+      color: var(--green);
+      border-color: rgba(16,185,129,0.3);
+    }
+    .btn-green:hover { background: rgba(16,185,129,0.2); }
+    .btn-blue {
+      background: var(--blue-soft);
+      color: var(--blue);
+      border-color: rgba(59,130,246,0.3);
+    }
+    .btn-blue:hover { background: rgba(59,130,246,0.2); }
+    .btn-blue.copied {
+      background: var(--green-soft);
+      color: var(--green);
+      border-color: rgba(16,185,129,0.3);
+    }
+    .btn:disabled { opacity: .4; cursor: not-allowed; pointer-events: none; }
+    .btn svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+    .error-msg {
+      font-size: 12px;
+      color: var(--red);
+      background: var(--red-soft);
+      border: 1px solid rgba(239,68,68,0.25);
+      border-radius: var(--r-sm);
+      padding: 6px 10px;
+      display: none;
+    }
+    .error-msg.visible { display: block; }
+
+    /* ===== ROW-ELEMENT SELECTOR ===== */
+    .row-source {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 14px;
+      border-top: 1px solid var(--line);
+      background: rgba(15,23,42,0.5);
+    }
+    .row-source.visible { display: flex; }
+    .row-source-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--text-2);
+      flex-shrink: 0;
+    }
+    .row-source select {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r-sm);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 11.5px;
+      padding: 4px 8px;
+      cursor: pointer;
+      max-width: 200px;
+    }
+    .row-source select:focus { border-color: var(--amber); outline: none; }
+    .row-source-hint {
+      font-size: 11px;
+      color: var(--text-3);
+      margin-left: auto;
+      white-space: nowrap;
+    }
+
+    /* ===== COLUMN PANEL ===== */
+    .col-panel {
+      border-top: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+      max-height: 340px;
+      position: relative;
+    }
+    /* When input is collapsed, fill remaining vertical space */
+    .paste-area.collapsed ~ .col-panel {
+      max-height: none;
+      flex: 1;
+      min-height: 0;
+    }
+    /* Fade hint at bottom to signal more columns below */
+    .col-panel::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 36px;
+      background: linear-gradient(transparent, var(--bg));
+      pointer-events: none;
+      transition: opacity .2s;
+    }
+    .col-panel.scrolled-to-end::after {
+      opacity: 0;
+    }
+    .col-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--line);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--text-2);
+    }
+    .col-panel-header .col-actions {
+      display: flex;
+      gap: 6px;
+    }
+    .col-toggle-btn {
+      font-size: 10px;
+      font-weight: 500;
+      padding: 2px 8px;
+      border-radius: 999px;
+      cursor: pointer;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      color: var(--text-2);
+      transition: all .12s;
+    }
+    .col-toggle-btn:hover { background: var(--raised); color: var(--text); }
+
+    .col-filter {
+      display: none;
+      padding: 8px 10px 4px;
+      border-bottom: 1px solid var(--line-2);
+    }
+    .col-filter.visible { display: block; }
+    .col-filter input {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r-sm);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 12px;
+      padding: 5px 9px;
+      transition: border-color .15s;
+    }
+    .col-filter input::placeholder { color: var(--text-3); }
+    .col-filter input:focus { border-color: var(--amber); outline: none; }
+
+    .col-list {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .col-list::-webkit-scrollbar { width: 7px; }
+    .col-list::-webkit-scrollbar-track { background: var(--surface); border-radius: 4px; }
+    .col-list::-webkit-scrollbar-thumb { background: var(--text-3); border-radius: 4px; }
+    .col-list::-webkit-scrollbar-thumb:hover { background: var(--text-2); }
+
+    .col-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 8px;
+      border-radius: var(--r-sm);
+      cursor: pointer;
+      transition: background .1s;
+      user-select: none;
+    }
+    .col-item:hover { background: var(--raised); }
+    .col-item input[type=checkbox] {
+      width: 14px; height: 14px;
+      accent-color: var(--amber);
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .col-name {
+      font-family: var(--mono);
+      font-size: 11.5px;
+      color: var(--text);
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .col-item.is-meta .col-name { color: var(--text-3); }
+    .meta-tag {
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      padding: 1px 5px;
+      border-radius: 3px;
+      background: rgba(100,116,139,0.15);
+      color: var(--text-3);
+      border: 1px solid rgba(100,116,139,0.2);
+      flex-shrink: 0;
+    }
+    .col-empty {
+      padding: 20px;
+      text-align: center;
+      color: var(--text-3);
+      font-size: 12px;
+    }
+
+    /* ===== RIGHT PANEL ===== */
+    .right-panel {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      min-width: 0;
+    }
+
+    .output-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--line);
+      flex-shrink: 0;
+    }
+    .output-meta {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      color: var(--text-2);
+    }
+    .output-meta .badge {
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--blue-soft);
+      color: var(--blue);
+      border: 1px solid rgba(59,130,246,0.25);
+    }
+    .cap-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      padding: 2px 9px 2px 7px;
+      border-radius: 999px;
+      background: var(--amber-soft);
+      color: var(--amber);
+      border: 1px solid rgba(245,158,11,0.3);
+      white-space: nowrap;
+    }
+    .cap-badge svg { width: 12px; height: 12px; flex-shrink: 0; }
+    .output-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* ===== SEARCH BAR ===== */
+    .search-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-bottom: 1px solid var(--line);
+      flex-shrink: 0;
+    }
+    .search-bar svg.search-icon {
+      width: 14px; height: 14px;
+      color: var(--text-3);
+      flex-shrink: 0;
+    }
+    .search-bar input {
+      flex: 1;
+      min-width: 0;
+      max-width: 360px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r-sm);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 13px;
+      padding: 6px 10px;
+      transition: border-color .15s;
+    }
+    .search-bar input::placeholder { color: var(--text-3); }
+    .search-bar input:focus { border-color: var(--amber); outline: none; }
+    #searchClear {
+      display: inline-block;
+      background: transparent;
+      border: 1px solid var(--line);
+      color: var(--text-2);
+      border-radius: var(--r-sm);
+      padding: 5px 9px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all .12s;
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+    #searchClear:hover:not(:disabled) { background: var(--raised); color: var(--text); }
+    #searchClear:disabled { opacity: .4; cursor: not-allowed; }
+    .search-count {
+      font-size: 12px;
+      color: var(--text-2);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .table-scroll {
+      flex: 1;
+      overflow: auto;
+      min-height: 0;
+    }
+    .table-scroll::-webkit-scrollbar { width: 7px; height: 7px; }
+    .table-scroll::-webkit-scrollbar-track { background: transparent; }
+    .table-scroll::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+    .table-scroll::-webkit-scrollbar-corner { background: transparent; }
+
+    #outputTable {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: 12.5px;
+    }
+    #outputTable th {
+      position: sticky;
+      top: 0;
+      background: var(--surface);
+      color: var(--amber);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .03em;
+      text-align: left;
+      padding: 8px 12px;
+      border-bottom: 2px solid var(--amber);
+      border-right: 1px solid var(--line);
+      white-space: nowrap;
+      z-index: 2;
+    }
+    #outputTable th:last-child { border-right: none; }
+    #outputTable th.sortable { cursor: pointer; user-select: none; }
+    #outputTable th.sortable:hover { background: var(--raised); }
+    #outputTable th .th-inner {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    #outputTable th .sort-ind {
+      font-size: 9px;
+      line-height: 1;
+      opacity: 0;
+      transition: opacity .12s;
+    }
+    #outputTable th.sortable:hover .sort-ind { opacity: .4; }
+    #outputTable th.sorted .sort-ind { opacity: 1; }
+    .no-match td {
+      padding: 24px 12px;
+      text-align: center;
+      color: var(--text-3);
+      font-size: 13px;
+      font-style: italic;
+    }
+    #outputTable td {
+      padding: 6px 12px;
+      border-bottom: 1px solid var(--line-2);
+      border-right: 1px solid var(--line-2);
+      color: var(--text);
+      max-width: 280px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      vertical-align: top;
+    }
+    #outputTable td:last-child { border-right: none; }
+    #outputTable tr:hover td { background: rgba(245,158,11,0.04); }
+    #outputTable td.null-val { color: var(--text-3); font-style: italic; }
+    #outputTable td.bool-true { color: var(--green); }
+    #outputTable td.bool-false { color: var(--red); }
+    #outputTable td.num-val { text-align: right; font-variant-numeric: tabular-nums; }
+
+    /* Empty/placeholder state */
+    .empty-state {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      color: var(--text-3);
+      padding: 40px;
+      text-align: center;
+    }
+    .empty-state svg { opacity: .25; }
+    .empty-state p { font-size: 13px; }
+
+    /* Copy feedback */
+    .copy-feedback {
+      font-size: 11px;
+      color: var(--green);
+      opacity: 0;
+      transition: opacity .3s;
+      white-space: nowrap;
+    }
+    .copy-feedback.show { opacity: 1; }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(8px);
+      background: var(--green);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 500;
+      padding: 8px 18px;
+      border-radius: 999px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity .2s, transform .2s;
+      z-index: 100;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  </style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="brand-mark" aria-hidden="true">
+    <span></span><span></span><span></span>
+    <span></span><span></span><span></span>
+    <span></span><span></span><span></span>
+  </div>
+  <div class="header-text">
+    <h1>XML &rarr; Table</h1>
+    <p>Paste SharePoint / OData / any XML &mdash; get an Excel-ready table</p>
+  </div>
+</header>
+
+<div class="workspace">
+
+  <!-- ===== LEFT PANEL ===== -->
+  <div class="left-panel">
+    <div class="panel-header">
+      Input
+      <button id="changeBtn" onclick="clearAll()">Clear</button>
+    </div>
+
+    <div class="paste-area">
+      <textarea id="xmlInput" spellcheck="false"
+        placeholder="Paste your XML here&#10;&#10;Works best with repeating records:&#10;  • SharePoint / OData Atom feeds (entry → properties)&#10;  • SOAP / RSS / any list of repeated elements&#10;&#10;Namespaces are stripped; types, nulls &amp; collections handled.&#10;&#10;Or drop an .xml file anywhere on this panel."></textarea>
+
+      <div class="error-msg" id="errorMsg"></div>
+
+      <div class="parse-row">
+        <button class="btn btn-primary" id="parseBtn" onclick="parseInput()">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M3 4h10M3 8h7M3 12h5"/><path d="M13 10l2 2-2 2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Parse XML
+        </button>
+        <button class="btn btn-ghost" onclick="clearAll()">Clear</button>
+        <span class="copy-feedback" id="parseFeedback"></span>
+      </div>
+
+    </div>
+
+    <!-- Row element selector -->
+    <div class="row-source" id="rowSource">
+      <span class="row-source-label">Rows from</span>
+      <select id="rowSelect" onchange="onRowElementChange()" title="Which repeating element becomes a table row"></select>
+      <span class="row-source-hint" id="rowSourceHint"></span>
+    </div>
+
+    <!-- Column selector -->
+    <div class="col-panel" id="colPanel">
+      <div class="col-panel-header">
+        Columns
+        <div class="col-actions">
+          <button class="col-toggle-btn" onclick="setAllCols(true)">All</button>
+          <button class="col-toggle-btn" onclick="setAllCols(false)">None</button>
+          <button class="col-toggle-btn" onclick="resetCols()">Reset</button>
+        </div>
+      </div>
+      <div class="col-filter" id="colFilter">
+        <input id="colFilterInput" type="text" spellcheck="false" placeholder="Filter columns…">
+      </div>
+      <div class="col-list" id="colList">
+        <div class="col-empty">Parse XML to see columns</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== RIGHT PANEL ===== -->
+  <div class="right-panel">
+    <div class="output-header">
+      <div class="output-meta">
+        <button id="sidebarToggle" onclick="toggleSidebar()" title="Toggle panel">
+          <svg viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+            <rect x="1" y="1" width="13" height="13" rx="1.5"/>
+            <path d="M5 1v13"/>
+          </svg>
+        </button>
+        <span id="rowBadge" class="badge" style="display:none"></span>
+        <span id="colBadge" class="badge" style="display:none; background:var(--amber-soft); color:var(--amber); border-color:rgba(245,158,11,.25)"></span>
+        <span id="capBadge" class="cap-badge" style="display:none">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 1l7 12H1L8 1z"/><path d="M8 6v3"/><path d="M8 11.5v.5"/>
+          </svg>
+          <span id="capBadgeText"></span>
+        </span>
+      </div>
+      <div class="output-actions">
+        <button class="btn btn-blue" id="copyTsvBtn" onclick="copyTSV()" disabled>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+            <rect x="4" y="2" width="10" height="12" rx="1.5"/>
+            <path d="M2 4v10a1.5 1.5 0 001.5 1.5H11"/>
+            <path d="M7 6h4M7 9h4M7 12h2"/>
+          </svg>
+          <span id="copyBtnLabel">Copy for Excel</span>
+        </button>
+        <button class="btn btn-green" id="csvBtn" onclick="downloadCSV()" disabled>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+            <path d="M8 2v8M5 7l3 3 3-3"/><path d="M2 11v1.5A1.5 1.5 0 003.5 14h9a1.5 1.5 0 001.5-1.5V11"/>
+          </svg>
+          <span id="csvBtnLabel">Download CSV</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="search-bar" id="searchBar" style="display:none">
+      <svg class="search-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+        <circle cx="7" cy="7" r="5"/><path d="M11 11l4 4"/>
+      </svg>
+      <input id="searchInput" type="text" spellcheck="false" placeholder="Filter rows — matches any visible cell">
+      <span class="search-count" id="searchCount"></span>
+      <button id="searchClear" onclick="clearSearch()" disabled>Clear search</button>
+    </div>
+
+    <div id="emptyState" class="empty-state">
+      <svg width="64" height="64" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.5">
+        <rect x="8" y="12" width="48" height="40" rx="3"/>
+        <path d="M8 22h48M22 22v30M38 22v30"/>
+        <path d="M8 32h48M8 42h48"/>
+      </svg>
+      <p>Paste XML on the left and click <strong>Parse XML</strong></p>
+    </div>
+
+    <div class="table-scroll" id="tableWrap" style="display:none">
+      <table id="outputTable"><thead></thead><tbody></tbody></table>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+
+// ─── State ────────────────────────────────────────────────────────────────────
+const RENDER_LIMIT     = 2000;
+const COL_SAMPLE_LIMIT = 250;     // rows sampled for column discovery on large arrays
+const PASTE_INLINE_MAX = 100000;  // pastes larger than this bypass the textarea
+
+// OData / Atom namespaces (SharePoint REST, WCF Data Services)
+const META_NS = 'http://schemas.microsoft.com/ado/2007/08/dataservices/metadata'; // m:
+const XMLNS_NS = 'http://www.w3.org/2000/xmlns/';
+
+let xmlDoc        = null;
+let rowCandidates = [];   // [{name, count, rich, odata}]
+let rowElementName = null;
+
+let parsedRows = [];
+let allColumns = [];   // [{key, isMeta}]
+let colState   = {};   // key → boolean (checked)
+let searchTerm = '';
+let sortKey    = null; // column key currently sorted by
+let sortDir    = 0;    // 1 asc, -1 desc, 0 none
+
+let rawXmlText   = '';            // holds source text for large pastes kept out of the textarea
+let flatCache    = new WeakMap(); // row object → Map(key → flattened string), reset per parse
+let searchDebounce = null;
+
+// Memoized cell flattening — avoids re-running flattenValue on every render/search/sort/export
+function flatCell(row, key) {
+  let m = flatCache.get(row);
+  if (!m) { m = new Map(); flatCache.set(row, m); }
+  let v = m.get(key);
+  if (v === undefined) { v = flattenValue(row[key]); m.set(key, v); }
+  return v;
+}
+
+// ─── XML attribute / element helpers ─────────────────────────────────────────
+// Control attributes carry no data: namespace decls (xmlns) and OData metadata (m:type, m:null).
+function isControlAttr(a) {
+  return a.namespaceURI === META_NS
+      || a.namespaceURI === XMLNS_NS
+      || a.name === 'xmlns'
+      || a.name.startsWith('xmlns:');
+}
+function dataAttrs(el)    { return [...el.attributes].filter(a => !isControlAttr(a)); }
+function hasDataAttrs(el) { return dataAttrs(el).length > 0; }
+function elemChildren(el) { return [...el.children]; }
+function localText(el)    { return (el.textContent || '').trim(); }
+function mType(el)        { return el.getAttributeNS(META_NS, 'type') || ''; }
+function isNullEl(el)     { return el.getAttributeNS(META_NS, 'null') === 'true'; }
+
+// Coerce a text value to a real JS type using its OData m:type, so booleans/numbers
+// render and sort correctly (TRUE/FALSE colouring, right-aligned numerics).
+function coerce(text, type) {
+  if (text === '') return '';
+  if (type === 'Edm.Boolean') return text === 'true';
+  if (/Edm\.(Int16|Int32|Int64|Double|Decimal|Single|Byte|SByte)/.test(type)) {
+    const n = Number(text);
+    return Number.isFinite(n) ? n : text;
+  }
+  return text;  // strings, GUIDs, and DateTimes stay as text
+}
+
+// ─── XML element → flat row object ───────────────────────────────────────────
+// Turns one record element into a plain object whose shape matches what the table
+// pipeline expects: primitives, arrays (collections), with nested complex types
+// flattened to dotted "Parent/Child" keys.
+function rowFromElement(el, includeOwnAttrs) {
+  const obj = {};
+  if (includeOwnAttrs) {
+    for (const a of dataAttrs(el)) obj['@' + a.localName] = a.value;
+  }
+  for (const c of elemChildren(el)) assignField(obj, c.localName, c);
+  return obj;
+}
+
+function assignField(obj, name, el) {
+  if (isNullEl(el)) { obj[name] = null; return; }
+
+  const kids = elemChildren(el);
+  const type = mType(el);
+
+  if (kids.length) {
+    const firstName = kids[0].localName;
+    const uniform   = kids.every(k => k.localName === firstName);
+    const leafy     = kids.every(k => k.children.length === 0);
+
+    if ((type.startsWith('Collection(') || uniform) && leafy) {
+      // Repeated leaf children → a collection. Becomes an array, joined with "; " in cells.
+      obj[name] = kids.map(k => coerce(localText(k), mType(k)));
+    } else if (type.startsWith('Collection(') || uniform) {
+      // Collection of complex items — fall back to each item's text content.
+      obj[name] = kids.map(k => (k.textContent || '').trim());
+    } else {
+      // Nested complex type (e.g. SP.FieldUrlValue) → dotted sub-columns: Face/Url, Face/Description.
+      for (const k of kids) assignField(obj, name + '/' + k.localName, k);
+    }
+  } else {
+    // Leaf: capture any data-bearing attributes too (generic XML like <price currency="USD">10</price>).
+    for (const a of dataAttrs(el)) obj[name + '/@' + a.localName] = a.value;
+    obj[name] = coerce(localText(el), type);
+  }
+}
+
+// ─── Row-element detection ───────────────────────────────────────────────────
+// Find candidate "row" elements: groups of same-named sibling elements that repeat.
+// Counting per-parent (not doc-wide) is what separates real rows (<entry>, <book>)
+// from field elements that merely recur once per row (<Face>, <Title>).
+function findRowCandidates(doc) {
+  const parentGroups = new Map(); // parentNode → Map(localName → [els])
+  for (const el of doc.getElementsByTagName('*')) {
+    if (el.namespaceURI === META_NS) continue;          // skip OData metadata wrappers (m:properties)
+    const p = el.parentNode;
+    let g = parentGroups.get(p);
+    if (!g) { g = new Map(); parentGroups.set(p, g); }
+    const ln = el.localName;
+    let arr = g.get(ln);
+    if (!arr) { arr = []; g.set(ln, arr); }
+    arr.push(el);
+  }
+
+  const byName = new Map(); // localName → {count, rich, odata}
+  for (const g of parentGroups.values()) {
+    for (const [ln, arr] of g) {
+      if (arr.length < 2) continue;                     // a single element is not a repeating row
+      let rec = byName.get(ln) || { count: 0, rich: false, odata: false };
+      rec.count += arr.length;
+      for (const el of arr) {
+        if (el.children.length > 0 || hasDataAttrs(el)) rec.rich = true;
+        if (el.getElementsByTagNameNS(META_NS, 'properties').length) rec.odata = true;
+      }
+      byName.set(ln, rec);
+    }
+  }
+
+  // Keep only "record-like" groups (have children or attributes — not bare text leaves).
+  return [...byName]
+    .filter(([, r]) => r.rich)
+    .map(([name, r]) => ({ name, count: r.count, rich: r.rich, odata: r.odata }))
+    .sort((a, b) => (b.odata - a.odata) || (b.count - a.count));
+}
+
+// Build row objects for the currently selected row element. If a record contains an
+// OData <m:properties> block, that block holds the real fields — use it and skip the
+// surrounding Atom plumbing (id, category, the dozen <link> elements, etc.).
+function rowsForName(name) {
+  const els = [...xmlDoc.getElementsByTagName('*')]
+    .filter(e => e.localName === name && e.namespaceURI !== META_NS);
+  return els.map(el => {
+    const props = el.getElementsByTagNameNS(META_NS, 'properties')[0];
+    return props ? rowFromElement(props, false) : rowFromElement(el, true);
+  });
+}
+
+// ─── SharePoint / OData metadata-column detection ────────────────────────────
+const KNOWN_META = new Set([
+  'FileSystemObjectType', 'ServerRedirectedEmbedUri', 'ServerRedirectedEmbedUrl',
+  'ContentTypeId', 'ComplianceAssetId', 'GUID', 'Attachments', 'Id',
+  'OData__ColorTag', 'OData__UIVersionString',
+]);
+
+function isMetaKey(key) {
+  if (KNOWN_META.has(key))                 return true;
+  if (key.startsWith('OData__'))           return true;
+  if (key !== 'ID' && /Id$/.test(key))     return true;  // AuthorId, EditorId, ContentTypeId…
+  return false;
+}
+
+// ─── Value flattening ─────────────────────────────────────────────────────────
+function flattenValue(val) {
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'boolean') return val ? 'TRUE' : 'FALSE';
+  if (typeof val !== 'object') return String(val);
+
+  if (Array.isArray(val)) {
+    if (val.length === 0) return '';
+    return val.map(v => (v != null && typeof v === 'object') ? JSON.stringify(v) : String(v)).join('; ');
+  }
+  return JSON.stringify(val);
+}
+
+// ─── Parse ────────────────────────────────────────────────────────────────────
+function parseInput() {
+  const input = document.getElementById('xmlInput');
+  // For large pastes the full text lives in rawXmlText, not the textarea (which holds a preview)
+  const raw = (rawXmlText || input.value).trim();
+  if (!raw) return;
+
+  const errEl = document.getElementById('errorMsg');
+  input.classList.remove('error');
+  errEl.classList.remove('visible');
+
+  const doc = new DOMParser().parseFromString(raw, 'application/xml');
+  const perr = doc.getElementsByTagName('parsererror')[0];
+  if (perr) {
+    input.classList.add('error');
+    const msg = (perr.textContent || 'Could not parse XML').trim().split('\n').filter(Boolean)[0];
+    showError('Invalid XML: ' + msg);
+    return;
+  }
+
+  xmlDoc = doc;
+  rowCandidates = findRowCandidates(doc);
+  if (rowCandidates.length === 0) {
+    showError('Could not find a repeating element to use as rows. Expected at least one element that appears 2+ times under the same parent (e.g. <entry>, <item>, <row>).');
+    input.classList.add('error');
+    return;
+  }
+
+  rowElementName = rowCandidates[0].name;  // sorted: OData rows first, then most frequent
+  populateRowSelect();
+  buildAndRender();
+  collapseInput();
+  updateColFade();
+}
+
+// Build parsedRows from the selected row element, discover columns, and render.
+function buildAndRender() {
+  parsedRows = rowsForName(rowElementName);
+  flatCache = new WeakMap();  // drop memoized cells from any previous selection/dataset
+
+  // Column discovery samples a bounded set of rows rather than scanning the whole array.
+  const n = parsedRows.length;
+  let sampleRows;
+  if (n <= COL_SAMPLE_LIMIT) {
+    sampleRows = parsedRows;
+  } else {
+    sampleRows = [];
+    const stride = n / COL_SAMPLE_LIMIT;
+    for (let i = 0; i < COL_SAMPLE_LIMIT; i++) sampleRows.push(parsedRows[Math.floor(i * stride)]);
+    sampleRows.push(parsedRows[n - 1]);
+  }
+
+  // Collect all keys across the sampled rows (union, first-seen order)
+  const keySet = new Set();
+  for (const row of sampleRows) {
+    if (row && typeof row === 'object') {
+      for (const k of Object.keys(row)) keySet.add(k);
+    }
+  }
+
+  allColumns = [...keySet].map(key => ({ key, isMeta: isMetaKey(key) }));
+
+  // Default state: include non-meta, exclude meta
+  colState = {};
+  for (const col of allColumns) colState[col.key] = !col.isMeta;
+
+  // Reset view state for the new dataset
+  searchTerm = '';
+  sortKey = null;
+  sortDir = 0;
+  document.getElementById('searchInput').value = '';
+  document.getElementById('searchClear').disabled = true;
+  document.getElementById('colFilterInput').value = '';
+
+  document.getElementById('rowSourceHint').textContent =
+    parsedRows.length + ' row' + (parsedRows.length !== 1 ? 's' : '');
+
+  renderColumnPanel();
+  renderTable();
+  updateColFade();
+}
+
+// ─── Row-element selector ─────────────────────────────────────────────────────
+function populateRowSelect() {
+  const sel = document.getElementById('rowSelect');
+  sel.innerHTML = '';
+  for (const c of rowCandidates) {
+    const opt = document.createElement('option');
+    opt.value = c.name;
+    opt.textContent = `${c.name}  ·  ${c.count} found${c.odata ? '  (OData)' : ''}`;
+    sel.appendChild(opt);
+  }
+  sel.value = rowElementName;
+  document.getElementById('rowSource').classList.toggle('visible', rowCandidates.length > 0);
+}
+
+function onRowElementChange() {
+  rowElementName = document.getElementById('rowSelect').value;
+  buildAndRender();
+}
+
+// ─── Column panel ─────────────────────────────────────────────────────────────
+function renderColumnPanel() {
+  const list = document.getElementById('colList');
+  const filterRow = document.getElementById('colFilter');
+  if (allColumns.length === 0) {
+    filterRow.classList.remove('visible');
+    list.innerHTML = '<div class="col-empty">No columns found</div>';
+    return;
+  }
+
+  filterRow.classList.toggle('visible', allColumns.length > 8);
+
+  list.innerHTML = '';
+  for (const col of allColumns) {
+    const item = document.createElement('label');
+    item.className = 'col-item' + (col.isMeta ? ' is-meta' : '');
+    item.innerHTML = `
+      <input type="checkbox" ${colState[col.key] ? 'checked' : ''} data-key="${escAttr(col.key)}" onchange="onColToggle(this)">
+      <span class="col-name" title="${escAttr(col.key)}">${escHtml(col.key)}</span>
+      ${col.isMeta ? '<span class="meta-tag">meta</span>' : ''}
+    `;
+    list.appendChild(item);
+  }
+
+  applyColFilter();
+}
+
+// Filter the column checklist by name — toggles visibility without re-rendering,
+// so checkbox state (which lives in colState) is preserved.
+function applyColFilter() {
+  const term = (document.getElementById('colFilterInput').value || '').trim().toLowerCase();
+  const list = document.getElementById('colList');
+  let anyVisible = false;
+  for (const item of list.querySelectorAll('.col-item')) {
+    const key = item.querySelector('.col-name').textContent.toLowerCase();
+    const match = !term || key.includes(term);
+    item.style.display = match ? '' : 'none';
+    if (match) anyVisible = true;
+  }
+
+  let noMatch = list.querySelector('.col-filter-empty');
+  if (!anyVisible && term) {
+    if (!noMatch) {
+      noMatch = document.createElement('div');
+      noMatch.className = 'col-empty col-filter-empty';
+      list.appendChild(noMatch);
+    }
+    noMatch.textContent = `No columns match “${term}”`;
+    noMatch.style.display = '';
+  } else if (noMatch) {
+    noMatch.style.display = 'none';
+  }
+
+  updateColFade();
+}
+
+function onColToggle(cb) {
+  colState[cb.dataset.key] = cb.checked;
+  renderTable();
+}
+
+function setAllCols(state) {
+  for (const key of Object.keys(colState)) colState[key] = state;
+  renderColumnPanel();
+  renderTable();
+}
+
+function resetCols() {
+  for (const col of allColumns) colState[col.key] = !col.isMeta;
+  renderColumnPanel();
+  renderTable();
+}
+
+// ─── Table render ─────────────────────────────────────────────────────────────
+function getVisibleKeys() {
+  return allColumns.map(c => c.key).filter(k => colState[k]);
+}
+
+// Apply current search filter + sort to parsedRows (used by both table + export)
+function getDisplayRows() {
+  const keys = getVisibleKeys();
+  let rows = parsedRows;
+
+  if (searchTerm) {
+    const term = searchTerm.toLowerCase();
+    rows = rows.filter(row =>
+      keys.some(k => flatCell(row, k).toLowerCase().includes(term))
+    );
+  }
+
+  if (sortKey && sortDir !== 0 && colState[sortKey]) {
+    rows = [...rows].sort((a, b) => {
+      const av = a[sortKey], bv = b[sortKey];
+      const ae = av === null || av === undefined || av === '';
+      const be = bv === null || bv === undefined || bv === '';
+      if (ae && be) return 0;
+      if (ae) return 1;   // empties always sort last
+      if (be) return -1;
+      let cmp;
+      if (typeof av === 'number' && typeof bv === 'number') {
+        cmp = av - bv;
+      } else {
+        const as = flatCell(a, sortKey).toLowerCase();
+        const bs = flatCell(b, sortKey).toLowerCase();
+        cmp = as < bs ? -1 : as > bs ? 1 : 0;
+      }
+      return cmp * sortDir;
+    });
+  }
+
+  return rows;
+}
+
+// Tri-state header sort: none → asc → desc → none
+function onSortClick(th) {
+  const key = th.dataset.key;
+  if (sortKey === key) {
+    sortDir = sortDir === 1 ? -1 : (sortDir === -1 ? 0 : 1);
+    if (sortDir === 0) sortKey = null;
+  } else {
+    sortKey = key;
+    sortDir = 1;
+  }
+  renderTable();
+}
+
+function renderTable() {
+  const keys = getVisibleKeys();
+  const empty = document.getElementById('emptyState');
+  const wrap  = document.getElementById('tableWrap');
+  const thead = document.querySelector('#outputTable thead');
+  const tbody = document.querySelector('#outputTable tbody');
+  const rowBadge = document.getElementById('rowBadge');
+  const colBadge = document.getElementById('colBadge');
+  const copyBtn  = document.getElementById('copyTsvBtn');
+  const csvBtn   = document.getElementById('csvBtn');
+  const searchBar = document.getElementById('searchBar');
+  const capBadge = document.getElementById('capBadge');
+
+  if (parsedRows.length === 0 || keys.length === 0) {
+    empty.style.display = '';
+    wrap.style.display  = 'none';
+    searchBar.style.display = 'none';
+    rowBadge.style.display = 'none';
+    colBadge.style.display = 'none';
+    capBadge.style.display = 'none';
+    copyBtn.disabled = true;
+    csvBtn.disabled  = true;
+    setExportLabels(null);
+    return;
+  }
+
+  const displayRows = getDisplayRows();
+
+  // Render-cap notice (in header, so it's visible without scrolling)
+  if (displayRows.length > RENDER_LIMIT) {
+    capBadge.style.display = '';
+    capBadge.title = `The table renders only the first ${RENDER_LIMIT.toLocaleString()} rows for performance. Copy & Download include all ${displayRows.length.toLocaleString()} rows.`;
+    document.getElementById('capBadgeText').textContent =
+      `First ${RENDER_LIMIT.toLocaleString()} of ${displayRows.length.toLocaleString()} shown · exports include all rows`;
+  } else {
+    capBadge.style.display = 'none';
+  }
+
+  empty.style.display = 'none';
+  wrap.style.display  = '';
+  searchBar.style.display = '';
+  copyBtn.disabled = displayRows.length === 0;
+  csvBtn.disabled  = displayRows.length === 0;
+  setExportLabels(displayRows.length);
+
+  rowBadge.style.display = '';
+  colBadge.style.display = '';
+  rowBadge.textContent = parsedRows.length + ' row' + (parsedRows.length !== 1 ? 's' : '');
+  colBadge.textContent = keys.length + ' col' + (keys.length !== 1 ? 's' : '');
+
+  // Search result count
+  const searchCount = document.getElementById('searchCount');
+  searchCount.textContent = searchTerm
+    ? `${displayRows.length.toLocaleString()} of ${parsedRows.length.toLocaleString()} match`
+    : '';
+
+  // Header — sortable
+  thead.innerHTML = '<tr>' + keys.map(k => {
+    const isSorted = sortKey === k && sortDir !== 0;
+    const arrow = isSorted ? (sortDir === 1 ? '▲' : '▼') : '▲';
+    return `<th class="sortable${isSorted ? ' sorted' : ''}" data-key="${escAttr(k)}" onclick="onSortClick(this)" title="Sort by ${escAttr(k)}"><span class="th-inner"><span>${escHtml(k)}</span><span class="sort-ind">${arrow}</span></span></th>`;
+  }).join('') + '</tr>';
+
+  // No rows match the current search
+  if (displayRows.length === 0) {
+    tbody.innerHTML = `<tr class="no-match"><td colspan="${keys.length}">No rows match “${escHtml(searchTerm)}”</td></tr>`;
+    return;
+  }
+
+  // Body — capped to RENDER_LIMIT rows to avoid DOM bloat
+  const visibleRows = displayRows.length > RENDER_LIMIT
+    ? displayRows.slice(0, RENDER_LIMIT)
+    : displayRows;
+
+  const frag = document.createDocumentFragment();
+  for (const row of visibleRows) {
+    const tr = document.createElement('tr');
+    for (const key of keys) {
+      const raw = row[key];
+      const flat = flatCell(row, key);
+      const td = document.createElement('td');
+
+      if (flat === '') {
+        td.className = 'null-val';
+        td.textContent = '—';
+      } else if (typeof raw === 'boolean') {
+        td.className = raw ? 'bool-true' : 'bool-false';
+        td.textContent = flat;
+      } else if (typeof raw === 'number') {
+        td.className = 'num-val';
+        td.textContent = flat;
+        td.title = flat;
+      } else {
+        td.textContent = flat;
+        td.title = flat;
+      }
+      tr.appendChild(td);
+    }
+    frag.appendChild(tr);
+  }
+  tbody.innerHTML = '';
+  tbody.appendChild(frag);
+}
+
+// Reflect the number of rows an export will produce (filtered count) on the buttons,
+// so it's clear Copy/Download include every row even when the table view is capped.
+function setExportLabels(n) {
+  const copyLabel = document.getElementById('copyBtnLabel');
+  const csvLabel  = document.getElementById('csvBtnLabel');
+  if (n == null) {
+    if (copyLabel) copyLabel.textContent = 'Copy for Excel';
+    if (csvLabel)  csvLabel.textContent  = 'Download CSV';
+    return;
+  }
+  const word = n === 1 ? 'row' : 'rows';
+  const count = `${n.toLocaleString()} ${word}`;
+  if (copyLabel) copyLabel.textContent = `Copy ${count} for Excel`;
+  if (csvLabel)  csvLabel.textContent  = `Download CSV · ${count}`;
+}
+
+// ─── Export ───────────────────────────────────────────────────────────────────
+function buildTSV() {
+  const keys = getVisibleKeys();
+  const lines = [keys.join('\t')];
+  for (const row of getDisplayRows()) {
+    lines.push(keys.map(k => {
+      const v = flatCell(row, k);
+      // Escape tabs/newlines for TSV
+      return v.replace(/\t/g, ' ').replace(/\r?\n/g, ' ');
+    }).join('\t'));
+  }
+  return lines.join('\r\n');
+}
+
+function buildCSVParts() {
+  const keys = getVisibleKeys();
+  const esc = v => '"' + String(v).replace(/"/g, '""') + '"';
+  const parts = ['﻿' + keys.map(esc).join(',') + '\r\n'];
+  for (const row of getDisplayRows()) {
+    parts.push(keys.map(k => esc(flatCell(row, k))).join(',') + '\r\n');
+  }
+  return parts;
+}
+
+function copyTSV() {
+  const tsv = buildTSV();
+  navigator.clipboard.writeText(tsv).then(() => {
+    flashCopyBtn();
+    showToast('Copied! Paste directly into Excel');
+  }).catch(() => {
+    // Fallback for non-secure contexts
+    const ta = document.createElement('textarea');
+    ta.value = tsv;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    flashCopyBtn();
+    showToast('Copied! Paste directly into Excel');
+  });
+}
+
+// Briefly swap the copy button to a "Copied!" confirmation state
+function flashCopyBtn() {
+  const btn = document.getElementById('copyTsvBtn');
+  if (btn._origHTML) return;  // already flashing
+  btn._origHTML = btn.innerHTML;
+  btn.classList.add('copied');
+  btn.innerHTML =
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.5 3.5L13 4"/></svg> Copied!';
+  setTimeout(() => {
+    btn.innerHTML = btn._origHTML;
+    btn._origHTML = null;
+    btn.classList.remove('copied');
+  }, 1600);
+}
+
+function downloadCSV() {
+  const blob = new Blob(buildCSVParts(), { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'data.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function showError(msg) {
+  const el = document.getElementById('errorMsg');
+  el.textContent = msg;
+  el.classList.add('visible');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+function toggleSidebar() {
+  document.querySelector('.workspace').classList.toggle('sidebar-hidden');
+}
+
+function collapseInput() {
+  document.querySelector('.paste-area').classList.add('collapsed');
+  document.getElementById('changeBtn').classList.add('visible');
+}
+
+function clearAll() {
+  document.querySelector('.paste-area').classList.remove('collapsed');
+  document.getElementById('changeBtn').classList.remove('visible');
+  document.getElementById('xmlInput').value = '';
+  document.getElementById('xmlInput').classList.remove('error');
+  document.getElementById('errorMsg').classList.remove('visible');
+
+  xmlDoc = null;
+  rowCandidates = [];
+  rowElementName = null;
+  parsedRows = [];
+  allColumns = [];
+  colState   = {};
+  searchTerm = '';
+  sortKey    = null;
+  sortDir    = 0;
+  rawXmlText = '';
+  flatCache  = new WeakMap();
+  clearTimeout(searchDebounce);
+  document.getElementById('searchInput').value = '';
+  document.getElementById('searchClear').disabled = true;
+  document.getElementById('searchBar').style.display = 'none';
+  document.getElementById('colFilterInput').value = '';
+  document.getElementById('colFilter').classList.remove('visible');
+  document.getElementById('rowSource').classList.remove('visible');
+  document.getElementById('rowSelect').innerHTML = '';
+  document.getElementById('colList').innerHTML = '<div class="col-empty">Parse XML to see columns</div>';
+  document.getElementById('emptyState').style.display = '';
+  document.getElementById('tableWrap').style.display = 'none';
+  document.getElementById('rowBadge').style.display = 'none';
+  document.getElementById('colBadge').style.display = 'none';
+  document.getElementById('capBadge').style.display = 'none';
+  document.getElementById('copyTsvBtn').disabled = true;
+  document.getElementById('csvBtn').disabled = true;
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function escAttr(s) {
+  return s.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+}
+
+// ─── Column list scroll fade ──────────────────────────────────────────────────
+function updateColFade() {
+  const list  = document.getElementById('colList');
+  const panel = list.closest('.col-panel');
+  const atEnd = list.scrollHeight - list.scrollTop <= list.clientHeight + 2;
+  panel.classList.toggle('scrolled-to-end', atEnd);
+}
+document.getElementById('colList').addEventListener('scroll', updateColFade);
+document.getElementById('colFilterInput').addEventListener('input', applyColFilter);
+
+// ─── Row search ───────────────────────────────────────────────────────────────
+function clearSearch() {
+  clearTimeout(searchDebounce);
+  searchTerm = '';
+  const input = document.getElementById('searchInput');
+  input.value = '';
+  document.getElementById('searchClear').disabled = true;
+  renderTable();
+  input.focus();
+}
+
+// Debounced so filtering a large array doesn't run on every keystroke
+document.getElementById('searchInput').addEventListener('input', e => {
+  const val = e.target.value.trim();
+  document.getElementById('searchClear').disabled = val === '';
+  clearTimeout(searchDebounce);
+  searchDebounce = setTimeout(() => {
+    searchTerm = val;
+    renderTable();
+  }, 150);
+});
+
+// ─── Auto-parse on paste ──────────────────────────────────────────────────────
+// A multi-MB string dropped into a <textarea> is itself janky to render, scroll, and
+// select — well before any parsing runs. For large pastes we keep the full text in a JS
+// variable (rawXmlText), show only a short preview in the textarea, and parse from memory.
+function ingestText(text) {
+  const input = document.getElementById('xmlInput');
+  if (text && text.length > PASTE_INLINE_MAX) {
+    rawXmlText = text;
+    input.value = text.slice(0, 2000) +
+      `\n\n… +${(text.length - 2000).toLocaleString()} more chars (kept out of this box for speed — parsing…)`;
+  } else {
+    rawXmlText = '';
+    input.value = text;
+  }
+  setTimeout(parseInput, 0);  // let the preview paint before a big parse blocks the thread
+}
+
+document.getElementById('xmlInput').addEventListener('paste', e => {
+  const text = e.clipboardData && e.clipboardData.getData('text');
+
+  if (text && text.length > PASTE_INLINE_MAX) {
+    e.preventDefault();
+    ingestText(text);
+  } else {
+    rawXmlText = '';  // small paste lands in the textarea, which becomes the source of truth
+    setTimeout(parseInput, 0);
+  }
+});
+
+// ─── Drag & drop an .xml file ───────────────────────────────────────────────────
+const leftPanel = document.querySelector('.left-panel');
+
+['dragenter', 'dragover'].forEach(ev =>
+  leftPanel.addEventListener(ev, e => {
+    if (!e.dataTransfer || ![...e.dataTransfer.types].includes('Files')) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    leftPanel.classList.add('drag-over');
+  })
+);
+
+leftPanel.addEventListener('dragleave', e => {
+  if (!leftPanel.contains(e.relatedTarget)) leftPanel.classList.remove('drag-over');
+});
+
+leftPanel.addEventListener('drop', e => {
+  if (!e.dataTransfer || !e.dataTransfer.files.length) return;
+  e.preventDefault();
+  leftPanel.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  const reader = new FileReader();
+  reader.onload = () => {
+    // A dropped file replaces any current dataset — re-open the input area if it was collapsed.
+    document.querySelector('.paste-area').classList.remove('collapsed');
+    document.getElementById('changeBtn').classList.remove('visible');
+    ingestText(String(reader.result || ''));
+  };
+  reader.onerror = () => showError('Could not read file: ' + file.name);
+  reader.readAsText(file);
+});
+
+// Stop a stray drop outside the zone from navigating the page to the file.
+['dragover', 'drop'].forEach(ev =>
+  window.addEventListener(ev, e => {
+    if (!leftPanel.contains(e.target)) e.preventDefault();
+  })
+);
+
+// Any manual edit invalidates a stashed large-paste preview — the textarea is now authoritative.
+document.getElementById('xmlInput').addEventListener('input', () => {
+  rawXmlText = '';
+});
+
+// ─── Keyboard shortcut ────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    e.preventDefault();
+    parseInput();
+  }
+});
+</script>
+</body>
+</html>
