@@ -297,8 +297,9 @@
       background: rgba(166, 227, 161, 0.1);
     }
 
-    /* Pattern library dropdown */
-    #pattern-library {
+    /* Pattern library + Match.* enum dropdowns */
+    #pattern-library,
+    #match-enum {
       background: var(--color-surface-alt);
       border: 1px solid var(--ink-purple);
       border-radius: var(--radius-md);
@@ -309,11 +310,15 @@
       outline: none;
       cursor: pointer;
       flex-shrink: 0;
+      max-width: 100%;
       transition: border-color var(--duration-fast) var(--ease-default);
     }
 
-    #pattern-library:focus { border-color: var(--ink-purple); }
+    #pattern-library:focus,
+    #match-enum:focus { border-color: var(--ink-purple); }
     #pattern-library option { background: var(--color-surface); color: var(--color-text-primary); }
+    #match-enum option   { background: var(--color-surface); color: var(--color-text-primary); font-family: var(--font-mono); }
+    #match-enum optgroup { background: var(--color-surface); color: var(--color-text-tertiary); font-family: var(--font-body); }
 
     /* ── Error bar ─────────────────────────────────────────────────────────── */
     #error-bar {
@@ -588,6 +593,10 @@
           <option value="">Load sample pattern</option>
         </select>
       </div>
+      <!-- Match.* predefined patterns -->
+      <select id="match-enum" title="Insert a Match.* predefined pattern's regex at the cursor">
+        <option value="">Insert Match.*…</option>
+      </select>
       <button class="btn" id="clear-btn" title="Clear pattern and test string">Clear</button>
     </div>
 
@@ -1810,6 +1819,7 @@
     const copyAllBtn     = document.getElementById('copy-all-btn');
     const clearBtn       = document.getElementById('clear-btn');
     const patternLibrary = document.getElementById('pattern-library');
+    const matchEnumSelect = document.getElementById('match-enum');
     const charCount      = document.getElementById('char-count');
 
     // ── State ─────────────────────────────────────────────────────────────
@@ -2262,6 +2272,66 @@
 
       updateCharCount();
       update();
+    });
+
+    // ── Match.* enum insertion ────────────────────────────────────────────
+    //
+    // Insert the regex equivalent of a Power Fx Match.* predefined pattern at
+    // the caret. Regex values come straight from the evaluator's Match enum so
+    // the dropdown and the engine can never drift apart.
+
+    const matchEnumGroups = [
+      ['Characters',   ['Any', 'Letter', 'Digit', 'NonSpace', 'Space', 'Tab',
+                        'Comma', 'Period', 'Hyphen', 'LeftParen', 'RightParen']],
+      ['One or more',  ['MultipleLetters', 'MultipleDigits', 'MultipleNonSpaces', 'MultipleSpaces']],
+      ['Zero or more', ['OptionalLetters', 'OptionalDigits', 'OptionalNonSpaces', 'OptionalSpaces']],
+      ['Patterns',     ['Email']],
+    ];
+
+    (function populateMatchEnum() {
+      const M = (window.PowerFxRegex && window.PowerFxRegex.Match) || {};
+      matchEnumGroups.forEach(([label, names]) => {
+        const group = document.createElement('optgroup');
+        group.label = label;
+        names.forEach(name => {
+          if (typeof M[name] !== 'string') return;
+          const opt = document.createElement('option');
+          opt.value = name;
+          opt.textContent = `${name} — ${M[name]}`;
+          group.appendChild(opt);
+        });
+        if (group.children.length) matchEnumSelect.appendChild(group);
+      });
+    }());
+
+    // Track the pattern caret so insertion lands where the user expects, even
+    // after the <select> steals focus from the input.
+    let patternSelStart = patternInput.value.length;
+    let patternSelEnd   = patternInput.value.length;
+    function trackPatternCaret() {
+      patternSelStart = patternInput.selectionStart;
+      patternSelEnd   = patternInput.selectionEnd;
+    }
+    ['keyup', 'click', 'focus', 'select', 'input'].forEach(ev =>
+      patternInput.addEventListener(ev, trackPatternCaret));
+
+    matchEnumSelect.addEventListener('change', e => {
+      const name = e.target.value;
+      if (name) {
+        const M = window.PowerFxRegex && window.PowerFxRegex.Match;
+        const regex = M && M[name];
+        if (typeof regex === 'string') {
+          const v = patternInput.value;
+          patternInput.value = v.slice(0, patternSelStart) + regex + v.slice(patternSelEnd);
+          const caret = patternSelStart + regex.length;
+          patternSelStart = patternSelEnd = caret;
+          patternInput.focus();
+          patternInput.setSelectionRange(caret, caret);
+          patternLibrary.value = '';
+          scheduleUpdate();
+        }
+      }
+      matchEnumSelect.value = ''; // reset so the same item can be picked again
     });
 
     // ── Initial render ────────────────────────────────────────────────────
