@@ -628,7 +628,10 @@ function chooseTz(i){
   if(tzFiltered[i]){ state.tz = tzFiltered[i]; }
   closeTzList(); update();
 }
-tzSearch.addEventListener('focus', ()=>{ tzSearch.select(); openTzList(''); });
+function browseTz(){ tzSearch.select(); openTzList(''); }
+tzSearch.addEventListener('focus', browseTz);
+// Clicking an already-focused field doesn't re-fire focus, so open the list here too.
+tzSearch.addEventListener('click', ()=>{ if(!tzList.classList.contains('open')) browseTz(); });
 tzSearch.addEventListener('input', ()=> openTzList(tzSearch.value));
 tzSearch.addEventListener('keydown', e=>{
   if(!tzList.classList.contains('open')) return;
