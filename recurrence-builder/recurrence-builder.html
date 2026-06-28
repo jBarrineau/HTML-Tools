@@ -1,0 +1,1169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Power Automate Recurrence Builder</title>
+<style>
+  :root{
+    --ink:#111111; --ink-soft:#4a4a4a; --paper:#ffffff; --surface:#f4f4f2;
+    --invert:#ffffff; --line:#111111; --hairline:rgba(17,17,17,.18);
+    --warn-bg:#fbfbf9;
+    --font-display:"Arial Black","Segoe UI",Arial,Helvetica,sans-serif;
+    --font-mono:Consolas,"Cascadia Mono",ui-monospace,"SF Mono",Menlo,"Courier New",monospace;
+    --font-ui:system-ui,"Segoe UI",Roboto,Arial,sans-serif;
+    --border-w:3px; --radius-lg:10px; --radius-sm:4px;
+    --space-1:8px; --space-2:12px; --space-3:16px; --space-4:24px; --space-5:34px;
+  }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0; padding:28px 20px 60px; background:var(--surface); color:var(--ink);
+    font-family:var(--font-ui); -webkit-font-smoothing:antialiased;
+  }
+  .title{ font-family:var(--font-display); font-weight:900; text-transform:uppercase;
+    letter-spacing:-0.02em; line-height:1.1; font-size:clamp(22px,3.2vw,32px); margin:0; }
+  .subtitle{ font-family:var(--font-mono); font-size:13px; color:var(--ink-soft); margin:6px 0 0; }
+  .wrap{ max-width:1180px; margin:0 auto; }
+  header.app{ margin-bottom:var(--space-4); display:flex; flex-wrap:wrap; align-items:flex-end;
+    justify-content:space-between; gap:var(--space-3); }
+
+  .grid{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:var(--space-4); align-items:start; }
+  @media (max-width:880px){ .grid{ grid-template-columns:1fr; } }
+
+  .card{ background:var(--paper); border:var(--border-w) solid var(--line);
+    border-radius:var(--radius-lg); padding:var(--space-4); }
+  .card + .card{ margin-top:var(--space-4); }
+
+  h2{ font-family:var(--font-display); font-weight:900; text-transform:uppercase;
+    letter-spacing:-0.01em; font-size:18px; margin:0 0 var(--space-3); }
+  h3{ font-family:var(--font-display); font-weight:900; text-transform:uppercase;
+    font-size:14px; margin:0 0 var(--space-2); }
+  .label{ font-family:var(--font-display); font-weight:900; text-transform:uppercase;
+    font-size:13px; color:var(--ink); display:block; margin-bottom:var(--space-1); }
+  .value, .mono{ font-family:var(--font-mono); color:var(--ink); }
+  .prose{ font-family:var(--font-ui); font-size:15px; line-height:1.55; color:var(--ink); margin:0; }
+  .meta{ font-family:var(--font-mono); font-size:12px; color:var(--ink-soft); }
+
+  .field{ margin-bottom:var(--space-3); }
+  .field:last-child{ margin-bottom:0; }
+  .row{ display:flex; flex-wrap:wrap; gap:var(--space-2); align-items:flex-end; }
+
+  /* segmented control */
+  .seg{ display:inline-flex; flex-wrap:wrap; border:2px solid var(--ink); border-radius:var(--radius-sm);
+    overflow:hidden; }
+  .seg button{ appearance:none; border:0; border-right:2px solid var(--ink); background:var(--paper);
+    color:var(--ink); font-family:var(--font-display); font-weight:900; text-transform:uppercase;
+    font-size:12px; padding:9px 13px; cursor:pointer; transition:background .1s ease; }
+  .seg button:last-child{ border-right:0; }
+  .seg button[aria-pressed="true"]{ background:var(--ink); color:var(--invert); }
+
+  input[type=number].input{ width:90px; }
+  .input{
+    font-family:var(--font-mono); font-size:15px; color:var(--ink); background:var(--paper);
+    border:2px solid var(--ink); border-radius:var(--radius-sm); padding:9px 11px;
+  }
+  .input::placeholder{ color:var(--ink-soft); }
+  .input:focus,.seg button:focus-visible,.toggle:focus-visible,.chip:focus-visible,.btn:focus-visible,.icon-btn:focus-visible{
+    outline:2px solid var(--ink); outline-offset:2px; }
+
+  /* combobox */
+  .combo{ position:relative; }
+  .combo .input{ width:100%; }
+  .combo-list{ position:absolute; z-index:30; left:0; right:0; top:calc(100% + 4px);
+    max-height:280px; overflow:auto; background:var(--paper); border:2px solid var(--ink);
+    border-radius:var(--radius-sm); display:none; }
+  .combo-list.open{ display:block; }
+  .combo-opt{ padding:8px 11px; cursor:pointer; font-family:var(--font-mono); font-size:13px;
+    border-bottom:1px solid var(--hairline); display:flex; gap:10px; }
+  .combo-opt:last-child{ border-bottom:0; }
+  .combo-opt:hover,.combo-opt.active{ background:var(--ink); color:var(--invert); }
+  .combo-opt .off{ font-weight:700; min-width:96px; }
+  .combo-opt .nm{ color:inherit; }
+  .combo-opt mark{ background:transparent; color:inherit; text-decoration:underline; }
+
+  /* toggle buttons (weekdays, hours) */
+  .toggle-row{ display:flex; flex-wrap:wrap; gap:6px; }
+  .grid-hours{ display:grid; grid-template-columns:repeat(6,1fr); gap:6px; }
+  .toggle{ appearance:none; border:2px solid var(--ink); background:var(--paper); color:var(--ink);
+    font-family:var(--font-mono); font-size:13px; padding:8px 0; min-width:40px; text-align:center;
+    border-radius:var(--radius-sm); cursor:pointer; transition:background .1s ease; }
+  .toggle[aria-pressed="true"]{ background:var(--ink); color:var(--invert); }
+
+  /* chips */
+  .chip-row{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+  .chip{ appearance:none; border:2px solid var(--ink); background:var(--paper); color:var(--ink);
+    font-family:var(--font-mono); font-size:13px; padding:7px 12px; border-radius:var(--radius-sm);
+    cursor:pointer; transition:background .1s ease; }
+  .chip[aria-pressed="true"]{ background:var(--ink); color:var(--invert); }
+  .chip-x{ margin-left:6px; font-weight:900; }
+
+  /* disabled section */
+  .disabled-block{ opacity:.4; pointer-events:none; }
+  .note-inline{ font-family:var(--font-mono); font-size:12px; color:var(--ink-soft);
+    margin:6px 0 0; }
+
+  /* buttons */
+  .btn{ font-family:var(--font-display); font-weight:900; text-transform:uppercase; font-size:13px;
+    padding:9px 15px; border-radius:var(--radius-sm); border:2px solid var(--ink); cursor:pointer;
+    transition:transform .1s ease; }
+  .btn:active{ transform:scale(.98); }
+  .btn--primary{ background:var(--ink); color:var(--invert); }
+  .btn--ghost{ background:var(--paper); color:var(--ink); }
+  .btn--ghost:hover{ background:var(--surface); }
+  .icon-btn{ background:none; border:0; color:var(--ink); cursor:pointer; padding:4px; }
+
+  /* run count summary */
+  .runcount{ display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin-bottom:var(--space-3);
+    padding:var(--space-2) var(--space-3); border:2px solid var(--ink); border-radius:var(--radius-sm);
+    background:var(--paper); }
+  .runcount .big{ font-family:var(--font-display); font-weight:900; font-size:30px; line-height:1; }
+  .runcount .cap{ font-family:var(--font-display); font-weight:900; text-transform:uppercase;
+    font-size:13px; }
+
+  /* preview table */
+  table.preview{ width:100%; border-collapse:collapse; font-family:var(--font-mono); font-size:13px; }
+  table.preview th{ text-align:left; font-family:var(--font-display); font-weight:900;
+    text-transform:uppercase; font-size:11px; letter-spacing:.02em; border-bottom:2px solid var(--ink);
+    padding:6px 8px; }
+  table.preview td{ padding:6px 8px; border-bottom:1px solid var(--hairline); vertical-align:top; }
+  table.preview tr:last-child td{ border-bottom:0; }
+  table.preview .rel{ color:var(--ink-soft); }
+  table.preview .dst{ color:var(--ink); font-weight:700; }
+  .empty-state{ font-family:var(--font-mono); font-size:13px; color:var(--ink-soft); padding:var(--space-3) 0; }
+
+  /* warnings */
+  .warn{ border:2px solid var(--ink); border-radius:var(--radius-sm); padding:10px 12px;
+    margin-bottom:var(--space-2); background:var(--warn-bg); }
+  .warn:last-child{ margin-bottom:0; }
+  .warn .wtitle{ font-family:var(--font-display); font-weight:900; text-transform:uppercase;
+    font-size:12px; display:flex; align-items:center; gap:8px; }
+  .warn .wbody{ font-family:var(--font-ui); font-size:13px; line-height:1.5; margin-top:5px; color:var(--ink); }
+  .warn .wbody code{ font-family:var(--font-mono); background:var(--surface); padding:1px 4px; border-radius:3px; }
+  .warn--hi .wtitle::before{ content:"!!"; }
+  .warn--lo .wtitle::before{ content:"i"; }
+  .warn .badge{ display:inline-block; background:var(--ink); color:var(--invert);
+    font-family:var(--font-mono); font-size:10px; padding:2px 6px; border-radius:3px; }
+  .no-warn{ font-family:var(--font-mono); font-size:13px; color:var(--ink-soft); }
+
+  /* english */
+  .english{ font-family:var(--font-ui); font-size:16px; line-height:1.5; }
+  .english b{ font-weight:700; }
+
+  /* json output */
+  .json-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:var(--space-2); }
+  pre.json{ font-family:var(--font-mono); font-size:13px; background:var(--surface);
+    border:2px solid var(--ink); border-radius:var(--radius-sm); padding:var(--space-3);
+    overflow:auto; margin:0; line-height:1.45; white-space:pre; }
+  .toggle-wrap{ display:inline-flex; align-items:center; gap:8px; font-family:var(--font-mono); font-size:12px; }
+
+  /* tests */
+  .tests-summary{ font-family:var(--font-mono); font-size:13px; }
+  .test-pass{ color:var(--ink); } .test-fail{ color:#b00000; font-weight:700; }
+  details.tests > summary{ cursor:pointer; font-family:var(--font-display); font-weight:900;
+    text-transform:uppercase; font-size:14px; list-style:none; display:flex; align-items:center; gap:10px; }
+  details.tests > summary::-webkit-details-marker{ display:none; }
+  .test-line{ font-family:var(--font-mono); font-size:12px; padding:3px 0; border-bottom:1px solid var(--hairline); }
+
+  .check{ font-family:var(--font-mono); font-size:13px; display:inline-flex; align-items:center; gap:8px; cursor:pointer; }
+  .check input{ width:16px; height:16px; accent-color:var(--ink); }
+
+  @media (prefers-reduced-motion: reduce){ *{ transition:none!important; animation:none!important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="app">
+    <div>
+      <h1 class="title">Recurrence builder</h1>
+      <p class="subtitle">Power Automate / Logic Apps &bull; see exactly when your flow fires</p>
+    </div>
+    <div class="seg" id="presets" aria-label="Presets">
+      <button type="button" data-preset="weekday9">Weekday 9am</button>
+      <button type="button" data-preset="hourlyBiz">Hourly biz hrs</button>
+      <button type="button" data-preset="monthly1st">1st of month</button>
+    </div>
+  </header>
+
+  <div class="grid">
+    <!-- ============ LEFT: CONFIG ============ -->
+    <div>
+      <section class="card">
+        <h2>Configuration</h2>
+
+        <div class="field">
+          <span class="label">Frequency &amp; interval</span>
+          <div class="row">
+            <span class="value">Every</span>
+            <input class="input" type="number" id="interval" min="1" value="1" aria-label="Interval">
+            <div class="seg" id="frequency" role="group" aria-label="Frequency">
+              <button type="button" data-freq="Second">Second</button>
+              <button type="button" data-freq="Minute">Minute</button>
+              <button type="button" data-freq="Hour">Hour</button>
+              <button type="button" data-freq="Day">Day</button>
+              <button type="button" data-freq="Week">Week</button>
+              <button type="button" data-freq="Month">Month</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="label" for="tzSearch">Time zone</label>
+          <div class="combo">
+            <input class="input" type="text" id="tzSearch" autocomplete="off" placeholder="Search time zone…" aria-expanded="false" role="combobox" aria-controls="tzList">
+            <div class="combo-list" id="tzList" role="listbox"></div>
+          </div>
+          <p class="note-inline" id="tzNote"></p>
+        </div>
+
+        <div class="field">
+          <span class="label">Start time <span class="meta">(anchor / earliest run)</span></span>
+          <div class="row">
+            <input class="input" type="date" id="startDate" aria-label="Start date">
+            <input class="input" type="time" id="startTime" aria-label="Start time">
+          </div>
+          <label class="check" style="margin-top:8px;"><input type="checkbox" id="noStart"> No start time (anchor to now)</label>
+        </div>
+      </section>
+
+      <section class="card" id="scheduleCard">
+        <h2>Schedule</h2>
+        <p class="note-inline" id="scheduleNote"></p>
+
+        <div class="field" id="weekDaysField">
+          <span class="label">Week days</span>
+          <div class="toggle-row" id="weekDays"></div>
+          <p class="note-inline" id="weekDaysNote"></p>
+        </div>
+
+        <div class="field" id="hoursField">
+          <span class="label">Hours of day (0–23)</span>
+          <div class="grid-hours" id="hours"></div>
+        </div>
+
+        <div class="field" id="minutesField">
+          <span class="label">Minutes</span>
+          <div class="chip-row" id="minutes"></div>
+          <div class="row" style="margin-top:8px;">
+            <input class="input" type="number" id="customMinute" min="0" max="59" placeholder="0–59" style="width:90px;" aria-label="Custom minute">
+            <button class="btn btn--ghost" type="button" id="addMinute">Add minute</button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ============ RIGHT: OUTPUT ============ -->
+    <div>
+      <section class="card">
+        <h2>Next runs</h2>
+        <div class="runcount" id="runcount"></div>
+        <p class="english" id="english"></p>
+        <div id="previewWrap"></div>
+        <p class="meta" id="localZoneNote" style="margin-top:10px;"></p>
+      </section>
+
+      <section class="card">
+        <h2>Warnings</h2>
+        <div id="warnings"></div>
+      </section>
+
+      <section class="card">
+        <div class="json-head">
+          <h2 style="margin:0;">JSON output</h2>
+          <div class="row" style="gap:10px;">
+            <label class="toggle-wrap"><input type="checkbox" id="wrapToggle" checked> wrap in <code>recurrence</code></label>
+            <button class="btn btn--primary" type="button" id="copyJson">Copy</button>
+          </div>
+        </div>
+        <pre class="json" id="json"></pre>
+      </section>
+
+      <section class="card">
+        <details class="tests">
+          <summary>Self-tests <span class="tests-summary" id="testsSummary"></span></summary>
+          <div id="testsBody" style="margin-top:12px;"></div>
+        </details>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* =========================================================================
+   1. Windows -> IANA time zone map (curated from CLDR windowsZones).
+   Each entry carries the Windows ID emitted in JSON and the IANA zone used
+   for all Intl-based computation. Extend by adding rows; offset labels are
+   computed live at load time so they reflect current DST.
+   ========================================================================= */
+const TZ_DATA = [
+  ["Dateline Standard Time","Etc/GMT+12","International Date Line West"],
+  ["UTC-11","Etc/GMT+11","Coordinated Universal Time-11"],
+  ["Hawaiian Standard Time","Pacific/Honolulu","Hawaii"],
+  ["Alaskan Standard Time","America/Anchorage","Alaska"],
+  ["Pacific Standard Time","America/Los_Angeles","Pacific Time (US & Canada)"],
+  ["US Mountain Standard Time","America/Phoenix","Arizona"],
+  ["Mountain Standard Time","America/Denver","Mountain Time (US & Canada)"],
+  ["Central Standard Time","America/Chicago","Central Time (US & Canada)"],
+  ["Canada Central Standard Time","America/Regina","Saskatchewan"],
+  ["Central America Standard Time","America/Guatemala","Central America"],
+  ["Eastern Standard Time","America/New_York","Eastern Time (US & Canada)"],
+  ["US Eastern Standard Time","America/Indiana/Indianapolis","Indiana (East)"],
+  ["SA Pacific Standard Time","America/Bogota","Bogota, Lima, Quito"],
+  ["Atlantic Standard Time","America/Halifax","Atlantic Time (Canada)"],
+  ["Newfoundland Standard Time","America/St_Johns","Newfoundland"],
+  ["E. South America Standard Time","America/Sao_Paulo","Brasilia"],
+  ["Argentina Standard Time","America/Argentina/Buenos_Aires","Buenos Aires"],
+  ["SA Eastern Standard Time","America/Cayenne","Cayenne, Fortaleza"],
+  ["Azores Standard Time","Atlantic/Azores","Azores"],
+  ["Cape Verde Standard Time","Atlantic/Cape_Verde","Cabo Verde"],
+  ["UTC","Etc/UTC","Coordinated Universal Time"],
+  ["GMT Standard Time","Europe/London","Dublin, Edinburgh, Lisbon, London"],
+  ["Greenwich Standard Time","Atlantic/Reykjavik","Monrovia, Reykjavik"],
+  ["W. Europe Standard Time","Europe/Berlin","Amsterdam, Berlin, Bern, Rome, Vienna"],
+  ["Central Europe Standard Time","Europe/Budapest","Belgrade, Budapest, Prague"],
+  ["Romance Standard Time","Europe/Paris","Brussels, Copenhagen, Madrid, Paris"],
+  ["Central European Standard Time","Europe/Warsaw","Sarajevo, Skopje, Warsaw, Zagreb"],
+  ["W. Central Africa Standard Time","Africa/Lagos","West Central Africa"],
+  ["GTB Standard Time","Europe/Bucharest","Athens, Bucharest"],
+  ["E. Europe Standard Time","Europe/Chisinau","Chisinau"],
+  ["Egypt Standard Time","Africa/Cairo","Cairo"],
+  ["South Africa Standard Time","Africa/Johannesburg","Harare, Pretoria"],
+  ["FLE Standard Time","Europe/Kyiv","Helsinki, Kyiv, Riga, Sofia, Tallinn, Vilnius"],
+  ["Israel Standard Time","Asia/Jerusalem","Jerusalem"],
+  ["Russian Standard Time","Europe/Moscow","Moscow, St. Petersburg"],
+  ["Turkey Standard Time","Europe/Istanbul","Istanbul"],
+  ["Arabic Standard Time","Asia/Baghdad","Baghdad"],
+  ["Arab Standard Time","Asia/Riyadh","Kuwait, Riyadh"],
+  ["E. Africa Standard Time","Africa/Nairobi","Nairobi"],
+  ["Iran Standard Time","Asia/Tehran","Tehran"],
+  ["Arabian Standard Time","Asia/Dubai","Abu Dhabi, Muscat"],
+  ["Azerbaijan Standard Time","Asia/Baku","Baku"],
+  ["Georgian Standard Time","Asia/Tbilisi","Tbilisi"],
+  ["Afghanistan Standard Time","Asia/Kabul","Kabul"],
+  ["West Asia Standard Time","Asia/Tashkent","Tashkent, Ashgabat"],
+  ["Pakistan Standard Time","Asia/Karachi","Islamabad, Karachi"],
+  ["India Standard Time","Asia/Kolkata","Chennai, Kolkata, Mumbai, New Delhi"],
+  ["Sri Lanka Standard Time","Asia/Colombo","Sri Jayawardenepura"],
+  ["Nepal Standard Time","Asia/Kathmandu","Kathmandu"],
+  ["Central Asia Standard Time","Asia/Almaty","Astana"],
+  ["Bangladesh Standard Time","Asia/Dhaka","Dhaka"],
+  ["Myanmar Standard Time","Asia/Yangon","Yangon (Rangoon)"],
+  ["SE Asia Standard Time","Asia/Bangkok","Bangkok, Hanoi, Jakarta"],
+  ["China Standard Time","Asia/Shanghai","Beijing, Chongqing, Hong Kong, Urumqi"],
+  ["Singapore Standard Time","Asia/Singapore","Kuala Lumpur, Singapore"],
+  ["Taipei Standard Time","Asia/Taipei","Taipei"],
+  ["W. Australia Standard Time","Australia/Perth","Perth"],
+  ["Tokyo Standard Time","Asia/Tokyo","Osaka, Sapporo, Tokyo"],
+  ["Korea Standard Time","Asia/Seoul","Seoul"],
+  ["Cen. Australia Standard Time","Australia/Adelaide","Adelaide"],
+  ["AUS Central Standard Time","Australia/Darwin","Darwin"],
+  ["E. Australia Standard Time","Australia/Brisbane","Brisbane"],
+  ["AUS Eastern Standard Time","Australia/Sydney","Canberra, Melbourne, Sydney"],
+  ["Tasmania Standard Time","Australia/Hobart","Hobart"],
+  ["West Pacific Standard Time","Pacific/Port_Moresby","Guam, Port Moresby"],
+  ["Central Pacific Standard Time","Pacific/Guadalcanal","Solomon Is., New Caledonia"],
+  ["New Zealand Standard Time","Pacific/Auckland","Auckland, Wellington"],
+  ["Fiji Standard Time","Pacific/Fiji","Fiji"],
+  ["Tonga Standard Time","Pacific/Tongatapu","Nuku'alofa"],
+  ["Samoa Standard Time","Pacific/Apia","Samoa"]
+].map(([win,iana,label])=>({win,iana,label}));
+
+/* =========================================================================
+   2. Time-zone math (the tricky bit). Convert a wall-clock time in a named
+   IANA zone to a UTC instant, without bundling a tz database.
+   ========================================================================= */
+
+/* Offset (ms) for a given UTC instant in a zone, such that local = utc + offset. */
+function getZoneOffsetMs(utcDate, ianaZone){
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone: ianaZone, hour12:false,
+    year:'numeric', month:'2-digit', day:'2-digit',
+    hour:'2-digit', minute:'2-digit', second:'2-digit'
+  });
+  const map = {};
+  for(const p of dtf.formatToParts(utcDate)) map[p.type] = p.value;
+  let hour = map.hour === '24' ? '0' : map.hour;
+  const asUTC = Date.UTC(+map.year, +map.month-1, +map.day, +hour, +map.minute, +map.second);
+  // Real zone offsets are whole minutes; round to avoid sub-second drift
+  // when utcDate carries milliseconds (e.g. new Date()).
+  return Math.round((asUTC - utcDate.getTime()) / 60000) * 60000;
+}
+
+/* Construct the UTC instant for a wall-clock time interpreted in ianaZone.
+   Two correction passes handle DST boundaries. */
+function zonedWallClockToUtc(y, m, d, h, min, ianaZone){
+  const guess = Date.UTC(y, m-1, d, h, min, 0);
+  let offset = getZoneOffsetMs(new Date(guess), ianaZone);
+  let utc = guess - offset;
+  offset = getZoneOffsetMs(new Date(utc), ianaZone);
+  utc = guess - offset;
+  return new Date(utc);
+}
+
+/* Zoned calendar parts for a UTC instant. */
+function zonedParts(date, ianaZone){
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone: ianaZone, hour12:false,
+    year:'numeric', month:'2-digit', day:'2-digit',
+    hour:'2-digit', minute:'2-digit', weekday:'short'
+  });
+  const map = {};
+  for(const p of dtf.formatToParts(date)) map[p.type] = p.value;
+  return { y:+map.year, m:+map.month, d:+map.day,
+           h:+(map.hour==='24'?0:map.hour), min:+map.minute, wd:map.weekday };
+}
+
+function zoneOffsetMinutes(ianaZone){
+  return getZoneOffsetMs(new Date(), ianaZone) / 60000;
+}
+function fmtOffset(min){
+  const sign = min < 0 ? '-' : '+';
+  const a = Math.round(Math.abs(min)); // whole minutes before splitting, so :60 can't occur
+  const h = String(Math.floor(a/60)).padStart(2,'0');
+  const m = String(a%60).padStart(2,'0');
+  return `UTC${sign}${h}:${m}`;
+}
+
+/* =========================================================================
+   3. Fire-time engine
+   ========================================================================= */
+const UNIT_MS = { Second:1000, Minute:60000, Hour:3600000 };
+const WD_NAMES = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+
+function dayIndex(y,m,d){ return Math.floor(Date.UTC(y, m-1, d) / 86400000); }
+function weekdayName(y,m,d){ return WD_NAMES[new Date(Date.UTC(y, m-1, d)).getUTCDay()]; }
+function daysInMonth(y,m){ return new Date(Date.UTC(y, m, 0)).getUTCDate(); }
+
+/*
+  computeNextRuns({frequency, interval, ianaZone, startTime|null,
+    hours[], minutes[], weekDays[], count, now}) -> Array<Date UTC instants>
+*/
+function computeNextRuns(cfg){
+  const { frequency, interval, ianaZone, startTime,
+          hours, minutes, weekDays, count, now } = cfg;
+  const results = [];
+  const iv = Math.max(1, interval|0);
+  const scheduleDriven = (frequency === 'Day' || frequency === 'Week');
+
+  if(scheduleDriven){
+    let hrs = hours.slice().sort((a,b)=>a-b);
+    let mins = minutes.slice().sort((a,b)=>a-b);
+    if(hrs.length === 0 && mins.length === 0){
+      if(startTime){ hrs = [startTime.h]; mins = [startTime.min]; }
+      else { hrs = [0]; mins = [0]; }
+    } else {
+      if(hrs.length === 0) hrs = [0];
+      if(mins.length === 0) mins = [0];
+    }
+    if(frequency === 'Week' && (!weekDays || weekDays.length === 0)) return [];
+
+    const startInst = startTime
+      ? zonedWallClockToUtc(startTime.y, startTime.m, startTime.d, startTime.h, startTime.min, ianaZone)
+      : null;
+
+    const nowP = zonedParts(now, ianaZone);
+    let cur = { y:nowP.y, m:nowP.m, d:nowP.d };
+    let anchorIdx = dayIndex(cur.y, cur.m, cur.d);
+    if(startTime){
+      const sIdx = dayIndex(startTime.y, startTime.m, startTime.d);
+      anchorIdx = sIdx;
+      if(sIdx > dayIndex(cur.y, cur.m, cur.d)) cur = { y:startTime.y, m:startTime.m, d:startTime.d };
+    }
+    const wdSet = new Set(weekDays || []);
+
+    let guard = 0;
+    const maxIter = 366 * 6;
+    while(results.length < count && guard < maxIter){
+      guard++;
+      const idx = dayIndex(cur.y, cur.m, cur.d);
+      let qualifies = idx >= anchorIdx;
+      if(qualifies){
+        if(frequency === 'Day'){
+          qualifies = ((idx - anchorIdx) % iv) === 0;
+        } else { // Week
+          const wd = weekdayName(cur.y, cur.m, cur.d);
+          const weekDiff = Math.floor(idx/7) - Math.floor(anchorIdx/7);
+          qualifies = wdSet.has(wd) && (weekDiff % iv) === 0;
+        }
+      }
+      if(qualifies){
+        for(const h of hrs){
+          for(const mm of mins){
+            const inst = zonedWallClockToUtc(cur.y, cur.m, cur.d, h, mm, ianaZone);
+            if(inst.getTime() >= now.getTime() &&
+               (!startInst || inst.getTime() >= startInst.getTime())){
+              results.push(inst);
+            }
+          }
+        }
+      }
+      // advance one calendar day
+      const nx = new Date(Date.UTC(cur.y, cur.m-1, cur.d+1));
+      cur = { y:nx.getUTCFullYear(), m:nx.getUTCMonth()+1, d:nx.getUTCDate() };
+    }
+    results.sort((a,b)=>a.getTime()-b.getTime());
+    return results.slice(0, count);
+  }
+
+  // Regime B — interval-driven
+  if(frequency === 'Month'){
+    const base = startTime
+      ? { y:startTime.y, m:startTime.m, d:startTime.d, h:startTime.h, min:startTime.min }
+      : (function(){ const p = zonedParts(now, ianaZone); return p; })();
+    const anchorInst = startTime
+      ? zonedWallClockToUtc(base.y, base.m, base.d, base.h, base.min, ianaZone)
+      : null;
+    let k = 0;
+    const maxK = count * 50 + 2400;
+    while(results.length < count && k < maxK){
+      const total = (base.y * 12 + (base.m - 1)) + k * iv;
+      const yy = Math.floor(total / 12);
+      const mm = (total % 12) + 1;
+      const dd = Math.min(base.d, daysInMonth(yy, mm));
+      const inst = zonedWallClockToUtc(yy, mm, dd, base.h, base.min, ianaZone);
+      if(inst.getTime() >= now.getTime() &&
+         (!anchorInst || inst.getTime() >= anchorInst.getTime())){
+        results.push(inst);
+      }
+      k++;
+    }
+    return results.slice(0, count);
+  }
+
+  // Second / Minute / Hour
+  const step = UNIT_MS[frequency] * iv;
+  const anchor = startTime
+    ? zonedWallClockToUtc(startTime.y, startTime.m, startTime.d, startTime.h, startTime.min, ianaZone)
+    : new Date(now.getTime());
+  let t = anchor.getTime();
+  if(t < now.getTime()){
+    const k = Math.ceil((now.getTime() - t) / step);
+    t = t + k * step;
+  }
+  while(results.length < count){
+    results.push(new Date(t));
+    t += step;
+  }
+  return results;
+}
+
+/* =========================================================================
+   4. State + UI wiring
+   ========================================================================= */
+const PREVIEW_COUNT = 12;
+const localIana = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+const state = {
+  frequency: 'Week',
+  interval: 1,
+  tz: null,                 // TZ_DATA entry
+  noStart: false,
+  date: '',
+  time: '09:00',
+  hours: new Set([9]),
+  minutes: new Set([0]),
+  weekDays: new Set(["Monday","Tuesday","Wednesday","Thursday","Friday"]),
+  wrap: true
+};
+
+// default start date = today (local)
+(function(){
+  const d = new Date();
+  state.date = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+})();
+
+// pick default tz: match local IANA, else UTC
+state.tz = TZ_DATA.find(z => z.iana === localIana) || TZ_DATA.find(z => z.win === 'UTC');
+
+const $ = id => document.getElementById(id);
+
+/* ---- Frequency segmented control ---- */
+function renderFreq(){
+  document.querySelectorAll('#frequency button').forEach(b=>{
+    b.setAttribute('aria-pressed', String(b.dataset.freq === state.frequency));
+  });
+}
+document.getElementById('frequency').addEventListener('click', e=>{
+  const b = e.target.closest('button'); if(!b) return;
+  state.frequency = b.dataset.freq;
+  renderFreq(); update();
+});
+
+$('interval').addEventListener('input', e=>{
+  state.interval = Math.max(1, parseInt(e.target.value || '1', 10));
+  update();
+});
+
+/* ---- Time zone combobox ---- */
+const tzSearch = $('tzSearch'), tzList = $('tzList');
+let tzActiveIdx = -1, tzFiltered = [];
+
+function tzOffsetLabel(z){ return fmtOffset(zoneOffsetMinutes(z.iana)); }
+function tzDisplay(z){ return `(${tzOffsetLabel(z)}) ${z.label}`; }
+
+function renderTzInput(){ tzSearch.value = state.tz ? tzDisplay(state.tz) : ''; }
+
+function openTzList(filter){
+  const q = (filter||'').toLowerCase().trim();
+  tzFiltered = TZ_DATA.filter(z=>{
+    if(!q) return true;
+    return z.label.toLowerCase().includes(q) || z.win.toLowerCase().includes(q) ||
+           z.iana.toLowerCase().includes(q) || tzOffsetLabel(z).toLowerCase().includes(q);
+  });
+  tzList.innerHTML = tzFiltered.map((z,i)=>
+    `<div class="combo-opt" role="option" data-i="${i}">
+       <span class="off">${tzOffsetLabel(z)}</span><span class="nm">${z.label}</span>
+     </div>`).join('') || '<div class="combo-opt" aria-disabled="true">No matches</div>';
+  tzList.classList.add('open');
+  tzSearch.setAttribute('aria-expanded','true');
+  tzActiveIdx = -1;
+}
+function closeTzList(){
+  tzList.classList.remove('open');
+  tzSearch.setAttribute('aria-expanded','false');
+  renderTzInput();
+}
+function chooseTz(i){
+  if(tzFiltered[i]){ state.tz = tzFiltered[i]; }
+  closeTzList(); update();
+}
+tzSearch.addEventListener('focus', ()=>{ tzSearch.select(); openTzList(''); });
+tzSearch.addEventListener('input', ()=> openTzList(tzSearch.value));
+tzSearch.addEventListener('keydown', e=>{
+  if(!tzList.classList.contains('open')) return;
+  const opts = tzList.querySelectorAll('.combo-opt[data-i]');
+  if(e.key === 'ArrowDown'){ e.preventDefault(); tzActiveIdx = Math.min(opts.length-1, tzActiveIdx+1); }
+  else if(e.key === 'ArrowUp'){ e.preventDefault(); tzActiveIdx = Math.max(0, tzActiveIdx-1); }
+  else if(e.key === 'Enter'){ e.preventDefault(); if(tzActiveIdx>=0) chooseTz(tzActiveIdx); return; }
+  else if(e.key === 'Escape'){ closeTzList(); return; }
+  else return;
+  opts.forEach((o,i)=> o.classList.toggle('active', i===tzActiveIdx));
+  if(opts[tzActiveIdx]) opts[tzActiveIdx].scrollIntoView({block:'nearest'});
+});
+tzList.addEventListener('mousedown', e=>{
+  const o = e.target.closest('.combo-opt[data-i]'); if(!o) return;
+  e.preventDefault(); chooseTz(+o.dataset.i);
+});
+document.addEventListener('click', e=>{
+  if(!e.target.closest('.combo')) closeTzList();
+});
+
+/* ---- Start time ---- */
+$('startDate').addEventListener('input', e=>{ state.date = e.target.value; update(); });
+$('startTime').addEventListener('input', e=>{ state.time = e.target.value; update(); });
+$('noStart').addEventListener('change', e=>{
+  state.noStart = e.target.checked;
+  $('startDate').disabled = state.noStart;
+  $('startTime').disabled = state.noStart;
+  update();
+});
+
+/* ---- Week day toggles ---- */
+const WEEKDAYS = [["Monday","M"],["Tuesday","T"],["Wednesday","W"],["Thursday","T"],
+                  ["Friday","F"],["Saturday","S"],["Sunday","S"]];
+$('weekDays').innerHTML = WEEKDAYS.map(([full,ab])=>
+  `<button class="toggle" type="button" data-day="${full}" aria-label="${full}">${ab}</button>`).join('');
+$('weekDays').addEventListener('click', e=>{
+  const b = e.target.closest('button'); if(!b) return;
+  const d = b.dataset.day;
+  if(state.weekDays.has(d)) state.weekDays.delete(d); else state.weekDays.add(d);
+  update();
+});
+
+/* ---- Hours grid ---- */
+let hoursHtml = '';
+for(let h=0; h<24; h++){
+  hoursHtml += `<button class="toggle" type="button" data-hour="${h}">${String(h).padStart(2,'0')}</button>`;
+}
+$('hours').innerHTML = hoursHtml;
+$('hours').addEventListener('click', e=>{
+  const b = e.target.closest('button'); if(!b) return;
+  const h = +b.dataset.hour;
+  if(state.hours.has(h)) state.hours.delete(h); else state.hours.add(h);
+  update();
+});
+
+/* ---- Minutes chips ---- */
+function renderMinutes(){
+  const common = [0,15,30,45];
+  const custom = [...state.minutes].filter(m=>!common.includes(m)).sort((a,b)=>a-b);
+  let html = common.map(m=>
+    `<button class="chip" type="button" data-min="${m}" aria-pressed="${state.minutes.has(m)}">:${String(m).padStart(2,'0')}</button>`).join('');
+  html += custom.map(m=>
+    `<button class="chip" type="button" data-min="${m}" aria-pressed="true">:${String(m).padStart(2,'0')}<span class="chip-x">×</span></button>`).join('');
+  $('minutes').innerHTML = html;
+}
+$('minutes').addEventListener('click', e=>{
+  const b = e.target.closest('button'); if(!b) return;
+  const m = +b.dataset.min;
+  if(state.minutes.has(m)) state.minutes.delete(m); else state.minutes.add(m);
+  update();
+});
+$('addMinute').addEventListener('click', ()=>{
+  const v = parseInt($('customMinute').value, 10);
+  if(!isNaN(v) && v>=0 && v<=59){ state.minutes.add(v); $('customMinute').value=''; update(); }
+});
+$('customMinute').addEventListener('keydown', e=>{ if(e.key==='Enter') $('addMinute').click(); });
+
+/* ---- JSON wrap toggle + copy ---- */
+$('wrapToggle').addEventListener('change', e=>{ state.wrap = e.target.checked; update(); });
+$('copyJson').addEventListener('click', ()=>{
+  const txt = $('json').textContent;
+  navigator.clipboard?.writeText(txt).then(()=>{
+    const btn = $('copyJson'); const old = btn.textContent;
+    btn.textContent = 'Copied'; setTimeout(()=> btn.textContent = old, 1200);
+  }).catch(()=>{});
+});
+
+/* ---- Presets ---- */
+$('presets').addEventListener('click', e=>{
+  const b = e.target.closest('button'); if(!b) return;
+  applyPreset(b.dataset.preset);
+});
+function applyPreset(p){
+  if(p === 'weekday9'){
+    state.frequency='Week'; state.interval=1;
+    state.weekDays = new Set(["Monday","Tuesday","Wednesday","Thursday","Friday"]);
+    state.hours = new Set([9]); state.minutes = new Set([0]);
+  } else if(p === 'hourlyBiz'){
+    state.frequency='Day'; state.interval=1;
+    state.hours = new Set([8,9,10,11,12,13,14,15,16,17]);
+    state.minutes = new Set([0]); state.weekDays = new Set();
+  } else if(p === 'monthly1st'){
+    state.frequency='Month'; state.interval=1;
+    const d = new Date(); state.date = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-01';
+    state.time = '09:00'; state.noStart = false; $('noStart').checked = false;
+    $('startDate').disabled = false; $('startTime').disabled = false;
+  }
+  syncInputsFromState();
+  update();
+}
+function syncInputsFromState(){
+  $('interval').value = state.interval;
+  $('startDate').value = state.date;
+  $('startTime').value = state.time;
+}
+
+/* =========================================================================
+   5. Plain-English restatement
+   ========================================================================= */
+function ordinal(n){
+  const s=["th","st","nd","rd"], v=n%100;
+  return n + (s[(v-20)%10] || s[v] || s[0]);
+}
+function fmtHM(h,m){ return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0'); }
+function listJoin(arr){
+  if(arr.length<=1) return arr.join('');
+  if(arr.length===2) return arr.join(' and ');
+  return arr.slice(0,-1).join(', ') + ' and ' + arr[arr.length-1];
+}
+function startDatePretty(){
+  if(state.noStart || !state.date) return null;
+  const [y,m,d] = state.date.split('-').map(Number);
+  return new Intl.DateTimeFormat(undefined,{day:'numeric',month:'short',year:'numeric'})
+    .format(new Date(Date.UTC(y,m-1,d)));
+}
+function plainEnglish(){
+  const f = state.frequency, iv = state.interval;
+  const tzName = state.tz ? state.tz.win : '(no time zone)';
+  const startTxt = startDatePretty();
+  const startSuffix = startTxt ? `, starting ${startTxt}` : '';
+
+  if(f === 'Week' || f === 'Day'){
+    let hrs = [...state.hours].sort((a,b)=>a-b);
+    let mins = [...state.minutes].sort((a,b)=>a-b);
+    if(hrs.length===0 && mins.length===0){
+      if(!state.noStart && state.time){ const [hh,mm]=state.time.split(':').map(Number); hrs=[hh]; mins=[mm]; }
+      else { hrs=[0]; mins=[0]; }
+    } else { if(hrs.length===0) hrs=[0]; if(mins.length===0) mins=[0]; }
+    const times = [];
+    for(const h of hrs) for(const m of mins) times.push(fmtHM(h,m));
+    const timeTxt = times.length>3 ? `${times.length} times a day` : `at ${listJoin(times)}`;
+    if(f === 'Week'){
+      if(state.weekDays.size === 0) return `No weekdays selected — this trigger will never fire.`;
+      const order = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+      const days = order.filter(d=>state.weekDays.has(d));
+      const isWeekdays = days.length===5 && !state.weekDays.has("Saturday") && !state.weekDays.has("Sunday");
+      const dayTxt = isWeekdays ? 'every weekday'
+        : (iv===1 ? `every ${listJoin(days)}` : `every ${ordinal(iv)} week on ${listJoin(days)}`);
+      return `Runs ${dayTxt} ${timeTxt} (${tzName})${startSuffix}.`;
+    }
+    const everyTxt = iv===1 ? 'every day' : `every ${iv} days`;
+    return `Runs ${everyTxt} ${timeTxt} (${tzName})${startSuffix}.`;
+  }
+  const unit = f.toLowerCase();
+  const everyTxt = iv===1 ? `every ${unit}` : `every ${iv} ${unit}s`;
+  return `Runs ${everyTxt} (${tzName})${startSuffix}.`;
+}
+
+/* =========================================================================
+   6. JSON emitter (frequency-aware field omission)
+   ========================================================================= */
+function buildRecurrence(){
+  const f = state.frequency;
+  const obj = { frequency: f, interval: Math.max(1, state.interval) };
+  if(state.tz) obj.timeZone = state.tz.win;
+  if(!state.noStart && state.date){
+    const time = state.time || '00:00';
+    obj.startTime = `${state.date}T${time.length===5 ? time+':00' : time}`;
+  }
+  if(f === 'Day' || f === 'Week'){
+    const sched = {};
+    if(f === 'Week' && state.weekDays.size){
+      const order = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+      sched.weekDays = order.filter(d=>state.weekDays.has(d));
+    }
+    let hrs = [...state.hours].sort((a,b)=>a-b);
+    let mins = [...state.minutes].sort((a,b)=>a-b);
+    if(hrs.length) sched.hours = hrs;
+    if(mins.length) sched.minutes = mins;
+    else if(hrs.length) sched.minutes = [0];
+    if(Object.keys(sched).length) obj.schedule = sched;
+  }
+  return obj;
+}
+function renderJson(){
+  const rec = buildRecurrence();
+  const payload = state.wrap ? { recurrence: rec } : rec;
+  $('json').textContent = JSON.stringify(payload, null, 2);
+}
+
+/* =========================================================================
+   7. Warnings
+   ========================================================================= */
+function computeWarnings(runsPerDay){
+  const w = [];
+  const f = state.frequency;
+  const scheduleDriven = (f==='Day' || f==='Week');
+  const hasSchedule = state.hours.size>0 || state.minutes.size>0 || state.weekDays.size>0;
+
+  // start time parsed
+  let startObj = null;
+  if(!state.noStart && state.date){
+    const [y,m,d] = state.date.split('-').map(Number);
+    const [hh,mm] = (state.time||'00:00').split(':').map(Number);
+    startObj = {y,m,d,h:hh,min:mm};
+  }
+
+  // 1. cross-product
+  if(scheduleDriven && runsPerDay > 1){
+    w.push({ lvl: runsPerDay>8?'hi':'lo', badge:'cross-product',
+      title:`${runsPerDay} runs per day`,
+      body:`<code>hours × minutes</code> is a cross-product, not a list: ${state.hours.size||1} hour(s) × ${state.minutes.size||1} minute(s) = <b>${runsPerDay}</b> runs every qualifying day.` });
+  }
+  // 5. no timezone
+  if(!state.tz){
+    w.push({ lvl:'hi', badge:'timezone', title:'No time zone set',
+      body:`Without a time zone, fire times drift by an hour at each DST transition. Set an explicit time zone.` });
+  }
+  // 2. schedule ignored
+  if(!scheduleDriven && hasSchedule){
+    w.push({ lvl:'lo', badge:'ignored', title:`Schedule ignored for ${f}`,
+      body:`Hours, minutes and week-day settings are ignored for <code>${f}</code> frequency. Only <code>Day</code> and <code>Week</code> use <code>schedule</code>.` });
+  }
+  // 3. weekDays ignored on Day
+  if(f==='Day' && state.weekDays.size){
+    w.push({ lvl:'lo', badge:'ignored', title:'Week days ignored on Day frequency',
+      body:`<code>weekDays</code> only applies to <code>Week</code> frequency. These selections will be dropped from the JSON.` });
+  }
+  // 4. empty weekDays on Week
+  if(f==='Week' && state.weekDays.size===0){
+    w.push({ lvl:'hi', badge:'no-runs', title:'No week days selected',
+      body:`A <code>Week</code> trigger with no week days will <b>never fire</b>. Select at least one day.` });
+  }
+  // 8. minutes defaulted
+  if(scheduleDriven && state.hours.size>0 && state.minutes.size===0){
+    w.push({ lvl:'lo', badge:'default', title:'Minutes defaulted to [0]',
+      body:`Hours are set but minutes are empty — minutes default to <code>[0]</code> (on the hour).` });
+  }
+  // 6. past start time
+  if(startObj){
+    const inst = state.tz ? zonedWallClockToUtc(startObj.y,startObj.m,startObj.d,startObj.h,startObj.min,state.tz.iana)
+                          : new Date(Date.UTC(startObj.y,startObj.m-1,startObj.d,startObj.h,startObj.min));
+    if(inst.getTime() < Date.now()){
+      w.push({ lvl:'lo', badge:'anchor', title:'Start time is in the past',
+        body:`Missed runs are <b>not</b> replayed. The schedule projects forward from now; the start time only acts as an anchor and earliest boundary.` });
+    }
+  }
+  // 7. startTime time-of-day conflicts with schedule
+  if(scheduleDriven && startObj && (state.hours.size || state.minutes.size)){
+    const hrs = state.hours.size ? [...state.hours] : [0];
+    const mins = state.minutes.size ? [...state.minutes] : [0];
+    const inSet = hrs.includes(startObj.h) && mins.includes(startObj.min);
+    if(!inSet){
+      w.push({ lvl:'lo', badge:'boundary', title:'Start time-of-day is not a run time',
+        body:`The schedule governs the time of day. Start time <code>${fmtHM(startObj.h,startObj.min)}</code> is used only as an earliest boundary — not as a run time.` });
+    }
+  }
+  // 9. tight interval
+  if((f==='Minute'||f==='Second') && state.interval < (f==='Second'?60:5)){
+    w.push({ lvl:'lo', badge:'throttle', title:'Very tight interval',
+      body:`Minimum interval is plan-dependent. Tight intervals may be throttled to a higher floor on your license.` });
+  }
+  // 10. month day-of-month
+  if(f==='Month'){
+    w.push({ lvl:'lo', badge:'month', title:`Month can't express "Nth of the month"`,
+      body:`The <code>schedule</code> object can't reliably express day-of-month. A daily trigger gated by a trigger condition is the common workaround, e.g. <code>@equals(dayOfMonth(utcNow()), 1)</code>.` });
+  }
+  return w;
+}
+function renderWarnings(runsPerDay){
+  const list = computeWarnings(runsPerDay);
+  const el = $('warnings');
+  if(list.length === 0){ el.innerHTML = `<p class="no-warn">No warnings — configuration looks clean.</p>`; return; }
+  el.innerHTML = list.map(wn=>
+    `<div class="warn warn--${wn.lvl==='hi'?'hi':'lo'}">
+       <div class="wtitle">${esc(wn.title)} <span class="badge">${esc(wn.badge)}</span></div>
+       <div class="wbody">${wn.body}</div>
+     </div>`).join('');
+}
+function esc(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+/* =========================================================================
+   8. Preview rendering
+   ========================================================================= */
+function relativeHint(date, now){
+  let diff = date.getTime() - now.getTime();
+  const past = diff < 0; diff = Math.abs(diff);
+  const mins = Math.round(diff/60000);
+  let txt;
+  if(mins < 1) txt = 'now';
+  else if(mins < 60) txt = `${mins} min`;
+  else if(mins < 60*24) txt = `${Math.round(mins/60)} hr`;
+  else txt = `${Math.round(mins/1440)} day` + (Math.round(mins/1440)===1?'':'s');
+  return past ? `${txt} ago` : `in ${txt}`;
+}
+
+function getStartObj(){
+  if(state.noStart || !state.date) return null;
+  const [y,m,d] = state.date.split('-').map(Number);
+  const [hh,mm] = (state.time||'00:00').split(':').map(Number);
+  return {y,m,d,h:hh,min:mm};
+}
+
+function renderPreview(){
+  const f = state.frequency;
+  const scheduleDriven = (f==='Day' || f==='Week');
+  const runsPerDay = scheduleDriven
+    ? Math.max(1, state.hours.size) * Math.max(1, state.minutes.size)
+    : null;
+
+  // run count summary
+  const rc = $('runcount');
+  if(scheduleDriven){
+    rc.innerHTML = `<span class="big">${runsPerDay}</span><span class="cap">run${runsPerDay===1?'':'s'} per qualifying day</span>`;
+  } else {
+    const unit = f.toLowerCase();
+    rc.innerHTML = `<span class="big">1×</span><span class="cap">every ${state.interval>1?state.interval+' ':''}${unit}${state.interval>1?'s':''}</span>`;
+  }
+
+  if(!state.tz){
+    $('previewWrap').innerHTML = `<p class="empty-state">Select a time zone to compute fire times.</p>`;
+    return runsPerDay;
+  }
+
+  const now = new Date();
+  const runs = computeNextRuns({
+    frequency: f, interval: state.interval, ianaZone: state.tz.iana,
+    startTime: getStartObj(),
+    hours: [...state.hours], minutes: [...state.minutes], weekDays: [...state.weekDays],
+    count: PREVIEW_COUNT, now
+  });
+
+  if(runs.length === 0){
+    $('previewWrap').innerHTML = `<p class="empty-state">No fire times — check warnings (e.g. no week days selected).</p>`;
+    return runsPerDay;
+  }
+
+  const flowFmt = new Intl.DateTimeFormat(undefined, {
+    timeZone: state.tz.iana, weekday:'short', month:'short', day:'2-digit',
+    hour:'2-digit', minute:'2-digit', hour12:false });
+  const localFmt = new Intl.DateTimeFormat(undefined, {
+    weekday:'short', month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit', hour12:false });
+
+  const reqH = state.hours.size ? state.hours : new Set([getStartObj()?getStartObj().h:0]);
+  const reqM = state.minutes.size ? state.minutes : new Set([0]);
+
+  const rows = runs.map(d=>{
+    let dstNote = '';
+    if(scheduleDriven){
+      const p = zonedParts(d, state.tz.iana);
+      if(!(reqH.has(p.h) && reqM.has(p.min))){
+        dstNote = ` <span class="dst">↳ DST-adjusted</span>`;
+      }
+    }
+    return `<tr>
+      <td>${flowFmt.format(d)}${dstNote}</td>
+      <td>${localFmt.format(d)}</td>
+      <td class="rel">${relativeHint(d, now)}</td>
+    </tr>`;
+  }).join('');
+
+  $('previewWrap').innerHTML = `
+    <table class="preview">
+      <thead><tr>
+        <th>Flow zone (${esc(state.tz.win)})</th>
+        <th>Your local time</th>
+        <th>When</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  return runsPerDay;
+}
+
+/* =========================================================================
+   9. Conditional enabling of schedule controls
+   ========================================================================= */
+function renderConditional(){
+  const f = state.frequency;
+  const scheduleDriven = (f==='Day' || f==='Week');
+
+  // hours/minutes block
+  const dim = !scheduleDriven;
+  $('hoursField').classList.toggle('disabled-block', dim);
+  $('minutesField').classList.toggle('disabled-block', dim);
+
+  // weekdays: only Week
+  const weekOnly = (f !== 'Week');
+  $('weekDaysField').classList.toggle('disabled-block', weekOnly);
+
+  // notes
+  $('scheduleNote').textContent = scheduleDriven
+    ? ''
+    : `Schedule applies only to Day and Week frequency — these settings are ignored for ${f}.`;
+  $('weekDaysNote').textContent = (f === 'Day')
+    ? 'Week days apply only to Week frequency.'
+    : '';
+
+  // reflect toggle states
+  document.querySelectorAll('#weekDays button').forEach(b=>
+    b.setAttribute('aria-pressed', String(state.weekDays.has(b.dataset.day))));
+  document.querySelectorAll('#hours button').forEach(b=>
+    b.setAttribute('aria-pressed', String(state.hours.has(+b.dataset.hour))));
+}
+
+/* =========================================================================
+   10. Master update
+   ========================================================================= */
+function update(){
+  renderFreq();
+  renderConditional();
+  renderMinutes();
+  renderTzInput();
+  $('tzNote').textContent = state.tz
+    ? `Emits Windows ID "${state.tz.win}" · computed via ${state.tz.iana}`
+    : 'No time zone selected.';
+  const runsPerDay = renderPreview();
+  renderWarnings(runsPerDay);
+  $('english').innerHTML = esc(plainEnglish());
+  renderJson();
+  $('localZoneNote').textContent = `Local times shown in ${localIana}.`;
+}
+
+/* init inputs */
+syncInputsFromState();
+update();
+
+/* =========================================================================
+   11. Self-tests (pin the tricky behavior)
+   ========================================================================= */
+function runTests(){
+  const T = [];
+  const assert = (name, cond, detail='') => T.push({name, pass:!!cond, detail});
+  const NY = 'America/New_York';
+
+  // helper to read zoned h:min
+  const hm = (d,zone)=>{ const p=zonedParts(d,zone); return fmtHM(p.h,p.min); };
+  const wd = (d,zone)=>zonedParts(d,zone).wd;
+
+  // 1. Cross-product count + order
+  {
+    const now = new Date('2026-03-02T05:00:00Z'); // 00:00 EST
+    const runs = computeNextRuns({frequency:'Day',interval:1,ianaZone:NY,startTime:null,
+      hours:[9,17],minutes:[0,30],weekDays:[],count:12,now});
+    const first4 = runs.slice(0,4).map(d=>hm(d,NY)).join(',');
+    assert('1 cross-product 4/day order', first4==='09:00,09:30,17:00,17:30', first4);
+  }
+  // 2. Week weekDays filter skips weekend
+  {
+    const now = new Date('2026-03-07T17:00:00Z'); // Saturday
+    const runs = computeNextRuns({frequency:'Week',interval:1,ianaZone:NY,startTime:null,
+      hours:[9],minutes:[0],weekDays:["Monday","Tuesday","Wednesday","Thursday","Friday"],count:3,now});
+    assert('2 week skips weekend', wd(runs[0],NY)==='Mon' && hm(runs[0],NY)==='09:00', wd(runs[0],NY)+' '+hm(runs[0],NY));
+  }
+  // 3. Day interval stride = 2
+  {
+    const now = new Date('2026-03-02T05:00:00Z');
+    const runs = computeNextRuns({frequency:'Day',interval:2,ianaZone:NY,
+      startTime:{y:2026,m:3,d:2,h:9,min:0},hours:[9],minutes:[0],weekDays:[],count:4,now});
+    const diffs = [];
+    for(let i=1;i<runs.length;i++) diffs.push(Math.round((runs[i]-runs[i-1])/86400000));
+    assert('3 day stride=2', diffs.every(x=>x===2), diffs.join(','));
+  }
+  // 4. DST spring-forward (2026-03-08 02:00->03:00) daily 02:30
+  {
+    const now = new Date('2026-03-06T00:00:00Z');
+    const runs = computeNextRuns({frequency:'Day',interval:1,ianaZone:NY,startTime:null,
+      hours:[2],minutes:[30],weekDays:[],count:6,now});
+    assert('4 spring-forward no crash', runs.length===6, 'len '+runs.length);
+  }
+  // 5. DST fall-back (2026-11-01) daily 02:30 first occurrence
+  {
+    const now = new Date('2026-10-30T00:00:00Z');
+    const runs = computeNextRuns({frequency:'Day',interval:1,ianaZone:NY,startTime:null,
+      hours:[2],minutes:[30],weekDays:[],count:5,now});
+    assert('5 fall-back no crash', runs.length===5, 'len '+runs.length);
+  }
+  // 6. Past startTime — no backfill
+  {
+    const now = new Date();
+    const runs = computeNextRuns({frequency:'Day',interval:1,ianaZone:NY,
+      startTime:{y:2020,m:1,d:1,h:9,min:0},hours:[9],minutes:[0],weekDays:[],count:3,now});
+    assert('6 past start no backfill', runs[0].getTime()>=now.getTime(), '');
+  }
+  // 7. Empty weekDays on Week -> zero runs
+  {
+    const now = new Date('2026-03-02T05:00:00Z');
+    const runs = computeNextRuns({frequency:'Week',interval:1,ianaZone:NY,startTime:null,
+      hours:[9],minutes:[0],weekDays:[],count:5,now});
+    assert('7 empty weekDays = 0 runs', runs.length===0, 'len '+runs.length);
+  }
+  // 8. Minute interval 15 -> 15-min spacing
+  {
+    const now = new Date('2026-03-02T05:00:00Z');
+    const runs = computeNextRuns({frequency:'Minute',interval:15,ianaZone:NY,startTime:null,
+      hours:[],minutes:[],weekDays:[],count:4,now});
+    const ok = (runs[1]-runs[0])===900000 && (runs[2]-runs[1])===900000;
+    assert('8 minute interval 15', ok, ((runs[1]-runs[0])/60000)+'min');
+  }
+  // 9. Month stride anchor 31st clamps
+  {
+    const now = new Date('2026-01-01T00:00:00Z');
+    const runs = computeNextRuns({frequency:'Month',interval:1,ianaZone:NY,
+      startTime:{y:2026,m:1,d:31,h:9,min:0},hours:[],minutes:[],weekDays:[],count:4,now});
+    const days = runs.map(d=>zonedParts(d,NY).d).join(',');
+    // Jan31, Feb28, Mar31, Apr30
+    assert('9 month clamps short months', days==='31,28,31,30', days);
+  }
+  // 10. Offset label reflects zone (IST stable +05:30)
+  {
+    assert('10 offset label IST', fmtOffset(zoneOffsetMinutes('Asia/Kolkata'))==='UTC+05:30',
+      fmtOffset(zoneOffsetMinutes('Asia/Kolkata')));
+  }
+
+  return T;
+}
+function renderTests(){
+  const T = runTests();
+  const passed = T.filter(t=>t.pass).length;
+  const all = passed === T.length;
+  $('testsSummary').innerHTML =
+    `<span class="${all?'test-pass':'test-fail'}">${passed}/${T.length} ${all?'passing':'FAILING'}</span>`;
+  $('testsBody').innerHTML = T.map(t=>
+    `<div class="test-line ${t.pass?'test-pass':'test-fail'}">${t.pass?'PASS':'FAIL'} — ${esc(t.name)}${t.detail?` <span class="meta">[${esc(t.detail)}]</span>`:''}</div>`).join('');
+}
+renderTests();
+</script>
+</body>
+</html>
