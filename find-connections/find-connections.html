@@ -181,6 +181,9 @@ const state = {
   crefs: new Map(),   // logicalname -> {logicalname, display, connector, connectionid, statecode, owner}
   conns: new Map(),   // connection name(lowercase) -> {name, connector, display, createdBy*, status}
   flows: new Map(),   // workflowid|name -> {name, state, owner, refs:Set<logicalname>, connectors:Set, rawConns:Set}
+  flowRefs: new Map(), // logicalname -> Set<flow key>
+  flowRawConns: new Map(), // connection name(lowercase) -> Set<flow key>
+  flowsByOwner: new Map(), // owner GUID(lowercase) -> Set<flow key>
   owners: new Map(),  // systemuserid(guid) -> {fullname, domainname}
   sols: new Map(),    // objectid(lowercase guid) -> Map(uniquename -> {name, uniquename, solid, managed})
 };
@@ -303,9 +306,41 @@ function extractClientData(cd){
     const ln = v?.connection?.connectionReferenceLogicalName;
     if (ln) out.refs.add(ln);
     if (v?.api?.name) out.connectors.add(String(v.api.name).split("/").pop());
-    if (v?.connection?.id) out.rawConns.add(v.connection.id);
+    if (v?.connection?.id) out.rawConns.add(String(v.connection.id).split("/").pop().toLowerCase());
   }
   return out;
+}
+
+function addToIndex(index, value, key){
+  if (!value) return;
+  if (!index.has(value)) index.set(value, new Set());
+  index.get(value).add(key);
+}
+
+function removeFromIndex(index, value, key){
+  if (!value || !index.has(value)) return;
+  const keys = index.get(value);
+  keys.delete(key);
+  if (keys.size === 0) index.delete(value);
+}
+
+function indexFlow(key, flow){
+  for (const ln of flow.refs) addToIndex(state.flowRefs, ln, key);
+  for (const name of flow.rawConns) addToIndex(state.flowRawConns, name, key);
+  addToIndex(state.flowsByOwner, (flow.owner || "").toLowerCase(), key);
+}
+
+function unindexFlow(key, flow){
+  for (const ln of flow.refs) removeFromIndex(state.flowRefs, ln, key);
+  for (const name of flow.rawConns) removeFromIndex(state.flowRawConns, name, key);
+  removeFromIndex(state.flowsByOwner, (flow.owner || "").toLowerCase(), key);
+}
+
+function storeFlow(key, flow){
+  const old = state.flows.get(key);
+  if (old) unindexFlow(key, old);
+  state.flows.set(key, flow);
+  indexFlow(key, flow);
 }
 
 /* Set of YOUR connection names (lowercase) from the connections setup, or null if none pasted.
@@ -357,32 +392,32 @@ function rawConnHits(f, names){
   const hits = new Set();
   if (!f.rawConns || !names || names.size === 0) return hits;
   for (const raw of f.rawConns){
-    const seg = String(raw).split("/").pop().toLowerCase();
-    if (names.has(seg)) hits.add(seg);
+    if (names.has(raw)) hits.add(raw);
   }
   return hits;
 }
 
 /* ---------- parse handlers ---------- */
-function doParseWhoami(){
+function doParseWhoami(obj){
   const el = $("out-whoami");
   try{
-    const obj = parseJson($("in-whoami").value);
+    obj = obj || parseJson($("in-whoami").value);
     const uid = obj.UserId || obj.userId || (rows(obj)[0] && rows(obj)[0].UserId);
     if (!uid) throw new Error("No UserId field found.");
     $("uid").value = uid;
     state.uid = uid;
     el.className = "count ok";
     el.textContent = `Owner GUID: ${uid}`;
+    $("in-whoami").value = "";
     buildUrls();
   }catch(e){ el.className="count err"; el.textContent = "Parse error: " + e.message; }
 }
-$("parse-whoami").onclick = doParseWhoami;
+$("parse-whoami").onclick = () => doParseWhoami();
 
-function doParseCrefs(){
+function doParseCrefs(obj){
   const el = $("out-crefs");
   try{
-    const obj = parseJson($("in-crefs").value);
+    obj = obj || parseJson($("in-crefs").value);
     let n = 0;
     for (const r of rows(obj)){
       const ln = r.connectionreferencelogicalname;
@@ -401,16 +436,17 @@ function doParseCrefs(){
     el.className = "count ok";
     el.textContent = `Added ${n}. Total connection references: ${state.crefs.size}.`;
     nextLinkNote(obj, el);
+    $("in-crefs").value = "";
     buildDerived();
   }catch(e){ el.className="count err"; el.textContent = "Parse error: " + e.message; }
 }
-$("parse-crefs").onclick = doParseCrefs;
+$("parse-crefs").onclick = () => doParseCrefs();
 $("clear-crefs").onclick = () => { state.crefs.clear(); $("out-crefs").textContent="Cleared."; $("out-crefs").className="count muted"; buildDerived(); };
 
-function doParseConns(){
+function doParseConns(obj){
   const el = $("out-conns");
   try{
-    const obj = parseJson($("in-conns").value);
+    obj = obj || parseJson($("in-conns").value);
     let n = 0;
     for (const r of rows(obj)){
       const name = r.name || String(r.id || "").split("/").pop();
@@ -431,22 +467,23 @@ function doParseConns(){
     el.className = "count ok";
     el.textContent = `Added ${n}. Total connections: ${state.conns.size}.`;
     nextLinkNote(obj, el);
+    $("in-conns").value = "";
     buildDerived();
   }catch(e){ el.className="count err"; el.textContent = "Parse error: " + e.message; }
 }
-$("parse-conns").onclick = doParseConns;
+$("parse-conns").onclick = () => doParseConns();
 $("clear-conns").onclick = () => { state.conns.clear(); $("out-conns").textContent="Cleared."; $("out-conns").className="count muted"; buildDerived(); };
 
-function doParseFlows(){
+function doParseFlows(obj){
   const el = $("out-flows");
   try{
-    const obj = parseJson($("in-flows").value);
+    obj = obj || parseJson($("in-flows").value);
     let n = 0;
     for (const r of rows(obj)){
       const key = r.workflowid || r.workflowidunique || r.name;
       if (!key) continue;
       const ex = extractClientData(r.clientdata);
-      state.flows.set(key, {
+      storeFlow(key, {
         name: r.name || "(unnamed)",
         id: r.workflowid || "",
         state: r.statecode,
@@ -458,16 +495,17 @@ function doParseFlows(){
     el.className = "count ok";
     el.textContent = `Added ${n}. Total flows: ${state.flows.size}.`;
     nextLinkNote(obj, el);
+    $("in-flows").value = "";
     buildDerived();
   }catch(e){ el.className="count err"; el.textContent = "Parse error: " + e.message; }
 }
-$("parse-flows").onclick = doParseFlows;
-$("clear-flows").onclick = () => { state.flows.clear(); $("out-flows").textContent="Cleared."; $("out-flows").className="count muted"; buildDerived(); };
+$("parse-flows").onclick = () => doParseFlows();
+$("clear-flows").onclick = () => { state.flows.clear(); state.flowRefs.clear(); state.flowRawConns.clear(); state.flowsByOwner.clear(); $("out-flows").textContent="Cleared."; $("out-flows").className="count muted"; buildDerived(); };
 
-function doParseOwners(){
+function doParseOwners(obj){
   const el = $("out-owners");
   try{
-    const obj = parseJson($("in-owners").value);
+    obj = obj || parseJson($("in-owners").value);
     let n = 0;
     for (const r of rows(obj)){
       const id = r.systemuserid;
@@ -478,15 +516,16 @@ function doParseOwners(){
     el.className = "count ok";
     el.textContent = `Added ${n}. Total owners resolved: ${state.owners.size}.`;
     nextLinkNote(obj, el);
+    $("in-owners").value = "";
   }catch(e){ el.className="count err"; el.textContent = "Parse error: " + e.message; }
 }
-$("parse-owners").onclick = doParseOwners;
+$("parse-owners").onclick = () => doParseOwners();
 $("clear-owners").onclick = () => { state.owners.clear(); $("out-owners").textContent="Cleared."; $("out-owners").className="count muted"; };
 
-function doParseSols(){
+function doParseSols(obj){
   const el = $("out-sols");
   try{
-    const obj = parseJson($("in-sols").value);
+    obj = obj || parseJson($("in-sols").value);
     let n = 0;
     for (const r of rows(obj)){
       const oid = (r.objectid || "").toLowerCase();
@@ -507,22 +546,26 @@ function doParseSols(){
     el.className = "count ok";
     el.textContent = `Added ${n}. Components with solution info: ${state.sols.size}.`;
     nextLinkNote(obj, el);
+    $("in-sols").value = "";
   }catch(e){ el.className="count err"; el.textContent = "Parse error: " + e.message; }
 }
-$("parse-sols").onclick = doParseSols;
+$("parse-sols").onclick = () => doParseSols();
 $("clear-sols").onclick = () => { state.sols.clear(); $("out-sols").textContent="Cleared."; $("out-sols").className="count muted"; };
 
-/* Auto-parse a textarea's contents as soon as they become valid JSON (e.g. on paste),
-   so the user doesn't have to click the corresponding Parse button. Silently no-ops
-   while the content isn't valid JSON yet (e.g. mid-typing) rather than showing an error. */
+/* Auto-parse after typing/pasting settles. Parse once here and pass the resulting object to
+   the handler, which clears the textarea after successfully extracting the fields it retains. */
 function autoParseOnValidJson(textareaId, handler){
+  let timer;
   $(textareaId).addEventListener("input", () => {
-    const t = $(textareaId).value.trim();
-    if (!t) return;
-    let obj;
-    try { obj = JSON.parse(t); } catch { return; }
-    if (!obj || typeof obj !== "object") return;
-    handler();
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      const t = $(textareaId).value.trim();
+      if (!t) return;
+      let obj;
+      try { obj = JSON.parse(t); } catch { return; }
+      if (!obj || typeof obj !== "object") return;
+      handler(obj);
+    }, 250);
   });
 }
 autoParseOnValidJson("in-whoami", doParseWhoami);
@@ -575,8 +618,9 @@ $("build").onclick = () => {
     if (!uid){
       html += `<p class="warn">No owner GUID (Step 1) — can't identify the flows you own.</p>`;
     } else {
-      const owned = [...state.flows.values()]
-        .filter(f => (f.owner || "").toLowerCase() === uid)
+      const owned = [...(state.flowsByOwner.get(uid) || [])]
+        .map(key => state.flows.get(key))
+        .filter(Boolean)
         .sort((a,b) => a.name.localeCompare(b.name));
       html += `<h3>Flows you own (${owned.length}) — need a new owner before offboarding</h3>`;
       if (owned.length === 0){
@@ -619,11 +663,11 @@ $("build").onclick = () => {
         const k = c.name.toLowerCase();
         const bound = crefsByConn.get(k) || [];
         const lns = new Set(bound.map(x => x.logicalname));
-        const one = new Set([k]);
-        let fl = 0;
-        for (const f of state.flows.values()){
-          if ([...f.refs].some(ln => lns.has(ln)) || rawConnHits(f, one).size) fl++;
+        const flowKeys = new Set(state.flowRawConns.get(k) || []);
+        for (const ln of lns){
+          for (const key of state.flowRefs.get(ln) || []) flowKeys.add(key);
         }
+        const fl = flowKeys.size;
         html += `<tr><td>${esc(c.display || c.name)}</td>`
           + `<td><span class="tag">${esc(c.connector)}</span></td>`
           + `<td>${esc(c.status || "—")}</td>`
@@ -644,11 +688,9 @@ $("build").onclick = () => {
 
   // index: at-risk logicalname -> [flows using it]
   const usage = new Map();
-  for (const ln of risk.keys()) usage.set(ln, []);
-  for (const f of state.flows.values()){
-    for (const ln of f.refs){
-      if (usage.has(ln)) usage.get(ln).push(f);
-    }
+  for (const ln of risk.keys()){
+    usage.set(ln, [...(state.flowRefs.get(ln) || [])]
+      .map(key => state.flows.get(key)).filter(Boolean));
   }
 
   // C. At-risk connection references and who uses them
@@ -679,7 +721,11 @@ $("build").onclick = () => {
   }
 
   // D. Flows that touch at least one at-risk connection reference
-  const impacted = [...state.flows.values()].filter(f => [...f.refs].some(ln => risk.has(ln)));
+  const impactedKeys = new Set();
+  for (const ln of risk.keys()){
+    for (const key of state.flowRefs.get(ln) || []) impactedKeys.add(key);
+  }
+  const impacted = [...impactedKeys].map(key => state.flows.get(key)).filter(Boolean);
   html += `<h3>Impacted flows (${impacted.length}) — using ≥1 at-risk connection reference</h3>`;
   if (impacted.length === 0){
     html += `<p class="muted">None of the scanned flows use an at-risk connection reference.</p>`;
@@ -695,8 +741,14 @@ $("build").onclick = () => {
   }
 
   // E. Non-solution flows referencing your raw connections (connection.id, no logical name)
+  const rawFlowKeys = new Set();
+  for (const name of names){
+    for (const key of state.flowRawConns.get(name) || []) rawFlowKeys.add(key);
+  }
   const rawRows = [];
-  for (const f of state.flows.values()){
+  for (const key of rawFlowKeys){
+    const f = state.flows.get(key);
+    if (!f) continue;
     const hits = rawConnHits(f, names);
     if (!hits.size) continue;
     // only surface raw hits not already captured via a connection-reference match

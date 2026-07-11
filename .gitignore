@@ -13,6 +13,7 @@ desktop.ini
 solution-explorer/tmp/
 solution-explorer/data/
 json-to-table/sample-data/
+find-connections/test-data/
 
 # Claude Code
 .claude/
