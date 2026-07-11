@@ -38,6 +38,8 @@
   .pill.off{ color:#777; border-color:#aaa; }
   details{ margin-top:6px; } summary{ cursor:pointer; font-size:13px; }
   .flowlist{ margin:4px 0 0; padding-left:18px; }
+  /* Trying auto-parse-only UX — re-show these if we bring back manual parse buttons. */
+  #parse-whoami, #parse-crefs, #parse-flows, #parse-owners{ display:none; }
 </style>
 </head>
 <body>
@@ -54,6 +56,15 @@ only builds the URLs to visit and parses the JSON you paste back.</p>
   <input type="text" id="base" placeholder="https://orgc356d31f.api.crm.dynamics.com/api/data/v9.2">
   <p class="muted">Paste the "Web API endpoint" value. Trailing slash is fine. Everything below is
   built from this.</p>
+</div>
+
+<!-- ============ STEP 0 ============ -->
+<div class="step">
+  <h3>Step 0 — Authenticate with Dataverse</h3>
+  <p class="muted">Open this URL first and sign in to your org. Once you're authenticated, the
+  Web API calls below will work in this tab.</p>
+  <span class="url" id="url-step0">Enter the base URL above…</span>
+  <button data-copy="url-step0">Copy URL</button>
 </div>
 
 <!-- ============ STEP 1 ============ -->
@@ -142,6 +153,13 @@ function normBase(){
 function buildUrls(){
   const b = normBase();
   const uid = $("uid").value.trim();
+  // Step 0
+  if (b){
+    try { $("url-step0").textContent = new URL(b).origin + "/"; }
+    catch { $("url-step0").textContent = "Enter a valid base URL above…"; }
+  } else {
+    $("url-step0").textContent = "Enter the base URL above…";
+  }
   // Step 1
   $("url-whoami").textContent = b ? `${b}/WhoAmI` : "Enter the base URL above…";
   // Step 2
@@ -233,7 +251,7 @@ function matchRawConns(f){
 }
 
 /* ---------- parse handlers ---------- */
-$("parse-whoami").onclick = () => {
+function doParseWhoami(){
   const el = $("out-whoami");
   try{
     const obj = parseJson($("in-whoami").value);
@@ -245,9 +263,10 @@ $("parse-whoami").onclick = () => {
     el.textContent = `Owner GUID: ${uid}`;
     buildUrls();
   }catch(e){ el.className="count err"; el.textContent = "Parse error: " + e.message; }
-};
+}
+$("parse-whoami").onclick = doParseWhoami;
 
-$("parse-crefs").onclick = () => {
+function doParseCrefs(){
   const el = $("out-crefs");
   try{
     const obj = parseJson($("in-crefs").value);
@@ -269,10 +288,11 @@ $("parse-crefs").onclick = () => {
     nextLinkNote(obj, el);
     buildOwnerUrl();
   }catch(e){ el.className="count err"; el.textContent = "Parse error: " + e.message; }
-};
+}
+$("parse-crefs").onclick = doParseCrefs;
 $("clear-crefs").onclick = () => { state.crefs.clear(); $("out-crefs").textContent="Cleared."; $("out-crefs").className="count muted"; buildOwnerUrl(); };
 
-$("parse-flows").onclick = () => {
+function doParseFlows(){
   const el = $("out-flows");
   try{
     const obj = parseJson($("in-flows").value);
@@ -294,10 +314,11 @@ $("parse-flows").onclick = () => {
     nextLinkNote(obj, el);
     buildOwnerUrl();
   }catch(e){ el.className="count err"; el.textContent = "Parse error: " + e.message; }
-};
+}
+$("parse-flows").onclick = doParseFlows;
 $("clear-flows").onclick = () => { state.flows.clear(); $("out-flows").textContent="Cleared."; $("out-flows").className="count muted"; buildOwnerUrl(); };
 
-$("parse-owners").onclick = () => {
+function doParseOwners(){
   const el = $("out-owners");
   try{
     const obj = parseJson($("in-owners").value);
@@ -312,8 +333,27 @@ $("parse-owners").onclick = () => {
     el.textContent = `Added ${n}. Total owners resolved: ${state.owners.size}.`;
     nextLinkNote(obj, el);
   }catch(e){ el.className="count err"; el.textContent = "Parse error: " + e.message; }
-};
+}
+$("parse-owners").onclick = doParseOwners;
 $("clear-owners").onclick = () => { state.owners.clear(); $("out-owners").textContent="Cleared."; $("out-owners").className="count muted"; };
+
+/* Auto-parse a textarea's contents as soon as they become valid JSON (e.g. on paste),
+   so the user doesn't have to click the corresponding Parse button. Silently no-ops
+   while the content isn't valid JSON yet (e.g. mid-typing) rather than showing an error. */
+function autoParseOnValidJson(textareaId, handler){
+  $(textareaId).addEventListener("input", () => {
+    const t = $(textareaId).value.trim();
+    if (!t) return;
+    let obj;
+    try { obj = JSON.parse(t); } catch { return; }
+    if (!obj || typeof obj !== "object") return;
+    handler();
+  });
+}
+autoParseOnValidJson("in-whoami", doParseWhoami);
+autoParseOnValidJson("in-crefs", doParseCrefs);
+autoParseOnValidJson("in-flows", doParseFlows);
+autoParseOnValidJson("in-owners", doParseOwners);
 
 /* ---------- copy buttons ---------- */
 document.querySelectorAll("button[data-copy]").forEach(btn => {
