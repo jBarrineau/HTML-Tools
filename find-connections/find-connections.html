@@ -65,6 +65,7 @@ only builds the URLs to visit and parses the JSON you paste back.</p>
   Web API calls below will work in this tab.</p>
   <span class="url" id="url-step0">Enter the base URL above…</span>
   <button data-copy="url-step0">Copy URL</button>
+  <button data-open="url-step0">Open URL in New Tab</button>
 </div>
 
 <!-- ============ STEP 1 ============ -->
@@ -74,6 +75,7 @@ only builds the URLs to visit and parses the JSON you paste back.</p>
   whole JSON response and paste it below.</p>
   <span class="url" id="url-whoami">Enter the base URL above…</span>
   <button data-copy="url-whoami">Copy URL</button>
+  <button data-open="url-whoami">Open URL in New Tab</button>
   <label for="in-whoami">Paste WhoAmI response</label>
   <textarea id="in-whoami" placeholder='{"@odata.context":"…","BusinessUnitId":"…","UserId":"cc985d4a-…","OrganizationId":"…"}'></textarea>
   <button id="parse-whoami">Parse</button>
@@ -88,6 +90,7 @@ only builds the URLs to visit and parses the JSON you paste back.</p>
   <p class="muted">Lists the connection references owned by you. Open the URL, paste the response.</p>
   <span class="url" id="url-crefs">Enter the base URL and owner GUID above…</span>
   <button data-copy="url-crefs">Copy URL</button>
+  <button data-open="url-crefs">Open URL in New Tab</button>
   <label for="in-crefs">Paste connectionreferences response</label>
   <textarea id="in-crefs" placeholder='{"value":[ … ]}'></textarea>
   <button id="parse-crefs">Parse / add</button>
@@ -103,6 +106,7 @@ only builds the URLs to visit and parses the JSON you paste back.</p>
   <span class="tag">@odata.nextLink</span>, open that link and paste each page here with "Parse / add".</p>
   <span class="url" id="url-flows">Enter the base URL above…</span>
   <button data-copy="url-flows">Copy URL</button>
+  <button data-open="url-flows">Open URL in New Tab</button>
   <label for="in-flows">Paste workflows response (repeat for each page)</label>
   <textarea id="in-flows" placeholder='{"value":[ {"name":"…","clientdata":"{…}","statecode":1} ]}'></textarea>
   <button id="parse-flows">Parse / add</button>
@@ -119,6 +123,7 @@ only builds the URLs to visit and parses the JSON you paste back.</p>
   will show names instead of GUIDs. Parse Step 3 first so the URL can be built.</p>
   <span class="url" id="url-owners">Parse flows in Step 3 first…</span>
   <button data-copy="url-owners">Copy URL</button>
+  <button data-open="url-owners">Open URL in New Tab</button>
   <label for="in-owners">Paste systemusers response</label>
   <textarea id="in-owners" placeholder='{"value":[ {"systemuserid":"…","fullname":"…","domainname":"…"} ]}'></textarea>
   <button id="parse-owners">Parse / add</button>
@@ -363,6 +368,15 @@ document.querySelectorAll("button[data-copy]").forEach(btn => {
       const old = btn.textContent; btn.textContent = "Copied!";
       setTimeout(() => btn.textContent = old, 1200);
     });
+  };
+});
+
+/* ---------- open-in-new-tab buttons ---------- */
+document.querySelectorAll("button[data-open]").forEach(btn => {
+  btn.onclick = () => {
+    const txt = $(btn.dataset.open).textContent;
+    if (!/^https?:\/\//i.test(txt)) return;
+    window.open(txt, "_blank", "noopener");
   };
 });
 
