@@ -45,13 +45,51 @@
   .flowlist{ margin:4px 0 0; padding-left:18px; }
   /* Trying auto-parse-only UX — re-show these if we bring back manual parse buttons. */
   #parse-whoami, #parse-crefs, #parse-conns, #parse-flows, #parse-owners, #parse-sols{ display:none; }
+
+  /* ---- wizard ---- */
+  .wiz-head{ position:sticky; top:0; z-index:5; background:#fff; padding-top:8px; margin-bottom:6px; }
+  .wiz-head h1{ margin:0 0 2px; }
+  .wiz-head .sub{ margin:0 0 8px; }
+  .progress{ display:flex; flex-wrap:wrap; gap:6px; list-style:none; padding:0; margin:10px 0 2px; }
+  .pstep{ display:flex; align-items:center; gap:6px; font-size:11px; color:#999;
+        border:1px solid #ddd; border-radius:16px; padding:3px 10px 3px 4px; user-select:none; }
+  .pstep .pnum{ display:grid; place-items:center; width:18px; height:18px; border-radius:50%;
+        background:#eee; color:#666; font-size:11px; font-weight:600; }
+  .pstep.reach{ cursor:pointer; }
+  .pstep.reach:hover{ border-color:#888; }
+  .pstep.done{ color:#0a7d00; border-color:#bfe0bd; }
+  .pstep.done .pnum{ background:#0a7d00; color:#fff; }
+  .pstep.cur{ color:#111; border-color:#444; font-weight:600; }
+  .pstep.cur .pnum{ background:#444; color:#fff; }
+  .pstep.todo .plabel{ opacity:.7; }
+  .screen{ display:none; }
+  .screen.active{ display:block; animation:fade .15s ease; }
+  @keyframes fade{ from{opacity:0} to{opacity:1} }
+  .wiz-nav{ display:flex; align-items:center; gap:14px; margin-top:22px; border-top:1px solid #ccc; padding-top:16px; }
+  .wiz-nav .spacer{ flex:1; }
+  .wiz-nav button{ font-size:14px; padding:8px 18px; }
+  #wiz-next{ background:#111; color:#fff; border-color:#111; }
+  #wiz-next:hover:not(:disabled){ background:#333; }
+  #wiz-next:disabled, #wiz-back:disabled{ opacity:.4; cursor:not-allowed; }
+  .nav-hint{ color:#b06a00; font-size:12px; }
+  .optional-badge{ display:inline-block; font-size:11px; color:#555; background:#f0f0f0;
+        border:1px solid #ddd; border-radius:10px; padding:1px 8px; margin-left:6px; vertical-align:middle;
+        font-weight:normal; }
+  .ack{ display:flex; align-items:flex-start; gap:8px; margin-top:14px; font-weight:600; font-size:13px; }
+  .ack input{ margin-top:2px; }
 </style>
 </head>
 <body>
 
-<!-- ============ SETUP ============ -->
-<div class="step">
-  <h3>Setup — Your connections <span class="muted">(via Power Automate)</span></h3>
+<header class="wiz-head">
+  <h1>Find Connections</h1>
+  <p class="sub">Map which Power Platform flows and connection references depend on a departing user's connections — completed one step at a time.</p>
+  <ol id="progress" class="progress"></ol>
+</header>
+
+<!-- ============ STAGE 1 — Your connections (optional) ============ -->
+<div class="step screen" data-screen="conns">
+  <h3>Your connections <span class="muted">(via Power Automate)</span> <span class="optional-badge">Optional</span></h3>
   <label for="whoid">Your identity — Entra object id, email, or UPN (picks your connections out of an
   environment-wide list; leave blank to treat every pasted connection as yours)</label>
   <input type="text" id="whoid" placeholder="Your email address or EntraID UPN">
@@ -62,17 +100,16 @@
   <div class="count" id="out-conns"></div>
 </div>
 
-<div class="step">
-  <h3>Setup — Web API endpoint</h3>
-  <label for="base">Dataverse Web API base URL (from Power Platform → Settings → Developer resources)</label>
+<!-- ============ STAGE 2 ============ -->
+<div class="step screen" data-screen="base">
+  <h3>Web API endpoint</h3>
+  <label for="base">Paste the environment's Dataverse Web API URL (from Power Apps Portal → Settings → Developer resources)</label>
   <input type="text" id="base" placeholder="https://orgc356d31f.api.crm.dynamics.com/api/data/v9.2">
-  <p class="muted">Paste the "Web API endpoint" value. Trailing slash is fine. Everything below is
-  built from this.</p>
 </div>
 
-<!-- ============ STEP 0 ============ -->
-<div class="step">
-  <h3>Step 0 — Authenticate with Dataverse</h3>
+<!-- ============ STAGE 3 ============ -->
+<div class="step screen" data-screen="auth">
+  <h3>Authenticate with Dataverse</h3>
   <p class="muted">Open this URL first and sign in to your environment. Once you're authenticated, the
   Web API calls below will work.</p>
   <div class="url-wrap">
@@ -80,11 +117,12 @@
     <button class="copy-icon" data-copy="url-step0" aria-label="Copy URL" title="Copy URL"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="1"/><path d="M15 9V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h4"/></svg></button>
   </div>
   <button data-open="url-step0">Open URL in New Tab</button>
+  <label class="ack"><input type="checkbox" id="ack-auth"> I've opened the URL above and signed in to my environment.</label>
 </div>
 
-<!-- ============ STEP 1 ============ -->
-<div class="step">
-  <h3>Step 1 — Who am I? (get your owner GUID)</h3>
+<!-- ============ STAGE 4 ============ -->
+<div class="step screen" data-screen="whoami">
+  <h3>Who am I? (get your owner GUID)</h3>
   <p class="muted">Open this URL in the browser tab where you're signed in to your org, then copy the
   whole JSON response and paste it below.</p>
   <div class="url-wrap">
@@ -100,9 +138,9 @@
   <input type="text" id="uid" placeholder="cc985d4a-b213-f111-8341-000d3a58b033">
 </div>
 
-<!-- ============ STEP 2 ============ -->
-<div class="step">
-  <h3>Step 2 — Connection references <span class="muted">(whole environment)</span></h3>
+<!-- ============ STAGE 5 ============ -->
+<div class="step screen" data-screen="crefs">
+  <h3>Connection references <span class="muted">(whole environment)</span></h3>
   <div class="url-wrap">
     <span class="url" id="url-crefs">Enter the base URL above…</span>
     <button class="copy-icon" data-copy="url-crefs" aria-label="Copy URL" title="Copy URL"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="1"/><path d="M15 9V5a1 1 0 0 0-1-1H5a1 1 0 0 0 1 1h4"/></svg></button>
@@ -115,17 +153,15 @@
   <div class="count" id="out-crefs"></div>
 </div>
 
-<!-- ============ STEP 3 ============ -->
-<div class="step">
-  <h3>Step 3 — All cloud flows in the environment</h3>
-  <p class="muted">Whole-environment scan (no owner filter) so you catch flows owned by others that
-  use your connections. This response can be large — if it ends with an
-  <span class="tag">@odata.nextLink</span>, open that link and paste each page here with "Parse / add".</p>
-  <div class="url-wrap">
-    <span class="url" id="url-flows">Enter the base URL above…</span>
-    <button class="copy-icon" data-copy="url-flows" aria-label="Copy URL" title="Copy URL"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="1"/><path d="M15 9V5a1 1 0 0 0-1-1H5a1 1 0 0 0 1 1h4"/></svg></button>
-  </div>
-  <button data-open="url-flows">Open URL in New Tab</button>
+<!-- ============ STAGE 6 ============ -->
+<div class="step screen" data-screen="flows">
+  <h3>Cloud flows in the environment</h3>
+  <p class="muted">Filtered server-side to flows whose <span class="tag">clientdata</span> mentions
+  an at-risk connection reference or connection, once Stage 2 and/or Stages 4-5 give the
+  tool something to filter on — falls back to a whole-environment scan otherwise. Filtered or not,
+  a large result can still page — if it ends with an <span class="tag">@odata.nextLink</span>, open
+  that link and paste each page here with "Parse / add".</p>
+  <div id="urls-flows"><span class="url">Enter the base URL above…</span></div>
   <label for="in-flows">Paste workflows response (repeat for each page)</label>
   <textarea id="in-flows" placeholder='{"value":[ {"name":"…","clientdata":"{…}","statecode":1} ]}'></textarea>
   <button id="parse-flows">Parse / add</button>
@@ -133,11 +169,11 @@
   <div class="count" id="out-flows"></div>
 </div>
 
-<!-- ============ STEP 4 ============ -->
-<div class="step">
-  <h3>Step 4 — Resolve owner names <span class="muted">(optional)</span></h3>
+<!-- ============ STAGE 7 ============ -->
+<div class="step screen" data-screen="owners">
+  <h3>Resolve owner names <span class="muted">(required)</span></h3>
   <div class="url-wrap">
-    <span class="url" id="url-owners">Parse flows in Step 3 first…</span>
+    <span class="url" id="url-owners">Parse flows in Stage 6 first…</span>
     <button class="copy-icon" data-copy="url-owners" aria-label="Copy URL" title="Copy URL"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="1"/><path d="M15 9V5a1 1 0 0 0-1-1H5a1 1 0 0 0 1 1h4"/></svg></button>
   </div>
   <button data-open="url-owners">Open URL in New Tab</button>
@@ -148,16 +184,18 @@
   <div class="count" id="out-owners"></div>
 </div>
 
-<!-- ============ STEP 5 ============ -->
-<div class="step">
-  <h3>Step 5 — Solution membership <span class="muted">(optional)</span></h3>
-  <p class="muted">Finds which solutions contain the at-risk connection references and the
-  impacted/owned flows, via the <span class="tag">solutioncomponents</span> table. One URL covers
-  the whole environment — it's filtered by <em>component type</em> (workflows + connection
-  references) rather than by GUID, so there's no chunking, and the solution's friendly name comes
-  back inline via <span class="tag">$expand=solutionid</span> (no second lookup). The noise-only
-  Default/Active solutions are dropped automatically. Open it and paste the response below; the
-  results tables gain a Solutions column. Very large orgs may return an
+<!-- ============ STAGE 8 ============ -->
+<div class="step screen" data-screen="sols">
+  <h3>Solution membership <span class="muted">(required)</span></h3>
+  <p class="muted">Finds which solutions contain the connection references and flows already known
+  from Stages 5-6, via the <span class="tag">solutioncomponents</span> table — a single call,
+  filtered to just those <em>objectid</em>s (plus component type: workflows + connection
+  references) when the id list fits in one URL, and the solution's friendly name comes back inline
+  via <span class="tag">$expand=solutionid</span> (no second lookup). The noise-only Default/Active
+  solutions are dropped automatically. Falls back to an unfiltered whole-environment query when
+  Stages 5-6 haven't parsed data yet, or when too many ids to fit one URL — the tool matches
+  components locally either way, so the results are the same. Open the URL below and paste the
+  response; the results tables gain a Solutions column. A very large org may return an
   <span class="tag">@odata.nextLink</span> — open it and paste the next page too.</p>
   <div id="urls-sols"><span class="url">Enter the base URL above…</span></div>
   <label for="in-sols">Paste solutioncomponents response(s)</label>
@@ -167,10 +205,21 @@
   <div class="count" id="out-sols"></div>
 </div>
 
-<!-- ============ RESULTS ============ -->
-<h2>Results</h2>
-<button id="build">Build mapping</button>
-<div id="results"></div>
+<!-- ============ STAGE 9 — RESULTS ============ -->
+<div class="step screen" data-screen="results">
+  <h2 style="margin:0 0 10px;border:none;padding:0;">Results</h2>
+  <button id="build">Rebuild mapping</button>
+  <button id="export-csv" title="Download every finding below as one distributable action list">⬇ Download action list (CSV)</button>
+  <div class="count muted" id="out-export"></div>
+  <div id="results"></div>
+</div>
+
+<nav class="wiz-nav">
+  <button id="wiz-back">← Back</button>
+  <span class="nav-hint" id="wiz-hint"></span>
+  <span class="spacer"></span>
+  <button id="wiz-next">Next →</button>
+</nav>
 
 <script>
 "use strict";
@@ -186,6 +235,7 @@ const state = {
   flowsByOwner: new Map(), // owner GUID(lowercase) -> Set<flow key>
   owners: new Map(),  // systemuserid(guid) -> {fullname, domainname}
   sols: new Map(),    // objectid(lowercase guid) -> Map(uniquename -> {name, uniquename, solid, managed})
+  solsParsed: false,  // Stage 8 (mandatory) — true once a solutioncomponents response is parsed, even if empty
 };
 
 /* ---------- helpers ---------- */
@@ -199,16 +249,16 @@ function normBase(){
 function buildUrls(){
   const b = normBase();
   const uid = $("uid").value.trim();
-  // Step 0
+  // Stage 3
   if (b){
     try { $("url-step0").textContent = new URL(b).origin + "/"; }
     catch { $("url-step0").textContent = "Enter a valid base URL above…"; }
   } else {
     $("url-step0").textContent = "Enter the base URL above…";
   }
-  // Step 1
+  // Stage 4
   $("url-whoami").textContent = b ? `${b}/WhoAmI` : "Enter the base URL above…";
-  // Step 2 — no owner filter on purpose: cref record owner ≠ owner of the bound connection.
+  // Stage 5 — no owner filter on purpose: cref record owner ≠ owner of the bound connection.
   if (b){
     const q = `${b}/connectionreferences?$select=connectionreferenceid,connectionreferencedisplayname,`
       + `connectionreferencelogicalname,connectorid,connectionid,statecode,_ownerid_value`
@@ -217,45 +267,143 @@ function buildUrls(){
   } else {
     $("url-crefs").textContent = "Enter the base URL above…";
   }
-  // Step 3
-  if (b){
-    const q = `${b}/workflows?$select=name,clientdata,statecode,_ownerid_value`
-      + `&$filter=category eq 5&$orderby=modifiedon desc`;
-    $("url-flows").textContent = encodeURI(q);
-  } else {
-    $("url-flows").textContent = "Enter the base URL above…";
-  }
-  // Step 5 — static, whole-environment query; depends only on the base URL.
-  buildSolUrls();
+  // Stages 6 and 8 depend on state (at-risk items) as well as the base URL.
+  buildDerived();
 }
 
-/* Build a systemusers URL targeted to the owner GUIDs discovered in the flow scan.
+/* Shared markup for one URL box (span + copy icon + open button), keyed by a unique id so
+   multiple chunked queries can render side by side and still work with the delegated
+   copy/open click handler below. */
+function urlBoxHtml(id, rawQuery){
+  return `<div class="url-wrap"><span class="url" id="${id}">${esc(encodeURI(rawQuery))}</span>`
+    + `<button class="copy-icon" data-copy="${id}" aria-label="Copy URL" title="Copy URL"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="1"/><path d="M15 9V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h4"/></svg></button></div>`
+    + `<button data-open="${id}">Open URL in New Tab</button>`;
+}
+
+function odataStr(v){ return String(v).replace(/'/g, "''"); }
+
+/* Distinct at-risk identifiers to hunt for inside flow clientdata: at-risk cref logical names
+   (solution-aware bindings) plus raw connection ids (non-solution bindings) — see
+   riskConnNames(). Empty until Stage 2 and/or Stages 4-5 provide something to filter
+   on, in which case Stage 6 falls back to an unfiltered whole-environment scan. */
+function riskFilterClauses(){
+  const values = new Set();
+  for (const ln of atRiskCrefs().keys()) values.add(ln);
+  for (const n of riskConnNames()) values.add(n);
+  return [...values].map(v => `contains(clientdata,'${odataStr(v)}')`);
+}
+
+function buildFlowQuery(b, clauses){
+  const filter = clauses.length ? `category eq 5 and (${clauses.join(" or ")})` : "category eq 5";
+  return `${b}/workflows?$select=name,clientdata,statecode,_ownerid_value`
+    + `&$filter=${filter}&$orderby=modifiedon desc`;
+}
+
+/* Stage 6 — always a single call. Filter by at-risk identifiers when the resulting query fits
+   in one URL (Stage 2 and/or Stages 4-5 give us something to filter on); if the filter
+   would otherwise have to be split across several copy/paste URLs, fall back to one unfiltered
+   whole-environment query instead. The client re-parses every flow's clientdata and re-filters
+   locally either way, so the results are identical — only the payload size differs. */
+function buildFlowUrls(){
+  const b = normBase();
+  const box = $("urls-flows");
+  if (!b){
+    box.innerHTML = `<div class="url-wrap"><span class="url">Enter the base URL above…</span></div>`;
+    return;
+  }
+  const clauses = riskFilterClauses();
+  const filtered = buildFlowQuery(b, clauses);
+  const useFiltered = clauses.length > 0 && filtered.length <= 1500;
+  const query = useFiltered ? filtered : buildFlowQuery(b, []);
+  box.innerHTML = urlBoxHtml("url-flows-0", query);
+  const note = clauses.length === 0
+    ? `<p class="muted">No at-risk identity yet — showing the unfiltered whole-environment query. Complete Stage 2 and/or Stages 4-5 for a filtered, per-user query.</p>`
+    : useFiltered
+      ? `<p class="muted">Filtered to ${clauses.length} at-risk identifier(s) — flows that don't reference them are excluded server-side.</p>`
+      : `<p class="muted">Too many at-risk identifiers (${clauses.length}) to fit a filtered query in one URL — showing the unfiltered whole-environment query so this stays a single call. The tool re-filters clientdata locally, so the results are the same.</p>`;
+  box.insertAdjacentHTML("beforeend", note);
+}
+
+/* Keys of parsed flows that actually touch an at-risk connection reference or connection.
+   Stage 6 may pull the whole environment (when the filter can't fit one URL), so Stages 7-8
+   narrow to just these instead of every parsed flow. With no at-risk identity yet, every flow
+   counts — same as the unfiltered behavior before any filter data exists. */
+function impactedFlowKeys(){
+  const risk = atRiskCrefs();
+  const names = riskConnNames();
+  const noFilter = risk.size === 0 && names.size === 0;
+  const keys = new Set();
+  for (const [key, f] of state.flows){
+    if (noFilter || [...f.refs].some(ln => risk.has(ln)) || rawConnHits(f, names).size)
+      keys.add(key);
+  }
+  return keys;
+}
+
+/* Owner GUIDs Stage 7 must resolve: the owners of impacted flows (the flows that actually use
+   an at-risk connection reference or connection). Shared by the URL builder and the wizard's
+   mandatory-completion gate so the URL you're told to fetch is exactly what the gate checks. */
+function neededOwnerGuids(){
+  const guids = new Set();
+  for (const key of impactedFlowKeys()){
+    const f = state.flows.get(key);
+    if (f && f.owner) guids.add(f.owner);
+  }
+  return guids;
+}
+
+/* Build a systemusers URL targeted to the owner GUIDs of impacted flows.
    Narrows to owners of flows that actually use your connections when possible. */
 function buildOwnerUrl(){
   const b = normBase();
   const el = $("url-owners");
-  if (!b || state.flows.size === 0){ el.textContent = "Parse flows in Step 3 first…"; return; }
-  const risk = atRiskCrefs();
-  const names = riskConnNames();
-  const guids = new Set();
-  for (const f of state.flows.values()){
-    if (!f.owner) continue;
-    const impacted = risk.size === 0 || [...f.refs].some(ln => risk.has(ln)) || rawConnHits(f, names).size;
-    if (impacted) guids.add(f.owner);
-  }
+  if (!b || state.flows.size === 0){ el.textContent = "Parse flows in Stage 6 first…"; return; }
+  const guids = neededOwnerGuids();
   if (guids.size === 0){ el.textContent = "No owner GUIDs found on the parsed flows."; return; }
   const filter = [...guids].map(g => `systemuserid eq ${g}`).join(" or ");
   const q = `${b}/systemusers?$select=systemuserid,fullname,domainname&$filter=${filter}`;
   el.textContent = encodeURI(q);
 }
 
-/* Build the single solution-membership URL. Filters solutioncomponents by componenttype
-   (29 = workflow, 10156 = connection reference) instead of by objectid, so one static URL
-   covers the whole environment with no GUID chunking. solutionid is a real lookup here, so
-   $expand reliably returns the solution's friendly name inline (the msdyn_solutioncomponent-
-   summaries virtual table exposes only the solution GUID, not its name). We match objectids
-   client-side against the crefs/flows already in state, and drop the Default/Active solutions. */
+/* Stage 7 (now mandatory) is complete once every impacted-flow owner GUID has a systemusers
+   record parsed. Vacuously true when there are no impacted flows to resolve (e.g. Stage 6
+   skipped), so the wizard never dead-ends. Case-insensitive so a GUID-casing mismatch between
+   the flow's _ownerid_value and the systemusers response can't lock the wizard. */
+function ownersResolved(){
+  const have = new Set([...state.owners.keys()].map(k => k.toLowerCase()));
+  return [...neededOwnerGuids()].every(g => have.has(g.toLowerCase()));
+}
+
+/* Component ids (lowercase) already known from Stages 5-6 — connectionreferenceids plus the
+   workflowids of impacted flows — that Stage 8's solutioncomponents.objectid can be filtered to.
+   Restricted to impacted flows so an unfiltered Stage 6 scan doesn't blow up the id list. */
+function solObjectIds(){
+  const ids = new Set();
+  for (const key of impactedFlowKeys()){
+    const f = state.flows.get(key);
+    if (f && f.id) ids.add(f.id.toLowerCase());
+  }
+  for (const c of state.crefs.values()) if (c.id) ids.add(c.id.toLowerCase());
+  return ids;
+}
+
 const SOL_COMPONENT_TYPES = [29, 10156]; // workflow, connectionreference
+function buildSolQuery(b, clauses){
+  const typeFilter = SOL_COMPONENT_TYPES.map(t => `componenttype eq ${t}`).join(" or ");
+  const objFilter = clauses.length ? ` and (${clauses.join(" or ")})` : "";
+  return `${b}/solutioncomponents?$select=objectid,componenttype,_solutionid_value`
+    + `&$expand=solutionid($select=friendlyname,uniquename,ismanaged)&$filter=(${typeFilter})${objFilter}`;
+}
+
+/* Stage 8 — always a single call, mirroring Stage 6. Filter solutioncomponents by the objectids
+   already known from Stages 5-6 (plus component type) when that query fits in one URL; if the id
+   list would otherwise have to be split across several copy/paste URLs, fall back to one
+   unfiltered whole-environment query (every workflow + connectionreference component) instead.
+   solutionid is a real lookup here, so $expand reliably returns the solution's friendly name
+   inline (the msdyn_solutioncomponentsummaries virtual table exposes only the solution GUID,
+   not its name). The noise-only Default/Active solutions are dropped when parsed, and solTags()
+   only reads ids present in Stages 5-6's results, so an unfiltered response yields identical
+   output — only the payload size differs. */
 function buildSolUrls(){
   const b = normBase();
   const box = $("urls-sols");
@@ -263,17 +411,22 @@ function buildSolUrls(){
     box.innerHTML = `<div class="url-wrap"><span class="url">Enter the base URL above…</span></div>`;
     return;
   }
-  const filter = SOL_COMPONENT_TYPES.map(t => `componenttype eq ${t}`).join(" or ");
-  const q = `${b}/solutioncomponents?$select=objectid,componenttype,_solutionid_value`
-    + `&$expand=solutionid($select=friendlyname,uniquename,ismanaged)&$filter=(${filter})`;
-  box.innerHTML = `<div class="url-wrap"><span class="url" id="url-sols-0">${esc(encodeURI(q))}</span>`
-    + `<button class="copy-icon" data-copy="url-sols-0" aria-label="Copy URL" title="Copy URL"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="1"/><path d="M15 9V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h4"/></svg></button></div>`
-    + `<button data-open="url-sols-0">Open URL in New Tab</button>`;
+  const ids = solObjectIds();
+  const clauses = [...ids].map(id => `objectid eq ${id}`);
+  const filtered = buildSolQuery(b, clauses);
+  const useFiltered = clauses.length > 0 && filtered.length <= 1500;
+  const query = useFiltered ? filtered : buildSolQuery(b, []);
+  box.innerHTML = urlBoxHtml("url-sols-0", query);
+  const note = ids.size === 0
+    ? `<p class="muted">Parse Stages 5 and 6 first for a query filtered to just those ids — showing the unfiltered whole-environment query (workflow + connection-reference components) for now.</p>`
+    : useFiltered
+      ? `<p class="muted">Filtered to ${ids.size} known component id(s) — components outside Stages 5-6's results are excluded server-side.</p>`
+      : `<p class="muted">Too many known component ids (${ids.size}) to fit a filtered query in one URL — showing the unfiltered whole-environment query so this stays a single call. The tool matches components locally, so the results are the same.</p>`;
+  box.insertAdjacentHTML("beforeend", note);
 }
 
-/* URLs derived from parsed data — refresh whenever inputs or parses change. (The Step 5
-   URL is static now, so it lives in buildUrls with the other base-only URLs.) */
-function buildDerived(){ buildOwnerUrl(); }
+/* URLs derived from parsed data — refresh whenever inputs or parses change. */
+function buildDerived(){ buildFlowUrls(); buildOwnerUrl(); buildSolUrls(); }
 
 function parseJson(txt){
   const t = txt.trim();
@@ -543,6 +696,7 @@ function doParseSols(obj){
       });
       n++;
     }
+    state.solsParsed = true; // step counts as done even when the response contains no solution rows
     el.className = "count ok";
     el.textContent = `Added ${n}. Components with solution info: ${state.sols.size}.`;
     nextLinkNote(obj, el);
@@ -550,7 +704,7 @@ function doParseSols(obj){
   }catch(e){ el.className="count err"; el.textContent = "Parse error: " + e.message; }
 }
 $("parse-sols").onclick = () => doParseSols();
-$("clear-sols").onclick = () => { state.sols.clear(); $("out-sols").textContent="Cleared."; $("out-sols").className="count muted"; };
+$("clear-sols").onclick = () => { state.sols.clear(); state.solsParsed = false; $("out-sols").textContent="Cleared."; $("out-sols").className="count muted"; };
 
 /* Auto-parse after typing/pasting settles. Parse once here and pass the resulting object to
    the handler, which clears the textarea after successfully extracting the fields it retains. */
@@ -576,7 +730,7 @@ autoParseOnValidJson("in-owners", doParseOwners);
 autoParseOnValidJson("in-sols", doParseSols);
 
 /* ---------- copy / open-in-new-tab buttons ----------
-   Delegated so buttons rendered later (Step 5's chunked URLs) work too. */
+   Delegated so buttons rendered later (Stage 8's chunked URLs) work too. */
 document.addEventListener("click", e => {
   const cp = e.target.closest("button[data-copy]");
   if (cp){
@@ -616,7 +770,7 @@ $("build").onclick = () => {
   // A. Flows owned by the departing user — these break regardless of whose connections they use
   if (state.flows.size){
     if (!uid){
-      html += `<p class="warn">No owner GUID (Step 1) — can't identify the flows you own.</p>`;
+      html += `<p class="warn">No owner GUID (Stage 4) — can't identify the flows you own.</p>`;
     } else {
       const owned = [...(state.flowsByOwner.get(uid) || [])]
         .map(key => state.flows.get(key))
@@ -681,7 +835,7 @@ $("build").onclick = () => {
   }
 
   if (state.crefs.size === 0){
-    html += `<p class="err">Add connection references in Step 2 to see the risk tables.</p>`;
+    html += `<p class="err">Add connection references in Stage 5 to see the risk tables.</p>`;
     res.innerHTML = html;
     return;
   }
@@ -698,7 +852,7 @@ $("build").onclick = () => {
   if (risk.size === 0){
     html += `<p class="muted">${(yours || uid)
       ? "None of the parsed connection references are bound to your connections or owned by you."
-      : "Provide your owner GUID (Step 1) and/or your connections (Setup) so the tool can tell which connection references are yours."}</p>`;
+      : "Provide your owner GUID (Stage 4) and/or your connections (Stage 2) so the tool can tell which connection references are yours."}</p>`;
   } else {
     html += `<table><thead><tr><th>Display name</th><th>Connector</th><th>Logical name</th>`
           + `<th>Why at risk</th>${solTh}<th>Used by</th><th>Flows</th></tr></thead><tbody>`;
@@ -773,6 +927,181 @@ $("build").onclick = () => {
   res.innerHTML = html;
 };
 
+/* ---------- CSV export ----------
+   Plain-text mirrors of the HTML label helpers used only for the export. */
+function ownerName(guid){
+  if (!guid) return "";
+  const o = state.owners.get(guid);
+  if (o && o.fullname) return o.domainname ? `${o.fullname} (${o.domainname})` : o.fullname;
+  return guid;
+}
+function solNames(id){
+  const m = state.sols.get((id || "").toLowerCase());
+  if (!m || m.size === 0) return "";
+  return [...m.values()].map(s => s.managed ? `${s.name} (managed)` : s.name).join("; ");
+}
+function connName(nameLc){
+  const c = state.conns.get(nameLc);
+  if (c) return c.display || c.name;
+  for (const x of state.crefs.values())
+    if ((x.connectionid || "").toLowerCase() === nameLc) return x.display || x.connector || nameLc;
+  return nameLc;
+}
+function stateLabel(sc){ return sc === 1 ? "On" : "Off/Draft"; }
+
+/* Flatten every finding the Results tables show into one distributable action list — one row
+   per entity (flow / connection reference / connection). A flow that is both owned by the
+   departing user AND uses at-risk references collapses to a single row with combined reasons,
+   so the CSV is a de-duplicated checklist rather than a copy of each table. */
+function buildActionRows(){
+  const uid = $("uid").value.trim().toLowerCase();
+  const risk = atRiskCrefs();       // logicalname -> [reasons]
+  const yours = yourConnSet();      // your connection names (lowercase), or null
+  const names = riskConnNames();    // names to hunt for in raw flow bindings
+  const rows = [];
+
+  // Cloud flows — owned by the departing user, or touching an at-risk cref/connection.
+  for (const f of state.flows.values()){
+    const ownedByUser = uid && (f.owner || "").toLowerCase() === uid;
+    const atRiskRefs = [...f.refs].filter(ln => risk.has(ln));
+    const covered = new Set([...f.refs]
+      .map(ln => state.crefs.get(ln)?.connectionid?.toLowerCase()).filter(Boolean));
+    const rawHits = [...rawConnHits(f, names)].filter(h => !covered.has(h));
+    if (!ownedByUser && atRiskRefs.length === 0 && rawHits.length === 0) continue;
+
+    const reasons = [];
+    if (ownedByUser) reasons.push("Owned by departing user — stops running when the account is disabled");
+    if (atRiskRefs.length) reasons.push("Uses at-risk connection reference(s)");
+    if (rawHits.length) reasons.push("Binds a departing connection directly by id");
+
+    const dependents = atRiskRefs.map(ln => state.crefs.get(ln)?.display || ln)
+      .concat(rawHits.map(connName)).join("; ");
+
+    rows.push({
+      priority: ownedByUser ? 1 : 2,
+      category: "Cloud flow",
+      name: f.name,
+      technical: f.id,
+      connector: [...f.connectors].join("; "),
+      state: stateLabel(f.state),
+      owner: ownerName(f.owner),
+      risk: reasons.join("; "),
+      dependents,
+      solutions: solNames(f.id),
+      action: ownedByUser
+        ? "Reassign owner to a service account or teammate before disabling the account"
+        : "Coordinate with the owner to re-point connection references to a service account",
+    });
+  }
+
+  // At-risk connection references.
+  for (const ln of risk.keys()){
+    const c = state.crefs.get(ln);
+    if (!c) continue;
+    const flowNames = [...(state.flowRefs.get(ln) || [])]
+      .map(k => state.flows.get(k)?.name).filter(Boolean);
+    const orphan = flowNames.length === 0;
+    rows.push({
+      priority: orphan ? 4 : 2,
+      category: "Connection reference",
+      name: c.display || ln,
+      technical: ln,
+      connector: c.connector,
+      state: "",
+      owner: ownerName(c.owner),
+      risk: risk.get(ln).join("; "),
+      dependents: orphan ? "0 — orphan" : `${flowNames.length}: ${flowNames.join("; ")}`,
+      solutions: solNames(c.id),
+      action: orphan
+        ? "Confirm unused, then delete the orphaned connection reference"
+        : "Re-authenticate under a service-account connection; dependent flows break otherwise",
+    });
+  }
+
+  // Your connections — removed with the account, so anything bound to them must be rebuilt.
+  if (state.conns.size && yours){
+    const crefsByConn = new Map();
+    for (const c of state.crefs.values()){
+      if (!c.connectionid) continue;
+      const k = c.connectionid.toLowerCase();
+      (crefsByConn.get(k) || crefsByConn.set(k, []).get(k)).push(c);
+    }
+    for (const c of state.conns.values()){
+      if (!yours.has(c.name.toLowerCase())) continue;
+      const k = c.name.toLowerCase();
+      const bound = crefsByConn.get(k) || [];
+      const flowKeys = new Set(state.flowRawConns.get(k) || []);
+      for (const x of bound) for (const key of state.flowRefs.get(x.logicalname) || []) flowKeys.add(key);
+      rows.push({
+        priority: 3,
+        category: "Connection",
+        name: c.display || c.name,
+        technical: c.name,
+        connector: c.connector,
+        state: c.status || "",
+        owner: "Departing user",
+        risk: "Owned by departing user — removed when the account is disabled",
+        dependents: `${bound.length} connection reference(s), ${flowKeys.size} flow(s)`,
+        solutions: "",
+        action: "Recreate under a service account and re-bind dependent connection references",
+      });
+    }
+  }
+
+  rows.sort((a, b) => a.priority - b.priority
+    || a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
+  return rows;
+}
+
+const CSV_COLUMNS = [
+  { key:"priority",   label:"Priority" },
+  { key:"category",   label:"Category" },
+  { key:"name",       label:"Item" },
+  { key:"technical",  label:"Technical name / id" },
+  { key:"connector",  label:"Connector" },
+  { key:"state",      label:"State" },
+  { key:"owner",      label:"Owner" },
+  { key:"risk",       label:"Why it needs attention" },
+  { key:"dependents", label:"Depends on / dependents" },
+  { key:"solutions",  label:"Solutions" },
+  { key:"action",     label:"Recommended action" },
+];
+
+function toCsv(rows, columns){
+  const cell = v => {
+    const s = String(v ?? "");
+    return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const lines = [columns.map(c => cell(c.label)).join(",")];
+  for (const r of rows) lines.push(columns.map(c => cell(r[c.key])).join(","));
+  return lines.join("\r\n");
+}
+
+$("export-csv").onclick = () => {
+  const out = $("out-export");
+  const rows = buildActionRows();
+  if (rows.length === 0){
+    out.className = "count warn";
+    out.textContent = "Nothing to export yet — complete the earlier steps so the tables have findings.";
+    return;
+  }
+  const csv = "﻿" + toCsv(rows, CSV_COLUMNS); // BOM so Excel reads UTF-8
+  const blob = new Blob([csv], { type:"text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const stamp = new Date().toISOString().slice(0, 10);
+  const ident = ($("whoid").value.trim() || $("uid").value.trim() || "user")
+    .replace(/[^a-z0-9._-]+/gi, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "user";
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `offboarding-${ident}-${stamp}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  out.className = "count ok";
+  out.textContent = `Exported ${rows.length} action item(s) to ${a.download}.`;
+};
+
 /* Label a connection by its lowercase name: connections setup details if we have them, else the
    display name of a cref bound to it, else the raw id. */
 function connLabel(nameLc){
@@ -788,7 +1117,7 @@ function connLabel(nameLc){
 function esc(s){ return String(s ?? "").replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
 /* Solution tags for a component GUID: friendly name, with uniquename / solution id /
-   managed flag in the hover title. Dash when Step 5 has no rows for it. */
+   managed flag in the hover title. Dash when Stage 8 has no rows for it. */
 function solTags(id){
   const m = state.sols.get((id || "").toLowerCase());
   if (!m || m.size === 0) return '<span class="muted">—</span>';
@@ -810,10 +1139,89 @@ function ownerLabel(guid){
 }
 
 /* ---------- wire up live URL building ---------- */
-["base","uid"].forEach(id => $(id).addEventListener("input", buildUrls));
-$("whoid").addEventListener("input", buildDerived); // identity changes the at-risk set
-$("uid").addEventListener("input", buildDerived);   // so does the owner GUID
+["base","uid"].forEach(id => $(id).addEventListener("input", buildUrls)); // buildUrls ends with buildDerived()
+$("whoid").addEventListener("input", buildDerived); // identity changes the at-risk set too
 buildUrls();
+
+/* ---------- wizard navigation ----------
+   Screens are shown one at a time; STEPS defines the sequence and the forward gate.
+   Backward navigation (and jumping to any already-reached step) is always allowed. */
+function isValidBase(){
+  const b = normBase();
+  if (!b) return false;
+  try { new URL(b); return /^https?:\/\//i.test(b); } catch { return false; }
+}
+
+const STEPS = [
+  { id:"conns",   label:"Connections",      required:false },
+  { id:"base",    label:"API endpoint",     required:true,  valid:isValidBase,
+    hint:"Enter a valid https:// Web API endpoint to continue." },
+  { id:"auth",    label:"Authenticate",     required:true,  valid:() => $("ack-auth").checked,
+    hint:"Sign in via the URL above, then tick the confirmation box to continue." },
+  { id:"whoami",  label:"Who am I",         required:true,  valid:() => $("uid").value.trim() !== "",
+    hint:"Parse the WhoAmI response (or paste your owner GUID) to continue." },
+  { id:"crefs",   label:"Conn. references", required:true,  valid:() => state.crefs.size > 0,
+    hint:"Parse at least one connection reference to continue." },
+  { id:"flows",   label:"Cloud flows",      required:false },
+  { id:"owners",  label:"Owner names",      required:true,  valid:ownersResolved,
+    hint:"Open the URL above and paste the systemusers response so every impacted-flow owner is resolved." },
+  { id:"sols",    label:"Solutions",        required:true,  valid:() => state.solsParsed,
+    hint:"Open the URL above and paste the solutioncomponents response (an empty result still counts) to continue." },
+  { id:"results", label:"Results",          required:false },
+];
+
+let cur = 0, maxReached = 0;
+
+function stepValid(s){ return !s.required || (s.valid ? s.valid() : true); }
+
+function renderProgress(){
+  $("progress").innerHTML = STEPS.map((s, i) => {
+    const reach = i <= maxReached;
+    // The last step (Results) has nothing after it, so it never becomes "done" via i < cur —
+    // treat reaching it as success and show it green like a completed step.
+    const done = i < cur || (i === cur && i === STEPS.length - 1);
+    const cls = done ? "done" : (i === cur ? "cur" : "todo");
+    return `<li class="pstep ${cls}${reach ? " reach" : ""}" data-i="${i}">`
+      + `<span class="pnum">${i + 1}</span><span class="plabel">${esc(s.label)}</span></li>`;
+  }).join("");
+}
+
+function refreshNav(){
+  const s = STEPS[cur];
+  const ok = stepValid(s);
+  const next = $("wiz-next");
+  next.disabled = !ok;
+  next.style.visibility = cur === STEPS.length - 1 ? "hidden" : "visible";
+  $("wiz-back").disabled = cur === 0;
+  $("wiz-hint").textContent = ok ? "" : (s.hint || "Complete this step to continue.");
+  renderProgress();
+}
+
+function goToStep(i){
+  if (i < 0 || i >= STEPS.length) return;
+  cur = i;
+  if (i > maxReached) maxReached = i;
+  document.querySelectorAll(".screen").forEach(el =>
+    el.classList.toggle("active", el.dataset.screen === STEPS[i].id));
+  if (STEPS[i].id === "results") $("build").click(); // auto-build on arrival
+  refreshNav();
+  window.scrollTo(0, 0);
+}
+
+$("wiz-next").onclick = () => { if (stepValid(STEPS[cur])) goToStep(cur + 1); };
+$("wiz-back").onclick = () => goToStep(cur - 1);
+$("progress").onclick = e => {
+  const li = e.target.closest("li.pstep");
+  if (li && +li.dataset.i <= maxReached) goToStep(+li.dataset.i);
+};
+
+/* Re-evaluate the gate whenever a parse updates a count or a key field changes. */
+["out-conns","out-whoami","out-crefs","out-flows","out-owners","out-sols"].forEach(id =>
+  new MutationObserver(refreshNav).observe($(id), { childList:true, characterData:true, subtree:true }));
+["base","uid","whoid"].forEach(id => $(id).addEventListener("input", refreshNav));
+$("ack-auth").addEventListener("change", refreshNav);
+
+goToStep(0);
 </script>
 </body>
 </html>
