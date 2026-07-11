@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lookup Lens — SharePoint Relationship Visualizer</title>
+<style>
+  :root{
+    --bg:#faf9f8;
+    --canvas:#fdfcfb;
+    --ink:#323130;
+    --ink-soft:#605e5c;
+    --line:#e1dfdd;
+    --teal:#03787c;
+    --teal-deep:#025357;
+    --teal-soft:#e6f2f2;
+    --amber:#986f0b;
+    --amber-soft:#fdf6e0;
+    --red:#a4262c;
+    --red-soft:#fdf0f0;
+    --mono:"Cascadia Code",Consolas,"SF Mono",Menlo,monospace;
+    --sans:"Segoe UI",-apple-system,system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{font-family:var(--sans);background:var(--bg);color:var(--ink);display:flex;flex-direction:column;overflow:hidden}
+
+  /* ---------- header ---------- */
+  header{display:flex;align-items:center;gap:12px;padding:10px 16px;background:#fff;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .brand{display:flex;align-items:baseline;gap:8px;margin-right:8px}
+  .brand h1{font-size:16px;font-weight:600;letter-spacing:-.2px}
+  .brand h1 .lens{color:var(--teal)}
+  .brand span{font-size:11.5px;color:var(--ink-soft)}
+  header input[type=text]{flex:1;min-width:220px;max-width:460px;padding:7px 10px;border:1px solid var(--line);border-radius:4px;font:13px var(--sans);color:var(--ink)}
+  header input[type=text]:focus{outline:2px solid var(--teal);outline-offset:-1px}
+  .btn{padding:7px 14px;border:1px solid var(--line);border-radius:4px;background:#fff;font:600 13px var(--sans);color:var(--ink);cursor:pointer}
+  .btn:hover{background:var(--bg)}
+  .btn:focus-visible{outline:2px solid var(--teal);outline-offset:1px}
+  .btn.primary{background:var(--teal);border-color:var(--teal);color:#fff}
+  .btn.primary:hover{background:var(--teal-deep)}
+  .btn[disabled]{opacity:.5;cursor:default}
+
+  /* ---------- toolbar ---------- */
+  .toolbar{display:flex;align-items:center;gap:14px;padding:7px 16px;background:#fff;border-bottom:1px solid var(--line);font-size:12.5px;color:var(--ink-soft);flex-wrap:wrap}
+  .toolbar input[type=search]{padding:5px 9px;border:1px solid var(--line);border-radius:4px;font:12.5px var(--sans);width:180px}
+  .toolbar label{display:flex;align-items:center;gap:5px;cursor:pointer;user-select:none}
+  .legend{display:flex;gap:14px;margin-left:auto;align-items:center}
+  .legend i{display:inline-block;width:18px;height:0;border-top:2.5px solid var(--ink-soft);margin-right:5px;vertical-align:middle}
+  .legend .cas i{border-color:var(--red)}
+  .legend .res i{border-color:var(--amber)}
+  .stat-chip{background:var(--teal-soft);color:var(--teal-deep);padding:2px 8px;border-radius:10px;font-weight:600}
+
+  /* ---------- layout ---------- */
+  main{flex:1;display:flex;min-height:0}
+  #stage{flex:1;position:relative;background:var(--canvas);background-image:radial-gradient(var(--line) 1px,transparent 1px);background-size:22px 22px;overflow:hidden;cursor:grab}
+  #stage.panning{cursor:grabbing}
+  svg{width:100%;height:100%;display:block}
+
+  /* nodes */
+  .node{cursor:pointer}
+  .node rect{fill:#fff;stroke:#c8c6c4;stroke-width:1.5;rx:8}
+  .node text{font:600 12.5px var(--sans);fill:var(--ink);pointer-events:none}
+  .node .sub{font:400 10.5px var(--sans);fill:var(--ink-soft)}
+  .node.hub rect{stroke:var(--teal);stroke-width:2.5}
+  .node.selected rect{stroke:var(--teal-deep);stroke-width:3;fill:var(--teal-soft)}
+  .node.impact rect{stroke:var(--red);stroke-width:2.5;fill:var(--red-soft)}
+  .node.dim{opacity:.18}
+  .edge{fill:none;stroke:#b7b5b3;stroke-width:1.8}
+  .edge.cascade{stroke:var(--red)}
+  .edge.restrict{stroke:var(--amber)}
+  .edge.impact{stroke:var(--red);stroke-width:2.6;stroke-dasharray:6 5;animation:march .6s linear infinite}
+  .edge.dim{opacity:.12}
+  .edge-hit{fill:none;stroke:transparent;stroke-width:14;cursor:pointer}
+  @keyframes march{to{stroke-dashoffset:-11}}
+  @media (prefers-reduced-motion:reduce){.edge.impact{animation:none}}
+
+  /* empty / progress overlay */
+  #overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
+  #overlay .card{pointer-events:auto;background:#fff;border:1px solid var(--line);border-radius:8px;padding:28px 32px;max-width:440px;text-align:center;box-shadow:0 4px 16px rgba(0,0,0,.06)}
+  #overlay h2{font-size:15px;margin-bottom:8px}
+  #overlay p{font-size:13px;color:var(--ink-soft);line-height:1.55}
+  #overlay code{font:11.5px var(--mono);background:var(--bg);padding:1px 5px;border-radius:3px}
+
+  /* ---------- sidebar ---------- */
+  aside{width:330px;background:#fff;border-left:1px solid var(--line);overflow-y:auto;padding:16px;flex-shrink:0}
+  aside h2{font-size:14px;margin-bottom:2px}
+  aside .meta{font-size:11.5px;color:var(--ink-soft);margin-bottom:14px}
+  aside h3{font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--ink-soft);margin:16px 0 7px;padding-bottom:4px;border-bottom:1px solid var(--line)}
+  .rel{padding:7px 9px;border:1px solid var(--line);border-radius:5px;margin-bottom:6px;font-size:12.5px;cursor:pointer}
+  .rel:hover{border-color:var(--teal)}
+  .rel .col{font-family:var(--mono);font-size:11px;color:var(--teal-deep)}
+  .badge{display:inline-block;font-size:10px;font-weight:600;padding:1px 6px;border-radius:8px;margin-left:5px;vertical-align:1px}
+  .badge.cas{background:var(--red-soft);color:var(--red)}
+  .badge.res{background:var(--amber-soft);color:var(--amber)}
+  .badge.req{background:var(--teal-soft);color:var(--teal-deep)}
+  .none{font-size:12px;color:var(--ink-soft);font-style:italic}
+  .impact-banner{background:var(--red-soft);border:1px solid #eccccd;color:var(--red);border-radius:5px;padding:9px 11px;font-size:12.5px;margin-top:10px;line-height:1.5}
+  .statgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px}
+  .statgrid div{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:10px}
+  .statgrid b{display:block;font-size:20px;font-weight:600;color:var(--teal-deep)}
+  .statgrid span{font-size:11px;color:var(--ink-soft)}
+  .rank{display:flex;justify-content:space-between;font-size:12.5px;padding:5px 2px;border-bottom:1px dotted var(--line);cursor:pointer}
+  .rank:hover{color:var(--teal-deep)}
+  .rank b{font-weight:600}
+  #err{display:none;background:var(--red-soft);color:var(--red);border-bottom:1px solid #eccccd;padding:8px 16px;font-size:12.5px}
+
+  @media(max-width:760px){
+    main{flex-direction:column}
+    aside{width:100%;max-height:40%;border-left:0;border-top:1px solid var(--line)}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand"><h1>Lookup&nbsp;<span class="lens">Lens</span></h1><span>list relationship visualizer</span></div>
+  <input type="text" id="siteUrl" placeholder="Site URL, e.g. https://contoso.sharepoint.com/sites/projects" spellcheck="false">
+  <button class="btn primary" id="scanBtn">Scan site</button>
+  <button class="btn" id="demoBtn">Load demo</button>
+  <button class="btn" id="exportBtn" disabled>Copy report</button>
+</header>
+
+<div class="toolbar">
+  <input type="search" id="search" placeholder="Filter lists…">
+  <label><input type="checkbox" id="orphans" checked> Show unconnected lists</label>
+  <span id="stats"></span>
+  <div class="legend">
+    <span><i></i>lookup</span>
+    <span class="cas"><i></i>cascade delete</span>
+    <span class="res"><i></i>restrict delete</span>
+  </div>
+</div>
+
+<div id="err"></div>
+
+<main>
+  <div id="stage">
+    <svg id="svg">
+      <defs>
+        <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#b7b5b3"/></marker>
+        <marker id="arrC" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#a4262c"/></marker>
+        <marker id="arrR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#986f0b"/></marker>
+      </defs>
+      <g id="viewport"><g id="edges"></g><g id="nodes"></g></g>
+    </svg>
+    <div id="overlay">
+      <div class="card" id="emptyCard">
+        <h2>Map your site's data model</h2>
+        <p>Enter a site URL and hit <b>Scan site</b>. Lookup Lens reads every visible list, finds the lookup columns wiring them together, and draws the graph — so you can see what breaks <i>before</i> you delete a list or rename a column.</p>
+        <p style="margin-top:10px">Host this file inside SharePoint (e.g. <code>Site Assets</code>) so it can call the REST API as you. Or press <b>Load demo</b> to explore with sample data.</p>
+      </div>
+    </div>
+  </div>
+
+  <aside id="side">
+    <h2>No list selected</h2>
+    <p class="none">Scan a site or load the demo, then click a list to inspect its relationships.</p>
+  </aside>
+</main>
+
+<script>
+"use strict";
+/* ============================================================
+   Lookup Lens — self-contained, zero dependencies.
+   Arrows point FROM the list that owns the lookup column
+   TO the list it looks up:   Tasks ──Project──▶ Projects
+   ============================================================ */
+
+const S = {
+  nodes: new Map(),   // id -> {id,title,items,url,x,y,vx,vy,in:[],out:[]}
+  edges: [],          // {source,target,cols:[{name,internal,multi,required,del}]}
+  skipped: 0,         // lookups pointing at hidden/system/other-web lists
+  selected: null,
+  impact: null,       // Set of node ids that transitively depend on selected
+  alpha: 0,
+  tf: {x:0,y:0,k:1},
+};
+
+const $ = id => document.getElementById(id);
+const svgNS = "http://www.w3.org/2000/svg";
+const el = (t,a={}) => { const n=document.createElementNS(svgNS,t); for(const k in a) n.setAttribute(k,a[k]); return n; };
+const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ---------------- SharePoint REST ---------------- */
+async function spGet(url){
+  let r = await fetch(url, {headers:{Accept:"application/json;odata=nowrap"}, credentials:"same-origin"});
+  if (r.status === 406) { // older farms: fall back to verbose
+    r = await fetch(url, {headers:{Accept:"application/json;odata=verbose"}, credentials:"same-origin"});
+  }
+  if (!r.ok) throw new Error(`HTTP ${r.status} ${r.statusText} — ${url.split("_api")[1]||url}`);
+  const j = await r.json();
+  return j.value ?? j.d?.results ?? j.d ?? j;
+}
+
+async function scanSite(){
+  const site = $("siteUrl").value.trim().replace(/\/+$/,"");
+  if (!site) { showErr("Enter a site URL first (or use Load demo)."); return; }
+  setBusy(true, "Reading lists…");
+  try {
+    const lists = await spGet(`${site}/_api/web/lists?$filter=Hidden eq false&$select=Id,Title,ItemCount,DefaultViewUrl`);
+    const usable = lists.filter(l => l.Title);
+    const lookups = [];
+    // fetch fields in batches of 6 to be polite to the farm
+    for (let i=0; i<usable.length; i+=6){
+      setBusy(true, `Reading columns… ${Math.min(i+6,usable.length)}/${usable.length} lists`);
+      await Promise.all(usable.slice(i,i+6).map(async l => {
+        try {
+          const fields = await spGet(`${site}/_api/web/lists(guid'${l.Id}')/fields?$filter=Hidden eq false and ReadOnlyField eq false`);
+          for (const f of fields){
+            if ((f.TypeAsString==="Lookup" || f.TypeAsString==="LookupMulti") && f.LookupList && !f.IsDependentLookup){
+              lookups.push({from:norm(l.Id), to:norm(f.LookupList), name:f.Title, internal:f.InternalName,
+                            multi:f.TypeAsString==="LookupMulti", required:!!f.Required,
+                            del:f.RelationshipDeleteBehavior===1?"cascade":f.RelationshipDeleteBehavior===2?"restrict":null});
+            }
+          }
+        } catch(e){ console.warn("fields failed for", l.Title, e); }
+      }));
+    }
+    build(usable.map(l=>({id:norm(l.Id), title:l.Title, items:l.ItemCount, url:l.DefaultViewUrl||""})), lookups);
+    hideErr();
+  } catch(e){
+    showErr(`Scan failed: ${esc(e.message)}. If you opened this file outside SharePoint, the browser blocks cross-origin calls — upload it to the site's Site Assets library and open it from there, or use Load demo.`);
+  } finally { setBusy(false); }
+}
+const norm = g => String(g).replace(/[{}"']/g,"").toLowerCase();
+
+/* ---------------- demo dataset ---------------- */
+function demo(){
+  const L = n => n.toLowerCase().replace(/\s/g,"-");
+  const lists = ["Projects","Tasks","Employees","Departments","Timesheets","Invoices","Clients","Risks","Document Metadata","Announcements","Holidays"]
+    .map(t => ({id:L(t), title:t, items:[128,940,57,8,3120,412,64,73,510,22,14][["Projects","Tasks","Employees","Departments","Timesheets","Invoices","Clients","Risks","Document Metadata","Announcements","Holidays"].indexOf(t)], url:""}));
+  const lk = (from,to,name,o={}) => ({from:L(from),to:L(to),name,internal:name.replace(/\s/g,""),multi:!!o.m,required:!!o.r,del:o.d||null});
+  const lookups = [
+    lk("Tasks","Projects","Project",{r:1,d:"cascade"}),
+    lk("Tasks","Employees","Assigned To",{m:1}),
+    lk("Tasks","Tasks","Parent Task"),
+    lk("Employees","Departments","Department",{r:1}),
+    lk("Timesheets","Tasks","Task",{r:1,d:"cascade"}),
+    lk("Timesheets","Employees","Employee",{r:1}),
+    lk("Invoices","Projects","Project",{r:1,d:"restrict"}),
+    lk("Invoices","Clients","Client",{r:1}),
+    lk("Projects","Clients","Client"),
+    lk("Projects","Employees","Project Manager"),
+    lk("Risks","Projects","Related Project",{r:1}),
+    lk("Document Metadata","Projects","Project"),
+    lk("Document Metadata","Departments","Owning Department"),
+  ];
+  $("siteUrl").value = "https://contoso.sharepoint.com/sites/projects (demo)";
+  build(lists, lookups);
+  hideErr();
+}
+
+/* ---------------- graph build ---------------- */
+function build(lists, lookups){
+  S.nodes.clear(); S.edges = []; S.selected = null; S.impact = null; S.skipped = 0;
+  const W = $("stage").clientWidth, H = $("stage").clientHeight;
+  lists.forEach((l,i)=>{
+    const a = (i/lists.length)*2*Math.PI;
+    S.nodes.set(l.id,{...l, x:W/2+Math.cos(a)*Math.min(W,H)*.33, y:H/2+Math.sin(a)*Math.min(W,H)*.33, vx:0, vy:0, in:[], out:[]});
+  });
+  const pair = new Map();
+  for (const lk of lookups){
+    const src = S.nodes.get(lk.from), tgt = S.nodes.get(lk.to);
+    if (!src || !tgt){ S.skipped++; continue; }
+    const key = lk.from+"→"+lk.to;
+    let e = pair.get(key);
+    if (!e){ e = {source:src, target:tgt, cols:[]}; pair.set(key,e); S.edges.push(e); src.out.push(e); if(src!==tgt) tgt.in.push(e); else tgt.in.push(e); }
+    e.cols.push(lk);
+  }
+  S.tf = {x:0,y:0,k:1};
+  $("emptyCard").style.display = "none";
+  $("exportBtn").disabled = false;
+  renderStats(); renderSidebar(); draw(); reheat(1);
+}
+
+/* ---------------- force simulation ---------------- */
+function reheat(a){ S.alpha = Math.max(S.alpha, a); if (!S._raf) tickLoop(); }
+function tickLoop(){
+  S._raf = requestAnimationFrame(tickLoop);
+  if (S.alpha < .003){ cancelAnimationFrame(S._raf); S._raf = null; return; }
+  S.alpha *= .97;
+  const ns = [...S.nodes.values()], W = $("stage").clientWidth, H = $("stage").clientHeight;
+  for (let i=0;i<ns.length;i++) for (let j=i+1;j<ns.length;j++){
+    const a=ns[i], b=ns[j];
+    let dx=b.x-a.x, dy=b.y-a.y, d2=dx*dx+dy*dy||1, d=Math.sqrt(d2);
+    const f = Math.min(9000/d2, 6) * S.alpha;
+    dx/=d; dy/=d;
+    a.x-=dx*f*22; a.y-=dy*f*22; b.x+=dx*f*22; b.y+=dy*f*22;
+  }
+  for (const e of S.edges){
+    if (e.source===e.target) continue;
+    let dx=e.target.x-e.source.x, dy=e.target.y-e.source.y, d=Math.sqrt(dx*dx+dy*dy)||1;
+    const f = (d-190)*.02*S.alpha*8; dx/=d; dy/=d;
+    if (!e.source.pin){ e.source.x+=dx*f; e.source.y+=dy*f; }
+    if (!e.target.pin){ e.target.x-=dx*f; e.target.y-=dy*f; }
+  }
+  for (const n of ns){ if(!n.pin){ n.x += (W/2-n.x)*.004*S.alpha*8; n.y += (H/2-n.y)*.004*S.alpha*8; } }
+  position();
+}
+
+/* ---------------- rendering ---------------- */
+const nodeW = n => Math.max(112, Math.min(200, 9*n.title.length+34));
+const NH = 42;
+
+function draw(){
+  const gE = $("edges"), gN = $("nodes");
+  gE.innerHTML = ""; gN.innerHTML = "";
+  for (const e of S.edges){
+    const cls = e.cols.some(c=>c.del==="cascade") ? "cascade" : e.cols.some(c=>c.del==="restrict") ? "restrict" : "";
+    e.path = el("path", {class:"edge "+cls, "marker-end": cls==="cascade"?"url(#arrC)":cls==="restrict"?"url(#arrR)":"url(#arr)"});
+    e.hit  = el("path", {class:"edge-hit"});
+    const tip = el("title"); tip.textContent = e.cols.map(c=>`${e.source.title}.${c.name} → ${e.target.title}${c.del?` (${c.del} delete)`:""}`).join("\n");
+    e.hit.appendChild(tip);
+    e.hit.addEventListener("click", ()=> select(e.source.id));
+    gE.append(e.path, e.hit);
+    if (e.cols.length>1){ e.lbl = el("text",{class:"sub","text-anchor":"middle",style:"font:600 10px var(--sans);fill:#8a8886"}); e.lbl.textContent="×"+e.cols.length; gE.appendChild(e.lbl); }
+  }
+  for (const n of S.nodes.values()){
+    n.g = el("g",{class:"node",tabindex:"0"});
+    const w = nodeW(n);
+    n.g.appendChild(el("rect",{width:w,height:NH,x:-w/2,y:-NH/2,rx:8}));
+    const t1 = el("text",{y:-3,"text-anchor":"middle"}); t1.textContent = n.title.length>22?n.title.slice(0,21)+"…":n.title;
+    const t2 = el("text",{class:"sub",y:13,"text-anchor":"middle"}); t2.textContent = `${fmt(n.items)} items · ${n.in.length} in / ${n.out.length} out`;
+    n.g.append(t1,t2);
+    n.g.addEventListener("pointerdown", ev => dragStart(n,ev));
+    n.g.addEventListener("click", ev => { if(!n._moved) select(n.id); });
+    n.g.addEventListener("keydown", ev => { if(ev.key==="Enter") select(n.id); });
+    gN.appendChild(n.g);
+  }
+  position(); refreshClasses();
+}
+const fmt = v => v>=1000 ? (v/1000).toFixed(1)+"k" : v;
+
+function position(){
+  $("viewport").setAttribute("transform",`translate(${S.tf.x},${S.tf.y}) scale(${S.tf.k})`);
+  for (const n of S.nodes.values()) n.g && n.g.setAttribute("transform",`translate(${n.x},${n.y})`);
+  for (const e of S.edges){
+    if (!e.path) continue;
+    let d;
+    if (e.source === e.target){
+      const x=e.source.x, y=e.source.y, w=nodeW(e.source)/2;
+      d = `M ${x+w-8} ${y-NH/2} C ${x+w+52} ${y-58}, ${x+w+52} ${y+58}, ${x+w-4} ${y+NH/2-2}`;
+      if (e.lbl){ e.lbl.setAttribute("x",x+w+44); e.lbl.setAttribute("y",y); }
+    } else {
+      const sx=e.source.x, sy=e.source.y, tx=e.target.x, ty=e.target.y;
+      const dx=tx-sx, dy=ty-sy, dist=Math.sqrt(dx*dx+dy*dy)||1;
+      // trim to node borders
+      const tw=nodeW(e.target)/2+6, sw=nodeW(e.source)/2+4;
+      const trim=(x,y,ox,oy,hw)=>{ const s=Math.min(hw/Math.abs(dx/dist||1e-9), (NH/2+6)/Math.abs(dy/dist||1e-9)); return [x+ox*s, y+oy*s]; };
+      const [x1,y1]=trim(sx,sy,dx/dist,dy/dist,sw), [x2,y2]=trim(tx,ty,-dx/dist,-dy/dist,tw);
+      const mx=(x1+x2)/2 - dy/dist*22, my=(y1+y2)/2 + dx/dist*22;
+      d = `M ${x1} ${y1} Q ${mx} ${my} ${x2} ${y2}`;
+      if (e.lbl){ e.lbl.setAttribute("x",mx); e.lbl.setAttribute("y",my); }
+    }
+    e.path.setAttribute("d",d); e.hit.setAttribute("d",d);
+  }
+}
+
+function refreshClasses(){
+  const q = $("search").value.trim().toLowerCase();
+  const showOrphans = $("orphans").checked;
+  for (const n of S.nodes.values()){
+    if (!n.g) continue;
+    const orphan = n.in.length+n.out.length===0;
+    n.g.classList.toggle("hub", n.in.length>=3);
+    n.g.classList.toggle("selected", S.selected===n.id);
+    n.g.classList.toggle("impact", !!S.impact && S.impact.has(n.id));
+    const hide = (orphan && !showOrphans);
+    const dim = (q && !n.title.toLowerCase().includes(q)) || (S.impact && !S.impact.has(n.id) && S.selected!==n.id);
+    n.g.style.display = hide ? "none" : "";
+    n.g.classList.toggle("dim", !!dim && !hide);
+  }
+  for (const e of S.edges){
+    const onImpact = S.impact && (S.impact.has(e.source.id) || e.source.id===S.selected) && (S.impact.has(e.target.id)||e.target.id===S.selected) && S.impact.has(e.source.id);
+    e.path.classList.toggle("impact", !!onImpact);
+    const dim = (S.impact && !onImpact) || (q && !(e.source.title.toLowerCase().includes(q)||e.target.title.toLowerCase().includes(q)));
+    e.path.classList.toggle("dim", !!dim);
+  }
+}
+
+/* ---------------- interaction: drag / pan / zoom ---------------- */
+function dragStart(n, ev){
+  ev.stopPropagation(); n._moved=false; n.pin=true;
+  const sx=ev.clientX, sy=ev.clientY, ox=n.x, oy=n.y;
+  const move = e => { const dx=(e.clientX-sx)/S.tf.k, dy=(e.clientY-sy)/S.tf.k;
+    if (Math.abs(dx)+Math.abs(dy)>3) n._moved=true;
+    n.x=ox+dx; n.y=oy+dy; position(); };
+  const up = () => { window.removeEventListener("pointermove",move); window.removeEventListener("pointerup",up); n.pin=false; if(n._moved) reheat(.25); };
+  window.addEventListener("pointermove",move); window.addEventListener("pointerup",up);
+}
+(()=>{ // pan + zoom
+  const st = $("stage");
+  st.addEventListener("pointerdown", ev => {
+    if (ev.target.closest(".node")) return;
+    st.classList.add("panning");
+    const sx=ev.clientX, sy=ev.clientY, ox=S.tf.x, oy=S.tf.y;
+    const move = e => { S.tf.x=ox+e.clientX-sx; S.tf.y=oy+e.clientY-sy; position(); };
+    const up = () => { st.classList.remove("panning"); window.removeEventListener("pointermove",move); window.removeEventListener("pointerup",up); };
+    window.addEventListener("pointermove",move); window.addEventListener("pointerup",up);
+  });
+  st.addEventListener("wheel", ev => {
+    ev.preventDefault();
+    const r = st.getBoundingClientRect(), mx=ev.clientX-r.left, my=ev.clientY-r.top;
+    const k2 = Math.min(2.5, Math.max(.3, S.tf.k * (ev.deltaY<0 ? 1.12 : .89)));
+    S.tf.x = mx-(mx-S.tf.x)*k2/S.tf.k; S.tf.y = my-(my-S.tf.y)*k2/S.tf.k; S.tf.k = k2;
+    position();
+  }, {passive:false});
+})();
+
+/* ---------------- selection, impact, sidebar ---------------- */
+function select(id){
+  S.selected = (S.selected===id && !S.impact) ? null : id;
+  S.impact = null;
+  renderSidebar(); refreshClasses();
+}
+function computeImpact(id){
+  const hit = new Set(); const stack=[id];
+  while (stack.length){
+    const cur = stack.pop();
+    for (const e of S.nodes.get(cur).in){       // lists pointing AT cur depend on it
+      if (e.source.id!==cur && !hit.has(e.source.id)){ hit.add(e.source.id); stack.push(e.source.id); }
+    }
+  }
+  S.impact = hit; renderSidebar(); refreshClasses();
+}
+
+function renderSidebar(){
+  const side = $("side");
+  if (!S.selected){
+    if (!S.nodes.size){ side.innerHTML = `<h2>No list selected</h2><p class="none">Scan a site or load the demo, then click a list to inspect its relationships.</p>`; return; }
+    const ranked = [...S.nodes.values()].sort((a,b)=>b.in.length-a.in.length).slice(0,6).filter(n=>n.in.length);
+    const orphans = [...S.nodes.values()].filter(n=>!n.in.length&&!n.out.length);
+    side.innerHTML = `
+      <h2>Site overview</h2><p class="meta">Click any list on the canvas for details.</p>
+      <div class="statgrid">
+        <div><b>${S.nodes.size}</b><span>lists</span></div>
+        <div><b>${S.edges.reduce((a,e)=>a+e.cols.length,0)}</b><span>lookup columns</span></div>
+        <div><b>${orphans.length}</b><span>unconnected</span></div>
+        <div><b>${S.skipped}</b><span>lookups to hidden/system lists (skipped)</span></div>
+      </div>
+      <h3>Most depended-on</h3>
+      ${ranked.map(n=>`<div class="rank" data-id="${n.id}"><span>${esc(n.title)}</span><b>${n.in.length} inbound</b></div>`).join("")||'<p class="none">No inbound lookups found.</p>'}`;
+    side.querySelectorAll(".rank").forEach(r=>r.addEventListener("click",()=>select(r.dataset.id)));
+    return;
+  }
+  const n = S.nodes.get(S.selected);
+  const relRow = (e, other, dir) => e.cols.map(c=>`
+    <div class="rel" data-id="${other.id}">
+      ${dir==="out" ? `looks up <b>${esc(other.title)}</b>` : `<b>${esc(other.title)}</b> looks this up`}
+      <span class="badge ${c.del==='cascade'?'cas':c.del==='restrict'?'res':''}" ${c.del?"":"hidden"}>${c.del||""} delete</span>
+      ${c.required?'<span class="badge req">required</span>':""}${c.multi?'<span class="badge req">multi</span>':""}
+      <div class="col">${esc(dir==="out"?n.title:other.title)}.${esc(c.internal)}</div>
+    </div>`).join("");
+  side.innerHTML = `
+    <h2>${esc(n.title)}</h2>
+    <p class="meta">${fmt(n.items)} items · ${n.out.reduce((a,e)=>a+e.cols.length,0)} outbound · ${n.in.reduce((a,e)=>a+e.cols.length,0)} inbound${n.url?` · <a href="${esc(n.url)}" target="_blank" rel="noopener">open list</a>`:""}</p>
+    <button class="btn" id="impactBtn" style="width:100%">${S.impact?"Hide":"Show"} delete impact</button>
+    ${S.impact ? `<div class="impact-banner">Deleting <b>${esc(n.title)}</b> breaks lookup columns in <b>${S.impact.size}</b> list${S.impact.size===1?"":"s"}${S.impact.size?": "+[...S.impact].map(i=>esc(S.nodes.get(i).title)).join(", "):""}.${[...n.in].some(e=>e.cols.some(c=>c.del==="restrict"))?" <b>Restrict-delete</b> lookups will block item deletion while references exist.":""}</div>`:""}
+    <h3>Depends on (outbound)</h3>
+    ${n.out.map(e=>relRow(e, e.target, "out")).join("")||'<p class="none">No outbound lookups.</p>'}
+    <h3>Depended on by (inbound)</h3>
+    ${n.in.filter(e=>e.source!==n||e.target!==n?true:true).map(e=>relRow(e, e.source, "in")).join("")||'<p class="none">Nothing looks this list up — safe to remove, lookup-wise.</p>'}`;
+  $("impactBtn").addEventListener("click", ()=> S.impact ? select(n.id) : computeImpact(n.id));
+  side.querySelectorAll(".rel").forEach(r=>r.addEventListener("click",()=>select(r.dataset.id)));
+}
+
+function renderStats(){
+  $("stats").innerHTML = `<span class="stat-chip">${S.nodes.size} lists · ${S.edges.reduce((a,e)=>a+e.cols.length,0)} lookups</span>`;
+}
+
+/* ---------------- export ---------------- */
+function exportMd(){
+  let md = `# Lookup relationships — ${$("siteUrl").value}\n_Generated ${new Date().toISOString().slice(0,10)} by Lookup Lens_\n`;
+  for (const n of [...S.nodes.values()].sort((a,b)=>b.in.length-a.in.length)){
+    if (!n.in.length && !n.out.length) continue;
+    md += `\n## ${n.title}\n`;
+    for (const e of n.out) for (const c of e.cols)
+      md += `- \`${c.internal}\` → **${e.target.title}**${c.del?` (${c.del} delete)`:""}${c.required?" (required)":""}${c.multi?" (multi)":""}\n`;
+    for (const e of n.in) for (const c of e.cols)
+      md += `- ⬅ **${e.source.title}**.\`${c.internal}\` looks this up${c.del?` (${c.del} delete)`:""}\n`;
+  }
+  const orphans=[...S.nodes.values()].filter(n=>!n.in.length&&!n.out.length).map(n=>n.title);
+  if (orphans.length) md += `\n## Unconnected lists\n${orphans.map(t=>`- ${t}`).join("\n")}\n`;
+  navigator.clipboard.writeText(md).then(()=>{ $("exportBtn").textContent="Copied ✓"; setTimeout(()=>$("exportBtn").textContent="Copy report",1500); });
+}
+
+/* ---------------- misc ---------------- */
+function showErr(m){ const e=$("err"); e.innerHTML=m; e.style.display="block"; }
+function hideErr(){ $("err").style.display="none"; }
+function setBusy(b, msg){
+  $("scanBtn").disabled = b; $("scanBtn").textContent = b ? (msg||"Scanning…") : "Scan site";
+}
+
+$("scanBtn").addEventListener("click", scanSite);
+$("demoBtn").addEventListener("click", demo);
+$("exportBtn").addEventListener("click", exportMd);
+$("search").addEventListener("input", refreshClasses);
+$("orphans").addEventListener("change", refreshClasses);
+window.addEventListener("resize", ()=>reheat(.15));
+
+// If hosted inside SharePoint, prefill the current site URL.
+try {
+  if (location.hostname.includes("sharepoint") || window._spPageContextInfo){
+    $("siteUrl").value = window._spPageContextInfo?.webAbsoluteUrl
+      || location.origin + location.pathname.split(/\/(SiteAssets|Shared%20Documents|Style%20Library)\//i)[0];
+  }
+} catch(e){}
+</script>
+</body>
+</html>
