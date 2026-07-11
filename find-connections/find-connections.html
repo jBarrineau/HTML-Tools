@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Find Connections — Power Platform offboarding</title>
+<style>
+  /* Bare-minimum styling for the initial phase. */
+  body{ font-family: system-ui, "Segoe UI", Arial, sans-serif; line-height:1.45;
+        color:#111; max-width:1000px; margin:0 auto; padding:24px 20px 80px; }
+  h1{ font-size:22px; margin:0 0 4px; }
+  h2{ font-size:17px; margin:28px 0 8px; border-top:1px solid #ccc; padding-top:16px; }
+  p.sub{ color:#555; margin:0 0 16px; }
+  .step{ border:1px solid #ccc; border-radius:6px; padding:14px 16px; margin:14px 0; }
+  .step h3{ margin:0 0 8px; font-size:15px; }
+  label{ display:block; font-weight:600; font-size:13px; margin:10px 0 4px; }
+  input[type=text], textarea{ width:100%; box-sizing:border-box; font-family:ui-monospace,
+        Consolas,"Cascadia Mono",monospace; font-size:13px; padding:8px; border:1px solid #999;
+        border-radius:4px; }
+  textarea{ min-height:120px; resize:vertical; }
+  button{ font-size:13px; padding:6px 12px; margin:6px 6px 0 0; cursor:pointer;
+        border:1px solid #444; border-radius:4px; background:#f3f3f3; }
+  button:hover{ background:#e7e7e7; }
+  .url{ font-family:ui-monospace,Consolas,monospace; font-size:12px; background:#f6f6f6;
+        border:1px solid #ddd; border-radius:4px; padding:8px; word-break:break-all;
+        display:block; margin-top:6px; }
+  .muted{ color:#666; font-size:12px; }
+  .ok{ color:#0a7d00; } .warn{ color:#b06a00; } .err{ color:#b00020; }
+  .count{ font-size:12px; color:#333; margin-top:6px; }
+  table{ border-collapse:collapse; width:100%; margin-top:10px; font-size:13px; }
+  th,td{ border:1px solid #ddd; padding:6px 8px; text-align:left; vertical-align:top; }
+  th{ background:#f3f3f3; }
+  .tag{ display:inline-block; font-size:11px; background:#eee; border:1px solid #ccc;
+        border-radius:3px; padding:1px 5px; margin:1px 2px 1px 0; font-family:ui-monospace,monospace; }
+  .orphan{ background:#fff4f4; }
+  .pill{ font-size:11px; padding:1px 6px; border-radius:10px; border:1px solid; }
+  .pill.on{ color:#0a7d00; border-color:#0a7d00; }
+  .pill.off{ color:#777; border-color:#aaa; }
+  details{ margin-top:6px; } summary{ cursor:pointer; font-size:13px; }
+  .flowlist{ margin:4px 0 0; padding-left:18px; }
+</style>
+</head>
+<body>
+
+<h1>Find Connections</h1>
+<p class="sub">For an offboarding Power Platform developer: find which cloud flows across the
+environment depend on <em>your</em> connections. Authentication stays in your browser — this tool
+only builds the URLs to visit and parses the JSON you paste back.</p>
+
+<!-- ============ SETUP ============ -->
+<div class="step">
+  <h3>Setup — Web API endpoint</h3>
+  <label for="base">Dataverse Web API base URL (from Power Platform → Settings → Developer resources)</label>
+  <input type="text" id="base" placeholder="https://orgc356d31f.api.crm.dynamics.com/api/data/v9.2">
+  <p class="muted">Paste the "Web API endpoint" value. Trailing slash is fine. Everything below is
+  built from this.</p>
+</div>
+
+<!-- ============ STEP 1 ============ -->
+<div class="step">
+  <h3>Step 1 — Who am I? (get your owner GUID)</h3>
+  <p class="muted">Open this URL in the browser tab where you're signed in to your org, then copy the
+  whole JSON response and paste it below.</p>
+  <span class="url" id="url-whoami">Enter the base URL above…</span>
+  <button data-copy="url-whoami">Copy URL</button>
+  <label for="in-whoami">Paste WhoAmI response</label>
+  <textarea id="in-whoami" placeholder='{"@odata.context":"…","BusinessUnitId":"…","UserId":"cc985d4a-…","OrganizationId":"…"}'></textarea>
+  <button id="parse-whoami">Parse</button>
+  <div class="count" id="out-whoami"></div>
+  <label for="uid" style="margin-top:12px;">Owner GUID (UserId) — auto-filled, or paste manually</label>
+  <input type="text" id="uid" placeholder="cc985d4a-b213-f111-8341-000d3a58b033">
+</div>
+
+<!-- ============ STEP 2 ============ -->
+<div class="step">
+  <h3>Step 2 — Your connection references</h3>
+  <p class="muted">Lists the connection references owned by you. Open the URL, paste the response.</p>
+  <span class="url" id="url-crefs">Enter the base URL and owner GUID above…</span>
+  <button data-copy="url-crefs">Copy URL</button>
+  <label for="in-crefs">Paste connectionreferences response</label>
+  <textarea id="in-crefs" placeholder='{"value":[ … ]}'></textarea>
+  <button id="parse-crefs">Parse / add</button>
+  <button id="clear-crefs">Clear</button>
+  <div class="count" id="out-crefs"></div>
+</div>
+
+<!-- ============ STEP 3 ============ -->
+<div class="step">
+  <h3>Step 3 — All cloud flows in the environment</h3>
+  <p class="muted">Whole-environment scan (no owner filter) so you catch flows owned by others that
+  use your connections. This response can be large — if it ends with an
+  <span class="tag">@odata.nextLink</span>, open that link and paste each page here with "Parse / add".</p>
+  <span class="url" id="url-flows">Enter the base URL above…</span>
+  <button data-copy="url-flows">Copy URL</button>
+  <label for="in-flows">Paste workflows response (repeat for each page)</label>
+  <textarea id="in-flows" placeholder='{"value":[ {"name":"…","clientdata":"{…}","statecode":1} ]}'></textarea>
+  <button id="parse-flows">Parse / add</button>
+  <button id="clear-flows">Clear</button>
+  <div class="count" id="out-flows"></div>
+</div>
+
+<!-- ============ STEP 4 ============ -->
+<div class="step">
+  <h3>Step 4 — Resolve owner names <span class="muted">(optional)</span></h3>
+  <p class="muted">A browser GET can't send the <span class="tag">Prefer</span> annotation header, so
+  flows come back with owner GUIDs only. This builds a <span class="tag">systemusers</span> URL
+  targeted to just the owner GUIDs found in Step 3 — open it, paste the response, and the results
+  will show names instead of GUIDs. Parse Step 3 first so the URL can be built.</p>
+  <span class="url" id="url-owners">Parse flows in Step 3 first…</span>
+  <button data-copy="url-owners">Copy URL</button>
+  <label for="in-owners">Paste systemusers response</label>
+  <textarea id="in-owners" placeholder='{"value":[ {"systemuserid":"…","fullname":"…","domainname":"…"} ]}'></textarea>
+  <button id="parse-owners">Parse / add</button>
+  <button id="clear-owners">Clear</button>
+  <div class="count" id="out-owners"></div>
+</div>
+
+<!-- ============ RESULTS ============ -->
+<h2>Results</h2>
+<button id="build">Build mapping</button>
+<div id="results"></div>
+
+<script>
+"use strict";
+
+/* ---------- state ---------- */
+const state = {
+  uid: "",
+  crefs: new Map(),   // logicalname -> {logicalname, display, connector, connectionid, statecode}
+  flows: new Map(),   // workflowid|name -> {name, state, owner, refs:Set<logicalname>, connectors:Set, rawConns:Set}
+  owners: new Map(),  // systemuserid(guid) -> {fullname, domainname}
+};
+
+/* ---------- helpers ---------- */
+const $ = id => document.getElementById(id);
+
+function normBase(){
+  let b = $("base").value.trim();
+  return b.replace(/\/+$/, "");
+}
+
+function buildUrls(){
+  const b = normBase();
+  const uid = $("uid").value.trim();
+  // Step 1
+  $("url-whoami").textContent = b ? `${b}/WhoAmI` : "Enter the base URL above…";
+  // Step 2
+  if (b && uid){
+    const q = `${b}/connectionreferences?$select=connectionreferencedisplayname,`
+      + `connectionreferencelogicalname,connectorid,connectionid,statecode`
+      + `&$filter=_ownerid_value eq ${uid}&$orderby=modifiedon desc`;
+    $("url-crefs").textContent = encodeURI(q);
+  } else {
+    $("url-crefs").textContent = "Enter the base URL and owner GUID above…";
+  }
+  // Step 3
+  if (b){
+    const q = `${b}/workflows?$select=name,clientdata,statecode,_ownerid_value`
+      + `&$filter=category eq 5&$orderby=modifiedon desc`;
+    $("url-flows").textContent = encodeURI(q);
+  } else {
+    $("url-flows").textContent = "Enter the base URL above…";
+  }
+}
+
+/* Build a systemusers URL targeted to the owner GUIDs discovered in the flow scan.
+   Narrows to owners of flows that actually use your connections when possible. */
+function buildOwnerUrl(){
+  const b = normBase();
+  const el = $("url-owners");
+  if (!b || state.flows.size === 0){ el.textContent = "Parse flows in Step 3 first…"; return; }
+  const mine = new Set(state.crefs.keys());
+  const guids = new Set();
+  for (const f of state.flows.values()){
+    if (!f.owner) continue;
+    const impacted = mine.size === 0 || [...f.refs].some(ln => mine.has(ln)) || matchRawConns(f).length;
+    if (impacted) guids.add(f.owner);
+  }
+  if (guids.size === 0){ el.textContent = "No owner GUIDs found on the parsed flows."; return; }
+  const filter = [...guids].map(g => `systemuserid eq ${g}`).join(" or ");
+  const q = `${b}/systemusers?$select=systemuserid,fullname,domainname&$filter=${filter}`;
+  el.textContent = encodeURI(q);
+}
+
+function parseJson(txt){
+  const t = txt.trim();
+  if (!t) throw new Error("Nothing pasted.");
+  const obj = JSON.parse(t);
+  return obj;
+}
+
+function rows(obj){
+  if (Array.isArray(obj)) return obj;
+  if (Array.isArray(obj.value)) return obj.value;
+  return [obj]; // single record (e.g. WhoAmI)
+}
+
+function nextLinkNote(obj, el){
+  const nl = obj && obj["@odata.nextLink"];
+  if (nl){
+    el.innerHTML += ` <span class="warn">— more pages: open the @odata.nextLink and paste the next page.</span>`;
+  }
+}
+
+/* extract referenced connection info from a flow's clientdata JSON string */
+function extractClientData(cd){
+  const out = { refs:new Set(), connectors:new Set(), rawConns:new Set() };
+  if (!cd) return out;
+  let obj; try { obj = JSON.parse(cd); } catch { return out; }
+  const cr = obj?.properties?.connectionReferences ?? obj?.connectionReferences ?? {};
+  for (const v of Object.values(cr)){
+    const ln = v?.connection?.connectionReferenceLogicalName;
+    if (ln) out.refs.add(ln);
+    if (v?.api?.name) out.connectors.add(String(v.api.name).split("/").pop());
+    if (v?.connection?.id) out.rawConns.add(v.connection.id);
+  }
+  return out;
+}
+
+/* Match a flow's raw connection.id values (non-solution flows) against the
+   connectionid of your connection references. Returns the matched cref objects. */
+function matchRawConns(f){
+  const hits = [];
+  if (!f.rawConns || f.rawConns.size === 0) return hits;
+  for (const c of state.crefs.values()){
+    if (!c.connectionid) continue;
+    for (const raw of f.rawConns){
+      const seg = String(raw).split("/").pop();
+      if (seg === c.connectionid || String(raw).includes(c.connectionid)){ hits.push(c); break; }
+    }
+  }
+  return hits;
+}
+
+/* ---------- parse handlers ---------- */
+$("parse-whoami").onclick = () => {
+  const el = $("out-whoami");
+  try{
+    const obj = parseJson($("in-whoami").value);
+    const uid = obj.UserId || obj.userId || (rows(obj)[0] && rows(obj)[0].UserId);
+    if (!uid) throw new Error("No UserId field found.");
+    $("uid").value = uid;
+    state.uid = uid;
+    el.className = "count ok";
+    el.textContent = `Owner GUID: ${uid}`;
+    buildUrls();
+  }catch(e){ el.className="count err"; el.textContent = "Parse error: " + e.message; }
+};
+
+$("parse-crefs").onclick = () => {
+  const el = $("out-crefs");
+  try{
+    const obj = parseJson($("in-crefs").value);
+    let n = 0;
+    for (const r of rows(obj)){
+      const ln = r.connectionreferencelogicalname;
+      if (!ln) continue;
+      state.crefs.set(ln, {
+        logicalname: ln,
+        display: r.connectionreferencedisplayname || "",
+        connector: (r.connectorid || "").split("/").pop(),
+        connectionid: r.connectionid || "",
+        statecode: r.statecode,
+      });
+      n++;
+    }
+    el.className = "count ok";
+    el.textContent = `Added ${n}. Total connection references: ${state.crefs.size}.`;
+    nextLinkNote(obj, el);
+    buildOwnerUrl();
+  }catch(e){ el.className="count err"; el.textContent = "Parse error: " + e.message; }
+};
+$("clear-crefs").onclick = () => { state.crefs.clear(); $("out-crefs").textContent="Cleared."; $("out-crefs").className="count muted"; buildOwnerUrl(); };
+
+$("parse-flows").onclick = () => {
+  const el = $("out-flows");
+  try{
+    const obj = parseJson($("in-flows").value);
+    let n = 0;
+    for (const r of rows(obj)){
+      const key = r.workflowid || r.workflowidunique || r.name;
+      if (!key) continue;
+      const ex = extractClientData(r.clientdata);
+      state.flows.set(key, {
+        name: r.name || "(unnamed)",
+        state: r.statecode,
+        owner: r._ownerid_value || r["_ownerid_value"] || "",
+        refs: ex.refs, connectors: ex.connectors, rawConns: ex.rawConns,
+      });
+      n++;
+    }
+    el.className = "count ok";
+    el.textContent = `Added ${n}. Total flows: ${state.flows.size}.`;
+    nextLinkNote(obj, el);
+    buildOwnerUrl();
+  }catch(e){ el.className="count err"; el.textContent = "Parse error: " + e.message; }
+};
+$("clear-flows").onclick = () => { state.flows.clear(); $("out-flows").textContent="Cleared."; $("out-flows").className="count muted"; buildOwnerUrl(); };
+
+$("parse-owners").onclick = () => {
+  const el = $("out-owners");
+  try{
+    const obj = parseJson($("in-owners").value);
+    let n = 0;
+    for (const r of rows(obj)){
+      const id = r.systemuserid;
+      if (!id) continue;
+      state.owners.set(id, { fullname: r.fullname || "", domainname: r.domainname || "" });
+      n++;
+    }
+    el.className = "count ok";
+    el.textContent = `Added ${n}. Total owners resolved: ${state.owners.size}.`;
+    nextLinkNote(obj, el);
+  }catch(e){ el.className="count err"; el.textContent = "Parse error: " + e.message; }
+};
+$("clear-owners").onclick = () => { state.owners.clear(); $("out-owners").textContent="Cleared."; $("out-owners").className="count muted"; };
+
+/* ---------- copy buttons ---------- */
+document.querySelectorAll("button[data-copy]").forEach(btn => {
+  btn.onclick = () => {
+    const txt = $(btn.dataset.copy).textContent;
+    navigator.clipboard.writeText(txt).then(() => {
+      const old = btn.textContent; btn.textContent = "Copied!";
+      setTimeout(() => btn.textContent = old, 1200);
+    });
+  };
+});
+
+/* ---------- flow-state pill ---------- */
+function statePill(sc){
+  const on = sc === 1;
+  return `<span class="pill ${on?'on':'off'}">${on?'On':'Off/Draft'}</span>`;
+}
+
+/* ---------- build mapping ---------- */
+$("build").onclick = () => {
+  const res = $("results");
+  if (state.crefs.size === 0){ res.innerHTML = `<p class="err">Add your connection references in Step 2 first.</p>`; return; }
+
+  // index: logicalname -> [flows]
+  const usage = new Map();
+  for (const ln of state.crefs.keys()) usage.set(ln, []);
+  for (const f of state.flows.values()){
+    for (const ln of f.refs){
+      if (usage.has(ln)) usage.get(ln).push(f);
+    }
+  }
+
+  let html = "";
+
+  // A. Connection references and who uses them
+  html += `<h3>Your connection references (${state.crefs.size}) — usage across ${state.flows.size} flows</h3>`;
+  html += `<table><thead><tr><th>Display name</th><th>Connector</th><th>Logical name</th>`
+        + `<th>Used by</th><th>Flows</th></tr></thead><tbody>`;
+  // sort: orphans first, then by usage count
+  const cref = [...state.crefs.values()].sort((a,b) => usage.get(a.logicalname).length - usage.get(b.logicalname).length);
+  for (const c of cref){
+    const fs = usage.get(c.logicalname);
+    const orphan = fs.length === 0;
+    html += `<tr class="${orphan?'orphan':''}">`
+      + `<td>${esc(c.display)}</td>`
+      + `<td><span class="tag">${esc(c.connector)}</span></td>`
+      + `<td><span class="tag">${esc(c.logicalname)}</span></td>`
+      + `<td>${orphan ? '<span class="err">0 — orphan (safe to remove?)</span>' : fs.length}</td>`
+      + `<td>${fs.length ? '<ul class="flowlist">' + fs.map(f => `<li>${statePill(f.state)} ${esc(f.name)}</li>`).join("") + '</ul>' : '—'}</td>`
+      + `</tr>`;
+  }
+  html += `</tbody></table>`;
+
+  // B. Flows that touch at least one of your connection references
+  const mine = new Set(state.crefs.keys());
+  const impacted = [...state.flows.values()].filter(f => [...f.refs].some(ln => mine.has(ln)));
+  html += `<h3>Impacted flows (${impacted.length}) — using ≥1 of your connection references</h3>`;
+  if (impacted.length === 0){
+    html += `<p class="muted">None of the scanned flows reference your connection references.</p>`;
+  } else {
+    html += `<table><thead><tr><th>Flow</th><th>State</th><th>Owner</th><th>Your refs used</th></tr></thead><tbody>`;
+    for (const f of impacted.sort((a,b)=>a.name.localeCompare(b.name))){
+      const yours = [...f.refs].filter(ln => mine.has(ln));
+      html += `<tr><td>${esc(f.name)}</td><td>${statePill(f.state)}</td>`
+        + `<td>${ownerLabel(f.owner)}</td>`
+        + `<td>${yours.map(ln => `<span class="tag">${esc(state.crefs.get(ln).display || ln)}</span>`).join(" ")}</td></tr>`;
+    }
+    html += `</tbody></table>`;
+  }
+
+  // C. Non-solution flows referencing your raw connections (connection.id, no logical name)
+  const rawRows = [];
+  for (const f of state.flows.values()){
+    const hits = matchRawConns(f);
+    // only surface raw-connection hits that aren't already captured via a logical-name match
+    const extra = hits.filter(c => !f.refs.has(c.logicalname));
+    if (extra.length) rawRows.push({ f, crefs: extra });
+  }
+  html += `<h3>Flows using your raw connections (${rawRows.length}) — non-solution, matched by connection id</h3>`;
+  if (rawRows.length === 0){
+    html += `<p class="muted">No flows reference your connections directly by id (or none had a matching <span class="tag">connectionid</span>). Solution-aware flows are covered by the tables above.</p>`;
+  } else {
+    html += `<table><thead><tr><th>Flow</th><th>State</th><th>Owner</th><th>Your connection</th></tr></thead><tbody>`;
+    for (const {f, crefs} of rawRows.sort((a,b)=>a.f.name.localeCompare(b.f.name))){
+      html += `<tr><td>${esc(f.name)}</td><td>${statePill(f.state)}</td>`
+        + `<td>${ownerLabel(f.owner)}</td>`
+        + `<td>${crefs.map(c => `<span class="tag">${esc(c.display || c.connector)}</span> <span class="muted">${esc(c.connectionid)}</span>`).join("<br>")}</td></tr>`;
+    }
+    html += `</tbody></table>`;
+  }
+
+  res.innerHTML = html;
+};
+
+function esc(s){ return String(s ?? "").replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+/* Show a resolved owner name if we have one, otherwise the raw GUID. */
+function ownerLabel(guid){
+  if (!guid) return '<span class="muted">—</span>';
+  const o = state.owners.get(guid);
+  if (o && o.fullname) return `${esc(o.fullname)}${o.domainname ? ` <span class="muted">(${esc(o.domainname)})</span>` : ""}`;
+  return `<span class="muted">${esc(guid)}</span>`;
+}
+
+/* ---------- wire up live URL building ---------- */
+["base","uid"].forEach(id => $(id).addEventListener("input", buildUrls));
+buildUrls();
+</script>
+</body>
+</html>
