@@ -24,6 +24,11 @@
   .url{ font-family:ui-monospace,Consolas,monospace; font-size:12px; background:#f6f6f6;
         border:1px solid #ddd; border-radius:4px; padding:8px; word-break:break-all;
         display:block; margin-top:6px; }
+  .url-wrap{ position:relative; }
+  .url-wrap .url{ padding-right:42px; }
+  .copy-icon{ position:absolute; top:7px; right:7px; width:28px; height:28px; margin:0;
+        padding:4px; display:grid; place-items:center; }
+  .copy-icon svg{ width:16px; height:16px; }
   .muted{ color:#666; font-size:12px; }
   .ok{ color:#0a7d00; } .warn{ color:#b06a00; } .err{ color:#b00020; }
   .count{ font-size:12px; color:#333; margin-top:6px; }
@@ -44,12 +49,19 @@
 </head>
 <body>
 
-<h1>Find Connections</h1>
-<p class="sub">For an offboarding Power Platform developer: find which cloud flows across the
-environment depend on <em>your</em> connections. Authentication stays in your browser — this tool
-only builds the URLs to visit and parses the JSON you paste back.</p>
-
 <!-- ============ SETUP ============ -->
+<div class="step">
+  <h3>Setup — Your connections <span class="muted">(via Power Automate)</span></h3>
+  <label for="whoid">Your identity — Entra object id, email, or UPN (picks your connections out of an
+  environment-wide list; leave blank to treat every pasted connection as yours)</label>
+  <input type="text" id="whoid" placeholder="Your email address or EntraID UPN">
+  <label for="in-conns">Paste Get Connections output</label>
+  <textarea id="in-conns" placeholder='[ {"name":"…","properties":{"apiId":"…","displayName":"…","createdBy":{…}}} ]'></textarea>
+  <button id="parse-conns">Parse / add</button>
+  <button id="clear-conns">Clear</button>
+  <div class="count" id="out-conns"></div>
+</div>
+
 <div class="step">
   <h3>Setup — Web API endpoint</h3>
   <label for="base">Dataverse Web API base URL (from Power Platform → Settings → Developer resources)</label>
@@ -61,10 +73,12 @@ only builds the URLs to visit and parses the JSON you paste back.</p>
 <!-- ============ STEP 0 ============ -->
 <div class="step">
   <h3>Step 0 — Authenticate with Dataverse</h3>
-  <p class="muted">Open this URL first and sign in to your org. Once you're authenticated, the
-  Web API calls below will work in this tab.</p>
-  <span class="url" id="url-step0">Enter the base URL above…</span>
-  <button data-copy="url-step0">Copy URL</button>
+  <p class="muted">Open this URL first and sign in to your environment. Once you're authenticated, the
+  Web API calls below will work.</p>
+  <div class="url-wrap">
+    <span class="url" id="url-step0">Enter the base URL above…</span>
+    <button class="copy-icon" data-copy="url-step0" aria-label="Copy URL" title="Copy URL"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="1"/><path d="M15 9V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h4"/></svg></button>
+  </div>
   <button data-open="url-step0">Open URL in New Tab</button>
 </div>
 
@@ -73,8 +87,10 @@ only builds the URLs to visit and parses the JSON you paste back.</p>
   <h3>Step 1 — Who am I? (get your owner GUID)</h3>
   <p class="muted">Open this URL in the browser tab where you're signed in to your org, then copy the
   whole JSON response and paste it below.</p>
-  <span class="url" id="url-whoami">Enter the base URL above…</span>
-  <button data-copy="url-whoami">Copy URL</button>
+  <div class="url-wrap">
+    <span class="url" id="url-whoami">Enter the base URL above…</span>
+    <button class="copy-icon" data-copy="url-whoami" aria-label="Copy URL" title="Copy URL"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="1"/><path d="M15 9V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h4"/></svg></button>
+  </div>
   <button data-open="url-whoami">Open URL in New Tab</button>
   <label for="in-whoami">Paste WhoAmI response</label>
   <textarea id="in-whoami" placeholder='{"@odata.context":"…","BusinessUnitId":"…","UserId":"cc985d4a-…","OrganizationId":"…"}'></textarea>
@@ -87,14 +103,10 @@ only builds the URLs to visit and parses the JSON you paste back.</p>
 <!-- ============ STEP 2 ============ -->
 <div class="step">
   <h3>Step 2 — Connection references <span class="muted">(whole environment)</span></h3>
-  <p class="muted">Lists <strong>all</strong> connection references in the environment — deliberately
-  <em>not</em> filtered to ones you own. <strong>Caveat:</strong> in solution ALM the connection
-  reference record is owned by whoever imported the solution, but it can still be <em>bound</em> to
-  your personal connection — and that binding is what breaks when your account is disabled. An
-  owner filter would hide exactly those. Step 2b below works out which of these are bound to
-  <em>your</em> connections.</p>
-  <span class="url" id="url-crefs">Enter the base URL above…</span>
-  <button data-copy="url-crefs">Copy URL</button>
+  <div class="url-wrap">
+    <span class="url" id="url-crefs">Enter the base URL above…</span>
+    <button class="copy-icon" data-copy="url-crefs" aria-label="Copy URL" title="Copy URL"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="1"/><path d="M15 9V5a1 1 0 0 0-1-1H5a1 1 0 0 0 1 1h4"/></svg></button>
+  </div>
   <button data-open="url-crefs">Open URL in New Tab</button>
   <label for="in-crefs">Paste connectionreferences response</label>
   <textarea id="in-crefs" placeholder='{"value":[ … ]}'></textarea>
@@ -103,35 +115,16 @@ only builds the URLs to visit and parses the JSON you paste back.</p>
   <div class="count" id="out-crefs"></div>
 </div>
 
-<!-- ============ STEP 2b ============ -->
-<div class="step">
-  <h3>Step 2b — Your connections <span class="muted">(via Power Automate)</span></h3>
-  <p class="muted">Connections live in the Power Platform service, not Dataverse, so there's no URL
-  to open here. Instead, run the <span class="tag">Power Apps Management</span> connector's
-  <strong>Get Connections</strong> action (in a throwaway instant flow) against this environment and
-  paste its output below — the whole body or just the connections array. Each connection reference's
-  <span class="tag">connectionid</span> is matched against these connection names to find crefs bound
-  to your connections, regardless of who owns the cref record.</p>
-  <label for="whoid">Your identity — Entra object id, email, or UPN (picks your connections out of an
-  environment-wide list; leave blank to treat every pasted connection as yours)</label>
-  <input type="text" id="whoid" placeholder="b1d8a528-… or you@contoso.com">
-  <p class="muted">Note: the Entra object id is <em>not</em> the Step 1 owner GUID — Dataverse user
-  ids and Entra ids are different GUIDs. Email/UPN is usually easiest.</p>
-  <label for="in-conns">Paste Get Connections output</label>
-  <textarea id="in-conns" placeholder='[ {"name":"…","properties":{"apiId":"…","displayName":"…","createdBy":{…}}} ]'></textarea>
-  <button id="parse-conns">Parse / add</button>
-  <button id="clear-conns">Clear</button>
-  <div class="count" id="out-conns"></div>
-</div>
-
 <!-- ============ STEP 3 ============ -->
 <div class="step">
   <h3>Step 3 — All cloud flows in the environment</h3>
   <p class="muted">Whole-environment scan (no owner filter) so you catch flows owned by others that
   use your connections. This response can be large — if it ends with an
   <span class="tag">@odata.nextLink</span>, open that link and paste each page here with "Parse / add".</p>
-  <span class="url" id="url-flows">Enter the base URL above…</span>
-  <button data-copy="url-flows">Copy URL</button>
+  <div class="url-wrap">
+    <span class="url" id="url-flows">Enter the base URL above…</span>
+    <button class="copy-icon" data-copy="url-flows" aria-label="Copy URL" title="Copy URL"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="1"/><path d="M15 9V5a1 1 0 0 0-1-1H5a1 1 0 0 0 1 1h4"/></svg></button>
+  </div>
   <button data-open="url-flows">Open URL in New Tab</button>
   <label for="in-flows">Paste workflows response (repeat for each page)</label>
   <textarea id="in-flows" placeholder='{"value":[ {"name":"…","clientdata":"{…}","statecode":1} ]}'></textarea>
@@ -143,12 +136,10 @@ only builds the URLs to visit and parses the JSON you paste back.</p>
 <!-- ============ STEP 4 ============ -->
 <div class="step">
   <h3>Step 4 — Resolve owner names <span class="muted">(optional)</span></h3>
-  <p class="muted">A browser GET can't send the <span class="tag">Prefer</span> annotation header, so
-  flows come back with owner GUIDs only. This builds a <span class="tag">systemusers</span> URL
-  targeted to just the owner GUIDs found in Step 3 — open it, paste the response, and the results
-  will show names instead of GUIDs. Parse Step 3 first so the URL can be built.</p>
-  <span class="url" id="url-owners">Parse flows in Step 3 first…</span>
-  <button data-copy="url-owners">Copy URL</button>
+  <div class="url-wrap">
+    <span class="url" id="url-owners">Parse flows in Step 3 first…</span>
+    <button class="copy-icon" data-copy="url-owners" aria-label="Copy URL" title="Copy URL"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="1"/><path d="M15 9V5a1 1 0 0 0-1-1H5a1 1 0 0 0 1 1h4"/></svg></button>
+  </div>
   <button data-open="url-owners">Open URL in New Tab</button>
   <label for="in-owners">Paste systemusers response</label>
   <textarea id="in-owners" placeholder='{"value":[ {"systemuserid":"…","fullname":"…","domainname":"…"} ]}'></textarea>
@@ -266,14 +257,14 @@ function buildSolUrls(){
   const b = normBase();
   const box = $("urls-sols");
   if (!b){
-    box.innerHTML = `<span class="url">Enter the base URL above…</span>`;
+    box.innerHTML = `<div class="url-wrap"><span class="url">Enter the base URL above…</span></div>`;
     return;
   }
   const filter = SOL_COMPONENT_TYPES.map(t => `componenttype eq ${t}`).join(" or ");
   const q = `${b}/solutioncomponents?$select=objectid,componenttype,_solutionid_value`
     + `&$expand=solutionid($select=friendlyname,uniquename,ismanaged)&$filter=(${filter})`;
-  box.innerHTML = `<span class="url" id="url-sols-0">${esc(encodeURI(q))}</span>`
-    + `<button data-copy="url-sols-0">Copy URL</button>`
+  box.innerHTML = `<div class="url-wrap"><span class="url" id="url-sols-0">${esc(encodeURI(q))}</span>`
+    + `<button class="copy-icon" data-copy="url-sols-0" aria-label="Copy URL" title="Copy URL"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="1"/><path d="M15 9V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h4"/></svg></button></div>`
     + `<button data-open="url-sols-0">Open URL in New Tab</button>`;
 }
 
@@ -317,7 +308,7 @@ function extractClientData(cd){
   return out;
 }
 
-/* Set of YOUR connection names (lowercase) from Step 2b, or null if none pasted.
+/* Set of YOUR connection names (lowercase) from the connections setup, or null if none pasted.
    Blank identity means the paste is assumed to be only your connections already. */
 function yourConnSet(){
   if (state.conns.size === 0) return null;
@@ -331,7 +322,7 @@ function yourConnSet(){
 }
 
 /* Map logicalname -> array of risk-reason strings, for crefs that break on offboarding:
-   bound to one of your connections (Step 2b match) and/or the cref record is owned by you. */
+   bound to one of your connections (connections setup match) and/or the cref record is owned by you. */
 function atRiskCrefs(){
   const uid = $("uid").value.trim().toLowerCase();
   const yours = yourConnSet();
@@ -341,14 +332,14 @@ function atRiskCrefs(){
     if (yours && c.connectionid && yours.has(c.connectionid.toLowerCase()))
       reasons.push("bound to your connection");
     if (uid && (c.owner || "").toLowerCase() === uid)
-      reasons.push(yours ? "cref record owned by you" : "owned by you (bound connection unknown — do Step 2b)");
+      reasons.push(yours ? "cref record owned by you" : "owned by you (bound connection unknown — complete the connections setup)");
     if (reasons.length) out.set(c.logicalname, reasons);
   }
   return out;
 }
 
 /* Connection names (lowercase) to hunt for in raw flow bindings: your connections when
-   Step 2b data exists, otherwise the connectionids of the at-risk crefs as a proxy. */
+   connections setup data exists, otherwise the connectionids of the at-risk crefs as a proxy. */
 function riskConnNames(){
   const yours = yourConnSet();
   if (yours) return yours;
@@ -547,8 +538,9 @@ document.addEventListener("click", e => {
   const cp = e.target.closest("button[data-copy]");
   if (cp){
     navigator.clipboard.writeText($(cp.dataset.copy).textContent).then(() => {
-      const old = cp.textContent; cp.textContent = "Copied!";
-      setTimeout(() => cp.textContent = old, 1200);
+      cp.setAttribute("aria-label", "Copied URL");
+      cp.title = "Copied!";
+      setTimeout(() => { cp.setAttribute("aria-label", "Copy URL"); cp.title = "Copy URL"; }, 1200);
     });
     return;
   }
@@ -613,13 +605,13 @@ $("build").onclick = () => {
     crefsByConn.get(k).push(c);
   }
 
-  // B. Your connections and what depends on them (only when Step 2b data exists)
+  // B. Your connections and what depends on them (only when connections setup data exists)
   if (state.conns.size){
     const myList = [...state.conns.values()].filter(c => yours.has(c.name.toLowerCase()))
       .sort((a,b) => (a.display || a.name).localeCompare(b.display || b.name));
     html += `<h3>Your connections (${myList.length} of ${state.conns.size} parsed) — what depends on them</h3>`;
     if (myList.length === 0){
-      html += `<p class="muted">No parsed connections matched the identity given in Step 2b.</p>`;
+      html += `<p class="muted">No parsed connections matched the identity given in the connections setup.</p>`;
     } else {
       html += `<table><thead><tr><th>Connection</th><th>Connector</th><th>Status</th>`
             + `<th>Crefs bound to it</th><th>Flows</th></tr></thead><tbody>`;
@@ -664,7 +656,7 @@ $("build").onclick = () => {
   if (risk.size === 0){
     html += `<p class="muted">${(yours || uid)
       ? "None of the parsed connection references are bound to your connections or owned by you."
-      : "Provide your owner GUID (Step 1) and/or your connections (Step 2b) so the tool can tell which connection references are yours."}</p>`;
+      : "Provide your owner GUID (Step 1) and/or your connections (Setup) so the tool can tell which connection references are yours."}</p>`;
   } else {
     html += `<table><thead><tr><th>Display name</th><th>Connector</th><th>Logical name</th>`
           + `<th>Why at risk</th>${solTh}<th>Used by</th><th>Flows</th></tr></thead><tbody>`;
@@ -729,7 +721,7 @@ $("build").onclick = () => {
   res.innerHTML = html;
 };
 
-/* Label a connection by its lowercase name: Step 2b details if we have them, else the
+/* Label a connection by its lowercase name: connections setup details if we have them, else the
    display name of a cref bound to it, else the raw id. */
 function connLabel(nameLc){
   const c = state.conns.get(nameLc);
