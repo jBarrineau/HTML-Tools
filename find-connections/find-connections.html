@@ -32,6 +32,7 @@
   .muted{ color:#666; font-size:12px; }
   .ok{ color:#0a7d00; } .warn{ color:#b06a00; } .err{ color:#b00020; }
   .count{ font-size:12px; color:#333; margin-top:6px; }
+  .count.ok::before{ content:"\2713"; color:#0a7d00; font-weight:700; margin-right:5px; }
   table{ border-collapse:collapse; width:100%; margin-top:10px; font-size:13px; }
   th,td{ border:1px solid #ddd; padding:6px 8px; text-align:left; vertical-align:top; }
   th{ background:#f3f3f3; }
@@ -599,6 +600,7 @@ function doParseWhoami(obj){
     el.textContent = `Owner GUID: ${uid}`;
     $("in-whoami").value = "";
     buildUrls();
+    onPasteParsed("whoami", obj);
   }catch(e){ el.className="count err"; el.textContent = "Parse error: " + e.message; }
 }
 $("parse-whoami").onclick = () => doParseWhoami();
@@ -627,6 +629,7 @@ function doParseCrefs(obj){
     nextLinkNote(obj, el);
     $("in-crefs").value = "";
     buildDerived();
+    onPasteParsed("crefs", obj);
   }catch(e){ el.className="count err"; el.textContent = "Parse error: " + e.message; }
 }
 $("parse-crefs").onclick = () => doParseCrefs();
@@ -658,6 +661,7 @@ function doParseConns(obj){
     nextLinkNote(obj, el);
     $("in-conns").value = "";
     buildDerived();
+    onPasteParsed("conns", obj);
   }catch(e){ el.className="count err"; el.textContent = "Parse error: " + e.message; }
 }
 $("parse-conns").onclick = () => doParseConns();
@@ -687,6 +691,7 @@ function doParseFlows(obj){
     nextLinkNote(obj, el);
     $("in-flows").value = "";
     buildDerived();
+    onPasteParsed("flows", obj);
   }catch(e){ el.className="count err"; el.textContent = "Parse error: " + e.message; }
 }
 $("parse-flows").onclick = () => doParseFlows();
@@ -707,6 +712,7 @@ function doParseOwners(obj){
     el.textContent = `Added ${n}. Total owners resolved: ${state.owners.size}.`;
     nextLinkNote(obj, el);
     $("in-owners").value = "";
+    onPasteParsed("owners", obj);
   }catch(e){ el.className="count err"; el.textContent = "Parse error: " + e.message; }
 }
 $("parse-owners").onclick = () => doParseOwners();
@@ -738,6 +744,7 @@ function doParseSols(obj){
     el.textContent = `Added ${n}. Components with solution info: ${state.sols.size}.`;
     nextLinkNote(obj, el);
     $("in-sols").value = "";
+    onPasteParsed("sols", obj);
   }catch(e){ el.className="count err"; el.textContent = "Parse error: " + e.message; }
 }
 $("parse-sols").onclick = () => doParseSols();
@@ -1208,6 +1215,22 @@ function goToStep(i){
   if (STEPS[i].id === "results") $("build").click(); // auto-build on arrival
   refreshNav();
   window.scrollTo(0, 0);
+}
+
+/* Called by every paste-parse handler on success. The green ✓ is the .count.ok::before glyph;
+   here we auto-advance to the next stage a beat later so that check is visible first. Held back
+   when the response still has a page to paste (@odata.nextLink / nextLink), when the current
+   step's own gate isn't satisfied yet, or when the user has since navigated to another stage. */
+let autoAdvTimer;
+function onPasteParsed(screenId, obj){
+  if (obj && (obj["@odata.nextLink"] || obj.nextLink)) return; // more pages to paste — stay put
+  if (!STEPS[cur] || STEPS[cur].id !== screenId) return;       // only advance the stage in view
+  if (!stepValid(STEPS[cur])) return;                          // wizard gate not satisfied yet
+  if (cur >= STEPS.length - 1) return;                         // already on the last stage
+  clearTimeout(autoAdvTimer);
+  autoAdvTimer = setTimeout(() => {
+    if (STEPS[cur] && STEPS[cur].id === screenId && stepValid(STEPS[cur])) goToStep(cur + 1);
+  }, 700);
 }
 
 $("wiz-next").onclick = () => { if (stepValid(STEPS[cur])) goToStep(cur + 1); };
