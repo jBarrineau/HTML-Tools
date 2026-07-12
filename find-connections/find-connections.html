@@ -46,6 +46,34 @@
   /* Trying auto-parse-only UX — re-show these if we bring back manual parse buttons. */
   #parse-whoami, #parse-crefs, #parse-conns, #parse-flows, #parse-owners, #parse-sols{ display:none; }
 
+  /* ---- results ---- */
+  .sum{ display:flex; flex-wrap:wrap; gap:10px; margin:10px 0 6px; }
+  .sum .card{ border:1px solid #ddd; border-radius:8px; padding:8px 14px; min-width:104px; background:#fafafa; }
+  .sum .card.urgent{ border-color:#e0b48b; background:#fff6ec; }
+  .sum .n{ font-size:22px; font-weight:700; line-height:1.1; }
+  .sum .l{ font-size:11px; color:#666; margin-top:3px; text-transform:uppercase; letter-spacing:.04em; }
+  .solgroup{ margin:22px 0; }
+  .solgroup > h3{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:15px;
+        margin:0 0 4px; border-top:1px solid #eee; padding-top:14px; }
+  details.solgroup > summary{ font-size:14px; font-weight:600; cursor:pointer; color:#555;
+        border-top:1px solid #eee; padding-top:14px; }
+  .sol-chip{ display:inline-flex; align-items:center; gap:2px; font-size:12px; background:#eef2ff;
+        border:1px solid #c9d4f5; border-radius:4px; padding:2px 8px; font-weight:600; }
+  a.rec{ color:#0b5cad; text-decoration:none; } a.rec:hover{ text-decoration:underline; }
+  tr.urgent > td{ background:#fff6ec; }
+  .catbadge{ display:inline-block; font-size:11px; border-radius:3px; padding:1px 7px; white-space:nowrap; border:1px solid; }
+  .catbadge.flow{ color:#0b5cad; border-color:#bcd4ef; background:#eef5fc; }
+  .catbadge.cref{ color:#7a4d00; border-color:#e6cfa1; background:#fbf4e6; }
+  .catbadge.conn{ color:#5a3a86; border-color:#d5c4ec; background:#f4eefb; }
+  .tscroll{ overflow-x:auto; }         /* safety net so a too-wide table scrolls instead of breaking layout */
+  #successor{ max-width:520px; }
+  /* The Results step breaks the page out of its narrow reading column to give the wide action
+     table room; the form steps stay narrow. Capped so action sentences don't span the whole
+     screen on large/ultrawide displays. */
+  body.results-wide{ max-width:min(1680px, 96vw); }
+  body.results-wide #results p{ max-width:95ch; }
+  body.results-wide [data-screen="results"] > label{ max-width:80ch; }
+
   /* ---- wizard ---- */
   .wiz-head{ position:sticky; top:0; z-index:5; background:#fff; padding-top:8px; margin-bottom:6px; }
   .wiz-head h1{ margin:0 0 2px; }
@@ -230,6 +258,7 @@
 /* ---------- state ---------- */
 const state = {
   uid: "",
+  envId: "",          // environment GUID — scraped from flow clientdata (Stage 6), for maker-portal deep links
   crefs: new Map(),   // logicalname -> {logicalname, display, connector, connectionid, statecode, owner}
   conns: new Map(),   // connection name(lowercase) -> {name, connector, display, createdBy*, status}
   flows: new Map(),   // workflowid|name -> {name, state, owner, refs:Set<logicalname>, connectors:Set, rawConns:Set}
@@ -454,8 +483,12 @@ function nextLinkNote(obj, el){
 
 /* extract referenced connection info from a flow's clientdata JSON string */
 function extractClientData(cd){
-  const out = { refs:new Set(), connectors:new Set(), rawConns:new Set() };
+  const out = { refs:new Set(), connectors:new Set(), rawConns:new Set(), env:"" };
   if (!cd) return out;
+  // Environment GUID appears inside action inputs, e.g. environment eq '<guid>' or "environmentName":"<guid>".
+  const em = cd.match(/environmentName"\s*:\s*"([0-9a-f-]{36})"/i)
+    || cd.match(/environment eq '([0-9a-f-]{36})'/i);
+  if (em) out.env = em[1];
   let obj; try { obj = JSON.parse(cd); } catch { return out; }
   const cr = obj?.properties?.connectionReferences ?? obj?.connectionReferences ?? {};
   for (const v of Object.values(cr)){
@@ -639,6 +672,7 @@ function doParseFlows(obj){
       const key = r.workflowid || r.workflowidunique || r.name;
       if (!key) continue;
       const ex = extractClientData(r.clientdata);
+      if (ex.env) state.envId = ex.env; // all flows share one environment; last seen wins
       storeFlow(key, {
         name: r.name || "(unnamed)",
         id: r.workflowid || "",
@@ -751,184 +785,151 @@ document.addEventListener("click", e => {
   }
 });
 
-/* ---------- flow-state pill ---------- */
-function statePill(sc){
-  const on = sc === 1;
-  return `<span class="pill ${on?'on':'off'}">${on?'On':'Off/Draft'}</span>`;
+/* ---------- build / render results ----------
+   The on-screen Results are the SAME findings as the CSV download (buildActionRows), grouped by
+   solution so what you see mirrors what you export. Cloud flows and solutions link out to the
+   environment via classic Dataverse deep links so each row is directly actionable. */
+$("build").onclick = () => renderResults();
+
+/* App (classic Dataverse UI) origin derived from the Web API base: the UI lives on the host without
+   the `.api.` segment (e.g. org.api.crm.dynamics.com -> org.crm.dynamics.com). Only used as a
+   fallback when the environment GUID hasn't been captured from Stage 6 yet. */
+function appBaseUrl(){
+  try { return new URL(normBase()).origin.replace(/\.api\.crm/i, ".crm"); }
+  catch { return ""; }
+}
+/* Flows deep-link into Power Automate, solutions into Power Apps — both keyed by the environment
+   GUID scraped from flow clientdata. Falls back to the classic Dataverse record URL (which only
+   needs the Web API base) when the environment GUID isn't known. */
+function flowUrl(id){
+  if (!id) return "";
+  if (state.envId) return `https://make.powerautomate.com/environments/${encodeURIComponent(state.envId)}/flows/${encodeURIComponent(id)}/details`;
+  const app = appBaseUrl();
+  return app ? `${app}/main.aspx?pagetype=entityrecord&etn=workflow&id=${encodeURIComponent(id)}` : "";
+}
+function solutionUrl(solid){
+  if (!solid) return "";
+  if (state.envId) return `https://make.powerapps.com/environments/${encodeURIComponent(state.envId)}/solutions/${encodeURIComponent(solid)}`;
+  const app = appBaseUrl();
+  return app ? `${app}/main.aspx?pagetype=entityrecord&etn=solution&id=${encodeURIComponent(solid)}` : "";
 }
 
-/* ---------- build mapping ---------- */
-$("build").onclick = () => {
+function summaryCard(n, label, urgent){
+  return `<div class="card${urgent ? " urgent" : ""}"><div class="n">${n}</div><div class="l">${esc(label)}</div></div>`;
+}
+
+/* Group the (already-sorted) action rows by their solutions string; named solutions first, the
+   "outside any solution" bucket last. Order within each group is preserved from buildActionRows. */
+function groupBySolution(rows){
+  const g = new Map();
+  for (const r of rows){
+    const k = r.solutions || "";
+    if (!g.has(k)) g.set(k, []);
+    g.get(k).push(r);
+  }
+  return new Map([...g.entries()].sort((a, b) =>
+    a[0] === "" ? 1 : b[0] === "" ? -1 : a[0].localeCompare(b[0])));
+}
+
+/* Solution section header — each constituent solution rendered as a chip that links to the
+   solution in the environment. */
+function solHeader(row){
+  const list = row.solList || [];
+  if (!list.length) return `<span class="muted">Outside any solution</span>`;
+  return list.map(s => {
+    const label = esc(s.name) + (s.managed ? ` <span class="muted">(managed)</span>` : "");
+    const url = solutionUrl(s.solid);
+    return url
+      ? `<span class="sol-chip"><a class="rec" href="${esc(url)}" target="_blank" rel="noopener">${label}</a> ↗</span>`
+      : `<span class="sol-chip">${label}</span>`;
+  }).join(" ");
+}
+
+function catBadge(cat){
+  const cls = cat === "Cloud flow" ? "flow" : cat === "Connection reference" ? "cref" : "conn";
+  return `<span class="catbadge ${cls}">${esc(cat)}</span>`;
+}
+
+/* Item name — a hyperlink to the flow record for cloud flows, plain text otherwise. */
+function itemCell(r){
+  if (r.category === "Cloud flow"){
+    const url = flowUrl(r.technical);
+    if (url) return `<a class="rec" href="${esc(url)}" target="_blank" rel="noopener">${esc(r.name)}</a> ↗`;
+  }
+  return esc(r.name) || `<span class="muted">—</span>`;
+}
+
+function stateCell(r){
+  if (r.category === "Cloud flow")
+    return r.state === "On" ? `<span class="pill on">On</span>` : `<span class="pill off">Off/Draft</span>`;
+  return r.state ? esc(r.state) : `<span class="muted">—</span>`;
+}
+
+function actionTable(rows, plain){
+  let h = `<div class="tscroll"><table><thead><tr><th>Type</th><th>Item</th><th>State</th><th>Owner</th>`
+    + `<th>Why it needs attention</th><th>Depends on / dependents</th><th>Recommended action</th>`
+    + `</tr></thead><tbody>`;
+  for (const r of rows){
+    h += `<tr class="${!plain && r.priority === 1 ? "urgent" : ""}">`
+      + `<td>${catBadge(r.category)}</td>`
+      + `<td>${itemCell(r)}</td>`
+      + `<td>${stateCell(r)}</td>`
+      + `<td>${r.owner ? esc(r.owner) : '<span class="muted">—</span>'}</td>`
+      + `<td>${esc(r.risk)}</td>`
+      + `<td>${r.dependents ? esc(r.dependents) : '<span class="muted">—</span>'}</td>`
+      + `<td>${esc(r.action)}</td>`
+      + `</tr>`;
+  }
+  return h + `</tbody></table></div>`;
+}
+
+function renderResults(){
   const res = $("results");
-  const uid = $("uid").value.trim().toLowerCase();
-  const risk = atRiskCrefs();        // logicalname -> [reasons]
-  const yours = yourConnSet();       // lowercase names of your connections, or null
-  const names = riskConnNames();     // names to hunt for in raw flow bindings
-  const showSols = state.sols.size > 0;
-  const solTh = showSols ? "<th>Solutions</th>" : "";
-  const solTd = id => showSols ? `<td>${solTags(id)}</td>` : "";
+  const rows = buildActionRows();                 // identical data to the CSV: filtered & sorted
+  const action = rows.filter(r => r.priority !== 5);
+  const noAction = rows.filter(r => r.priority === 5);
 
-  let html = "";
-
-  // A. Flows owned by the departing user — these break regardless of whose connections they use
-  if (state.flows.size){
-    if (!uid){
-      html += `<p class="warn">No owner GUID (Stage 4) — can't identify the flows you own.</p>`;
-    } else {
-      const owned = [...(state.flowsByOwner.get(uid) || [])]
-        .map(key => state.flows.get(key))
-        .filter(Boolean)
-        .sort((a,b) => a.name.localeCompare(b.name));
-      html += `<h3>Flows you own (${owned.length}) — need a new owner before offboarding</h3>`;
-      if (owned.length === 0){
-        html += `<p class="muted">None of the scanned flows are owned by you.</p>`;
-      } else {
-        html += `<p class="muted">Flows owned by a departing user stop running when the account is
-          disabled, even if their connections belong to someone else. Transfer ownership to a teammate
-          first — and because connections can't be transferred, re-point their connections too.</p>`;
-        html += `<table><thead><tr><th>Flow</th><th>State</th><th>At-risk refs used</th>${solTh}</tr></thead><tbody>`;
-        for (const f of owned){
-          const rs = [...f.refs].filter(ln => risk.has(ln));
-          html += `<tr><td>${esc(f.name)}</td><td>${statePill(f.state)}</td>`
-            + `<td>${rs.length ? rs.map(ln => `<span class="tag">${esc(state.crefs.get(ln).display || ln)}</span>`).join(" ") : '<span class="muted">—</span>'}</td>${solTd(f.id)}</tr>`;
-        }
-        html += `</tbody></table>`;
-      }
-    }
-  }
-
-  // index: connection name(lowercase) -> [crefs bound to it]
-  const crefsByConn = new Map();
-  for (const c of state.crefs.values()){
-    if (!c.connectionid) continue;
-    const k = c.connectionid.toLowerCase();
-    if (!crefsByConn.has(k)) crefsByConn.set(k, []);
-    crefsByConn.get(k).push(c);
-  }
-
-  // B. Your connections and what depends on them (only when connections setup data exists)
-  if (state.conns.size){
-    const myList = [...state.conns.values()].filter(c => yours.has(c.name.toLowerCase()))
-      .sort((a,b) => (a.display || a.name).localeCompare(b.display || b.name));
-    html += `<h3>Your connections (${myList.length} of ${state.conns.size} parsed) — what depends on them</h3>`;
-    if (myList.length === 0){
-      html += `<p class="muted">No parsed connections matched the identity given in the connections setup.</p>`;
-    } else {
-      html += `<table><thead><tr><th>Connection</th><th>Connector</th><th>Status</th>`
-            + `<th>Crefs bound to it</th><th>Flows</th></tr></thead><tbody>`;
-      for (const c of myList){
-        const k = c.name.toLowerCase();
-        const bound = crefsByConn.get(k) || [];
-        const lns = new Set(bound.map(x => x.logicalname));
-        const flowKeys = new Set(state.flowRawConns.get(k) || []);
-        for (const ln of lns){
-          for (const key of state.flowRefs.get(ln) || []) flowKeys.add(key);
-        }
-        const fl = flowKeys.size;
-        html += `<tr><td>${esc(c.display || c.name)}</td>`
-          + `<td><span class="tag">${esc(c.connector)}</span></td>`
-          + `<td>${esc(c.status || "—")}</td>`
-          + `<td>${bound.length ? bound.map(x => `<span class="tag">${esc(x.logicalname)}</span>`).join(" ") : '<span class="muted">0</span>'}</td>`
-          + `<td>${fl || '<span class="muted">0</span>'}</td></tr>`;
-      }
-      html += `</tbody></table>`;
-      html += `<p class="muted">A connection with no crefs and no flows may still be used by canvas
-        apps — this tool doesn't scan those (yet).</p>`;
-    }
-  }
-
-  if (state.crefs.size === 0){
-    html += `<p class="err">Add connection references in Stage 5 to see the risk tables.</p>`;
-    res.innerHTML = html;
+  if (action.length === 0 && noAction.length === 0){
+    res.innerHTML = state.crefs.size === 0
+      ? `<p class="err">Add connection references in Stage 5 to see the results.</p>`
+      : `<p class="ok">Nothing needs attention — no flows, connection references, or connections depend on this user.</p>`;
     return;
   }
 
-  // index: at-risk logicalname -> [flows using it]
-  const usage = new Map();
-  for (const ln of risk.keys()){
-    usage.set(ln, [...(state.flowRefs.get(ln) || [])]
-      .map(key => state.flows.get(key)).filter(Boolean));
+  const succ = successorName();
+  const uid = $("uid").value.trim();
+  const who = $("whoid").value.trim() || ownerName(uid) || uid || "the departing user";
+
+  const nFlow = action.filter(r => r.category === "Cloud flow").length;
+  const nCref = action.filter(r => r.category === "Connection reference").length;
+  const nConn = action.filter(r => r.category === "Connection").length;
+  const nOwned = action.filter(r => r.priority === 1).length;
+  const groups = groupBySolution(action);
+  const nSol = [...groups.keys()].filter(k => k !== "").length;
+
+  let html = `<p class="muted">Action items for <strong>${esc(who)}</strong>, handed to
+    <strong>${esc(succ)}</strong> — the same findings as the <em>Download action list (CSV)</em> above.</p>`;
+  html += `<div class="sum">`
+    + summaryCard(action.length, "Action items")
+    + (nOwned ? summaryCard(nOwned, "Flows to re-own", true) : "")
+    + summaryCard(nFlow, "Cloud flows")
+    + summaryCard(nCref, "Conn. references")
+    + summaryCard(nConn, "Connections")
+    + summaryCard(nSol, "Solutions")
+    + `</div>`;
+
+  for (const [, group] of groups){
+    html += `<div class="solgroup"><h3>${solHeader(group[0])} <span class="muted">(${group.length})</span></h3>`
+      + actionTable(group) + `</div>`;
   }
 
-  // C. At-risk connection references and who uses them
-  html += `<h3>At-risk connection references (${risk.size} of ${state.crefs.size} parsed) — usage across ${state.flows.size} flows</h3>`;
-  if (risk.size === 0){
-    html += `<p class="muted">${(yours || uid)
-      ? "None of the parsed connection references are bound to your connections or owned by you."
-      : "Provide your owner GUID (Stage 4) and/or your connections (Stage 2) so the tool can tell which connection references are yours."}</p>`;
-  } else {
-    html += `<table><thead><tr><th>Display name</th><th>Connector</th><th>Logical name</th>`
-          + `<th>Why at risk</th>${solTh}<th>Used by</th><th>Flows</th></tr></thead><tbody>`;
-    // sort: orphans first, then by usage count
-    const cref = [...risk.keys()].map(ln => state.crefs.get(ln))
-      .sort((a,b) => usage.get(a.logicalname).length - usage.get(b.logicalname).length);
-    for (const c of cref){
-      const fs = usage.get(c.logicalname);
-      const orphan = fs.length === 0;
-      html += `<tr class="${orphan?'orphan':''}">`
-        + `<td>${esc(c.display)}</td>`
-        + `<td><span class="tag">${esc(c.connector)}</span></td>`
-        + `<td><span class="tag">${esc(c.logicalname)}</span></td>`
-        + `<td>${risk.get(c.logicalname).map(esc).join("; ")}</td>${solTd(c.id)}`
-        + `<td>${orphan ? '<span class="err">0 — orphan (safe to remove?)</span>' : fs.length}</td>`
-        + `<td>${fs.length ? '<ul class="flowlist">' + fs.map(f => `<li>${statePill(f.state)} ${esc(f.name)}</li>`).join("") + '</ul>' : '—'}</td>`
-        + `</tr>`;
-    }
-    html += `</tbody></table>`;
-  }
-
-  // D. Flows that touch at least one at-risk connection reference
-  const impactedKeys = new Set();
-  for (const ln of risk.keys()){
-    for (const key of state.flowRefs.get(ln) || []) impactedKeys.add(key);
-  }
-  const impacted = [...impactedKeys].map(key => state.flows.get(key)).filter(Boolean);
-  html += `<h3>Impacted flows (${impacted.length}) — using ≥1 at-risk connection reference</h3>`;
-  if (impacted.length === 0){
-    html += `<p class="muted">None of the scanned flows use an at-risk connection reference.</p>`;
-  } else {
-    html += `<table><thead><tr><th>Flow</th><th>State</th><th>Owner</th><th>At-risk refs used</th>${solTh}</tr></thead><tbody>`;
-    for (const f of impacted.sort((a,b)=>a.name.localeCompare(b.name))){
-      const rs = [...f.refs].filter(ln => risk.has(ln));
-      html += `<tr><td>${esc(f.name)}</td><td>${statePill(f.state)}</td>`
-        + `<td>${ownerLabel(f.owner)}</td>`
-        + `<td>${rs.map(ln => `<span class="tag">${esc(state.crefs.get(ln).display || ln)}</span>`).join(" ")}</td>${solTd(f.id)}</tr>`;
-    }
-    html += `</tbody></table>`;
-  }
-
-  // E. Non-solution flows referencing your raw connections (connection.id, no logical name)
-  const rawFlowKeys = new Set();
-  for (const name of names){
-    for (const key of state.flowRawConns.get(name) || []) rawFlowKeys.add(key);
-  }
-  const rawRows = [];
-  for (const key of rawFlowKeys){
-    const f = state.flows.get(key);
-    if (!f) continue;
-    const hits = rawConnHits(f, names);
-    if (!hits.size) continue;
-    // only surface raw hits not already captured via a connection-reference match
-    const covered = new Set([...f.refs]
-      .map(ln => state.crefs.get(ln)?.connectionid?.toLowerCase()).filter(Boolean));
-    const extra = [...hits].filter(h => !covered.has(h));
-    if (extra.length) rawRows.push({ f, hits: extra });
-  }
-  html += `<h3>Flows using your raw connections (${rawRows.length}) — matched by connection id, no connection reference</h3>`;
-  if (rawRows.length === 0){
-    html += `<p class="muted">No flows bind your connections directly by id. Solution-aware flows are covered by the tables above.</p>`;
-  } else {
-    html += `<table><thead><tr><th>Flow</th><th>State</th><th>Owner</th><th>Your connection</th></tr></thead><tbody>`;
-    for (const {f, hits} of rawRows.sort((a,b)=>a.f.name.localeCompare(b.f.name))){
-      html += `<tr><td>${esc(f.name)}</td><td>${statePill(f.state)}</td>`
-        + `<td>${ownerLabel(f.owner)}</td>`
-        + `<td>${hits.map(connLabel).join("<br>")}</td></tr>`;
-    }
-    html += `</tbody></table>`;
+  if (noAction.length){
+    html += `<details class="solgroup"><summary>${noAction.length} connection(s) with no dependents`
+      + ` — removed with the account, no action needed</summary>${actionTable(noAction, true)}</details>`;
   }
 
   res.innerHTML = html;
-};
+}
 
 /* ---------- CSV export ----------
    Plain-text mirrors of the HTML label helpers used only for the export. */
@@ -942,6 +943,12 @@ function solNames(id){
   const m = state.sols.get((id || "").toLowerCase());
   if (!m || m.size === 0) return "";
   return [...m.values()].map(s => s.managed ? `${s.name} (managed)` : s.name).join("; ");
+}
+/* Structured solution records for a component GUID — {name, uniquename, solid, managed} — so the
+   Results view can render each as a chip that links to the solution. */
+function solObjs(id){
+  const m = state.sols.get((id || "").toLowerCase());
+  return m ? [...m.values()] : [];
 }
 function connName(nameLc){
   const c = state.conns.get(nameLc);
@@ -996,6 +1003,7 @@ function buildActionRows(){
       risk: reasons.join("; "),
       dependents,
       solutions: solNames(f.id),
+      solList: solObjs(f.id),
       action: ownedByUser
         ? `Add ${succ} as a co-owner and transfer ownership before the account is disabled — then re-point its connection(s) to ${succ}'s own connection(s), since ownership alone won't keep it running.`
         : `Coordinate with the owner to re-point its connection reference(s) to ${succ}'s own connection(s).`,
@@ -1020,6 +1028,7 @@ function buildActionRows(){
       risk: risk.get(ln).join("; "),
       dependents: orphan ? "0 — orphan" : `${flowNames.length}: ${flowNames.join("; ")}`,
       solutions: solNames(c.id),
+      solList: solObjs(c.id),
       action: orphan
         ? "Confirm unused, then delete the orphaned connection reference."
         : `Have ${succ} create their own ${c.connector} connection, then edit this reference to point at it — the dependent flow(s) stay broken until then.`,
@@ -1055,6 +1064,7 @@ function buildActionRows(){
           : "Owned by departing user — removed when the account is disabled, but nothing depends on it",
         dependents: `${bound.length} connection reference(s), ${flowKeys.size} flow(s)`,
         solutions: "",
+        solList: [],
         action: hasDeps
           ? `Connections can't be reassigned — ${succ} must create a replacement ${c.connector} connection under their own account, then re-point the ${bound.length} reference(s) and ${flowKeys.size} flow(s) that use it.`
           : "No dependents — it's removed with the account; no action needed.",
@@ -1127,41 +1137,7 @@ $("export-csv").onclick = () => {
     + ` to ${a.download}.`;
 };
 
-/* Label a connection by its lowercase name: connections setup details if we have them, else the
-   display name of a cref bound to it, else the raw id. */
-function connLabel(nameLc){
-  const c = state.conns.get(nameLc);
-  if (c) return `<span class="tag">${esc(c.display || c.name)}</span> <span class="muted">${esc(c.connector)}</span>`;
-  for (const x of state.crefs.values()){
-    if ((x.connectionid || "").toLowerCase() === nameLc)
-      return `<span class="tag">${esc(x.display || x.connector)}</span> <span class="muted">${esc(nameLc)}</span>`;
-  }
-  return `<span class="muted">${esc(nameLc)}</span>`;
-}
-
 function esc(s){ return String(s ?? "").replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-
-/* Solution tags for a component GUID: friendly name, with uniquename / solution id /
-   managed flag in the hover title. Dash when Stage 8 has no rows for it. */
-function solTags(id){
-  const m = state.sols.get((id || "").toLowerCase());
-  if (!m || m.size === 0) return '<span class="muted">—</span>';
-  return [...m.values()]
-    .map(s => {
-      const bits = [s.uniquename, s.solid].filter(Boolean);
-      if (s.managed) bits.push("managed");
-      return `<span class="tag" title="${esc(bits.join(" · "))}">${esc(s.name)}</span>`;
-    })
-    .join(" ");
-}
-
-/* Show a resolved owner name if we have one, otherwise the raw GUID. */
-function ownerLabel(guid){
-  if (!guid) return '<span class="muted">—</span>';
-  const o = state.owners.get(guid);
-  if (o && o.fullname) return `${esc(o.fullname)}${o.domainname ? ` <span class="muted">(${esc(o.domainname)})</span>` : ""}`;
-  return `<span class="muted">${esc(guid)}</span>`;
-}
 
 /* ---------- wire up live URL building ---------- */
 ["base","uid"].forEach(id => $(id).addEventListener("input", buildUrls)); // buildUrls ends with buildDerived()
@@ -1228,6 +1204,7 @@ function goToStep(i){
   if (i > maxReached) maxReached = i;
   document.querySelectorAll(".screen").forEach(el =>
     el.classList.toggle("active", el.dataset.screen === STEPS[i].id));
+  document.body.classList.toggle("results-wide", STEPS[i].id === "results"); // widen only for Results
   if (STEPS[i].id === "results") $("build").click(); // auto-build on arrival
   refreshNav();
   window.scrollTo(0, 0);
