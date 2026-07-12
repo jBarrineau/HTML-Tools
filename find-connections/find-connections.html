@@ -208,7 +208,10 @@
 <!-- ============ STAGE 9 — RESULTS ============ -->
 <div class="step screen" data-screen="results">
   <h2 style="margin:0 0 10px;border:none;padding:0;">Results</h2>
-  <button id="build">Rebuild mapping</button>
+  <label for="successor">Who is taking over this user's work? <span class="muted">(name or email of a
+  licensed teammate — named in the exported action list; leave blank for a generic placeholder)</span></label>
+  <input type="text" id="successor" placeholder="e.g. Jane Smith (jane@contoso.com)">
+  <button id="build" style="margin-top:10px;">Rebuild mapping</button>
   <button id="export-csv" title="Download every finding below as one distributable action list">⬇ Download action list (CSV)</button>
   <div class="count muted" id="out-export"></div>
   <div id="results"></div>
@@ -781,8 +784,8 @@ $("build").onclick = () => {
         html += `<p class="muted">None of the scanned flows are owned by you.</p>`;
       } else {
         html += `<p class="muted">Flows owned by a departing user stop running when the account is
-          disabled, even if their connections belong to someone else. Reassign these to a service
-          account or teammate first.</p>`;
+          disabled, even if their connections belong to someone else. Transfer ownership to a teammate
+          first — and because connections can't be transferred, re-point their connections too.</p>`;
         html += `<table><thead><tr><th>Flow</th><th>State</th><th>At-risk refs used</th>${solTh}</tr></thead><tbody>`;
         for (const f of owned){
           const rs = [...f.refs].filter(ln => risk.has(ln));
@@ -948,6 +951,10 @@ function connName(nameLc){
   return nameLc;
 }
 function stateLabel(sc){ return sc === 1 ? "On" : "Off/Draft"; }
+/* The teammate taking over the departing user's assets, from the Results-step input. Connections
+   can't be transferred, so every "recreate/re-point" action names this person. Falls back to a
+   generic phrase so the action list still reads cleanly when the field is left blank. */
+function successorName(){ return $("successor").value.trim() || "a designated successor"; }
 
 /* Flatten every finding the Results tables show into one distributable action list — one row
    per entity (flow / connection reference / connection). A flow that is both owned by the
@@ -958,6 +965,7 @@ function buildActionRows(){
   const risk = atRiskCrefs();       // logicalname -> [reasons]
   const yours = yourConnSet();      // your connection names (lowercase), or null
   const names = riskConnNames();    // names to hunt for in raw flow bindings
+  const succ = successorName();     // teammate taking over — connections can't be transferred
   const rows = [];
 
   // Cloud flows — owned by the departing user, or touching an at-risk cref/connection.
@@ -989,8 +997,8 @@ function buildActionRows(){
       dependents,
       solutions: solNames(f.id),
       action: ownedByUser
-        ? "Reassign owner to a service account or teammate before disabling the account"
-        : "Coordinate with the owner to re-point connection references to a service account",
+        ? `Add ${succ} as a co-owner and transfer ownership before the account is disabled — then re-point its connection(s) to ${succ}'s own connection(s), since ownership alone won't keep it running.`
+        : `Coordinate with the owner to re-point its connection reference(s) to ${succ}'s own connection(s).`,
     });
   }
 
@@ -1013,12 +1021,13 @@ function buildActionRows(){
       dependents: orphan ? "0 — orphan" : `${flowNames.length}: ${flowNames.join("; ")}`,
       solutions: solNames(c.id),
       action: orphan
-        ? "Confirm unused, then delete the orphaned connection reference"
-        : "Re-authenticate under a service-account connection; dependent flows break otherwise",
+        ? "Confirm unused, then delete the orphaned connection reference."
+        : `Have ${succ} create their own ${c.connector} connection, then edit this reference to point at it — the dependent flow(s) stay broken until then.`,
     });
   }
 
-  // Your connections — removed with the account, so anything bound to them must be rebuilt.
+  // Your connections — removed with the account. Connections can't be transferred, so a successor
+  // must recreate any that things still depend on; the rest are noise once the account is gone.
   if (state.conns.size && yours){
     const crefsByConn = new Map();
     for (const c of state.crefs.values()){
@@ -1032,25 +1041,34 @@ function buildActionRows(){
       const bound = crefsByConn.get(k) || [];
       const flowKeys = new Set(state.flowRawConns.get(k) || []);
       for (const x of bound) for (const key of state.flowRefs.get(x.logicalname) || []) flowKeys.add(key);
+      const hasDeps = bound.length > 0 || flowKeys.size > 0;
       rows.push({
-        priority: 3,
+        priority: hasDeps ? 3 : 5,
         category: "Connection",
         name: c.display || c.name,
         technical: c.name,
         connector: c.connector,
         state: c.status || "",
         owner: "Departing user",
-        risk: "Owned by departing user — removed when the account is disabled",
+        risk: hasDeps
+          ? "Owned by departing user — removed when the account is disabled; connections can't be transferred to anyone else"
+          : "Owned by departing user — removed when the account is disabled, but nothing depends on it",
         dependents: `${bound.length} connection reference(s), ${flowKeys.size} flow(s)`,
         solutions: "",
-        action: "Recreate under a service account and re-bind dependent connection references",
+        action: hasDeps
+          ? `Connections can't be reassigned — ${succ} must create a replacement ${c.connector} connection under their own account, then re-point the ${bound.length} reference(s) and ${flowKeys.size} flow(s) that use it.`
+          : "No dependents — it's removed with the account; no action needed.",
       });
     }
   }
 
   const filtered = rows.filter(r => r.dependents !== "0 — orphan" && r.state !== "Error");
+  // Group by solution, then category, then state, then item name. (priority is still computed for
+  // the no-action drop filter, but no longer affects ordering.)
   filtered.sort((a, b) => a.solutions.localeCompare(b.solutions)
-    || a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
+    || a.category.localeCompare(b.category)
+    || a.state.localeCompare(b.state)
+    || a.name.localeCompare(b.name));
   return filtered;
 }
 
@@ -1078,10 +1096,16 @@ function toCsv(rows, columns){
 
 $("export-csv").onclick = () => {
   const out = $("out-export");
-  const rows = buildActionRows();
+  const allRows = buildActionRows();
+  // Priority 5 = connections with no dependents ("no action needed"). Drop them so the CSV stays a
+  // pure action list, but keep the count so the omission is visible rather than silent.
+  const rows = allRows.filter(r => r.priority !== 5);
+  const skipped = allRows.length - rows.length;
   if (rows.length === 0){
     out.className = "count warn";
-    out.textContent = "Nothing to export yet — complete the earlier steps so the tables have findings.";
+    out.textContent = allRows.length
+      ? `Nothing needs doing — all ${skipped} finding(s) are connections with no dependents.`
+      : "Nothing to export yet — complete the earlier steps so the tables have findings.";
     return;
   }
   const csv = "﻿" + toCsv(rows, CSV_COLUMNS); // BOM so Excel reads UTF-8
@@ -1098,7 +1122,9 @@ $("export-csv").onclick = () => {
   a.remove();
   URL.revokeObjectURL(url);
   out.className = "count ok";
-  out.textContent = `Exported ${rows.length} action item(s) to ${a.download}.`;
+  out.textContent = `Exported ${rows.length} action item(s)`
+    + (skipped ? ` — ${skipped} no-action connection(s) omitted` : "")
+    + ` to ${a.download}.`;
 };
 
 /* Label a connection by its lowercase name: connections setup details if we have them, else the
