@@ -1,0 +1,1320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Find Connections (Enhanced) — Power Platform offboarding</title>
+<style>
+  /* Bare-minimum styling for the initial phase. */
+  body{ font-family: system-ui, "Segoe UI", Arial, sans-serif; line-height:1.45;
+        color:#111; max-width:1000px; margin:0 auto; padding:24px 20px 80px; }
+  h1{ font-size:22px; margin:0 0 4px; }
+  h2{ font-size:17px; margin:28px 0 8px; border-top:1px solid #ccc; padding-top:16px; }
+  p.sub{ color:#555; margin:0 0 16px; }
+  .step{ border:1px solid #ccc; border-radius:6px; padding:14px 16px; margin:14px 0; }
+  .step h3{ margin:0 0 8px; font-size:15px; }
+  label{ display:block; font-weight:600; font-size:13px; margin:10px 0 4px; }
+  input[type=text], textarea{ width:100%; box-sizing:border-box; font-family:ui-monospace,
+        Consolas,"Cascadia Mono",monospace; font-size:13px; padding:8px; border:1px solid #999;
+        border-radius:4px; }
+  textarea{ min-height:120px; resize:vertical; }
+  button{ font-size:13px; padding:6px 12px; margin:6px 6px 0 0; cursor:pointer;
+        border:1px solid #444; border-radius:4px; background:#f3f3f3; }
+  button:hover{ background:#e7e7e7; }
+  button:disabled{ opacity:.5; cursor:not-allowed; }
+  .primary{ background:#111; color:#fff; border-color:#111; }
+  .primary:hover:not(:disabled){ background:#333; }
+  .url{ font-family:ui-monospace,Consolas,monospace; font-size:12px; background:#f6f6f6;
+        border:1px solid #ddd; border-radius:4px; padding:8px; word-break:break-all;
+        display:block; margin-top:6px; }
+  .url-wrap{ position:relative; }
+  .url-wrap .url{ padding-right:42px; }
+  .copy-icon{ position:absolute; top:7px; right:7px; width:28px; height:28px; margin:0;
+        padding:4px; display:grid; place-items:center; }
+  .copy-icon svg{ width:16px; height:16px; }
+  .muted{ color:#666; font-size:12px; }
+  .ok{ color:#0a7d00; } .warn{ color:#b06a00; } .err{ color:#b00020; }
+  .count{ font-size:12px; color:#333; margin-top:6px; }
+  table{ border-collapse:collapse; width:100%; margin-top:10px; font-size:13px; }
+  th,td{ border:1px solid #ddd; padding:6px 8px; text-align:left; vertical-align:top; }
+  th{ background:#f3f3f3; }
+  .tag{ display:inline-block; font-size:11px; background:#eee; border:1px solid #ccc;
+        border-radius:3px; padding:1px 5px; margin:1px 2px 1px 0; font-family:ui-monospace,monospace; }
+  .orphan{ background:#fff4f4; }
+  .pill{ font-size:11px; padding:1px 6px; border-radius:10px; border:1px solid; }
+  .pill.on{ color:#0a7d00; border-color:#0a7d00; }
+  .pill.off{ color:#777; border-color:#aaa; }
+  details{ margin-top:10px; } summary{ cursor:pointer; font-size:13px; }
+  .flowlist{ margin:4px 0 0; padding-left:18px; }
+
+  /* ---- results ---- */
+  .sum{ display:flex; flex-wrap:wrap; gap:10px; margin:10px 0 6px; }
+  .sum .card{ border:1px solid #ddd; border-radius:8px; padding:8px 14px; min-width:104px; background:#fafafa; }
+  .sum .card.urgent{ border-color:#e0b48b; background:#fff6ec; }
+  .sum .n{ font-size:22px; font-weight:700; line-height:1.1; }
+  .sum .l{ font-size:11px; color:#666; margin-top:3px; text-transform:uppercase; letter-spacing:.04em; }
+  .solgroup{ margin:22px 0; }
+  .solgroup > h3{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:15px;
+        margin:0 0 4px; border-top:1px solid #eee; padding-top:14px; }
+  details.solgroup > summary{ font-size:14px; font-weight:600; cursor:pointer; color:#555;
+        border-top:1px solid #eee; padding-top:14px; }
+  .sol-chip{ display:inline-flex; align-items:center; gap:2px; font-size:12px; background:#eef2ff;
+        border:1px solid #c9d4f5; border-radius:4px; padding:2px 8px; font-weight:600; }
+  a.rec{ color:#0b5cad; text-decoration:none; } a.rec:hover{ text-decoration:underline; }
+  tr.urgent > td{ background:#fff6ec; }
+  .catbadge{ display:inline-block; font-size:11px; border-radius:3px; padding:1px 7px; white-space:nowrap; border:1px solid; }
+  .catbadge.flow{ color:#0b5cad; border-color:#bcd4ef; background:#eef5fc; }
+  .catbadge.cref{ color:#7a4d00; border-color:#e6cfa1; background:#fbf4e6; }
+  .catbadge.conn{ color:#5a3a86; border-color:#d5c4ec; background:#f4eefb; }
+  .tscroll{ overflow-x:auto; }
+  #successor{ max-width:520px; }
+  body.results-wide{ max-width:min(1680px, 96vw); }
+  body.results-wide #results p{ max-width:95ch; }
+  body.results-wide [data-screen="results"] > label{ max-width:80ch; }
+
+  /* ---- wizard ---- */
+  .wiz-head{ position:sticky; top:0; z-index:5; background:#fff; padding-top:8px; margin-bottom:6px; }
+  .wiz-head h1{ margin:0 0 2px; }
+  .wiz-head .sub{ margin:0 0 8px; }
+  .progress{ display:flex; flex-wrap:wrap; gap:6px; list-style:none; padding:0; margin:10px 0 2px; }
+  .pstep{ display:flex; align-items:center; gap:6px; font-size:11px; color:#999;
+        border:1px solid #ddd; border-radius:16px; padding:3px 10px 3px 4px; user-select:none; }
+  .pstep .pnum{ display:grid; place-items:center; width:18px; height:18px; border-radius:50%;
+        background:#eee; color:#666; font-size:11px; font-weight:600; }
+  .pstep.reach{ cursor:pointer; }
+  .pstep.reach:hover{ border-color:#888; }
+  .pstep.done{ color:#0a7d00; border-color:#bfe0bd; }
+  .pstep.done .pnum{ background:#0a7d00; color:#fff; }
+  .pstep.cur{ color:#111; border-color:#444; font-weight:600; }
+  .pstep.cur .pnum{ background:#444; color:#fff; }
+  .pstep.todo .plabel{ opacity:.7; }
+  .screen{ display:none; }
+  .screen.active{ display:block; animation:fade .15s ease; }
+  @keyframes fade{ from{opacity:0} to{opacity:1} }
+  .wiz-nav{ display:flex; align-items:center; gap:14px; margin-top:22px; border-top:1px solid #ccc; padding-top:16px; }
+  .wiz-nav .spacer{ flex:1; }
+  .wiz-nav button{ font-size:14px; padding:8px 18px; }
+  #wiz-next{ background:#111; color:#fff; border-color:#111; }
+  #wiz-next:hover:not(:disabled){ background:#333; }
+  #wiz-next:disabled, #wiz-back:disabled{ opacity:.4; cursor:not-allowed; }
+  .nav-hint{ color:#b06a00; font-size:12px; }
+  .optional-badge{ display:inline-block; font-size:11px; color:#555; background:#f0f0f0;
+        border:1px solid #ddd; border-radius:10px; padding:1px 8px; margin-left:6px; vertical-align:middle;
+        font-weight:normal; }
+  .authnote{ font-size:12px; color:#39506e; background:#f4f8fc; border:1px solid #d6e3f2;
+        border-radius:6px; padding:8px 10px; margin-top:12px; }
+  .authbadge{ display:inline-block; font-size:11px; border-radius:10px; padding:2px 9px; border:1px solid;
+        vertical-align:middle; margin-left:6px; }
+  .authbadge.live{ color:#0a7d00; border-color:#bfe0bd; background:#f2faf1; }
+  .authbadge.unknown{ color:#777; border-color:#ccc; background:#f7f7f7; }
+
+  /* ---- analyze pipeline ---- */
+  .pipe{ list-style:none; padding:0; margin:16px 0 6px; }
+  .pipe li{ display:flex; align-items:center; gap:12px; padding:9px 4px; font-size:13px;
+        border-bottom:1px solid #f0f0f0; }
+  .pipe .pdot{ width:14px; height:14px; border-radius:50%; background:#dcdcdc; flex:none; }
+  .pipe li.run .pdot{ background:#b06a00; animation:pulse 1s ease-in-out infinite; }
+  .pipe li.done .pdot{ background:#0a7d00; }
+  .pipe li.err  .pdot{ background:#b00020; }
+  .pipe .pl{ font-weight:600; min-width:180px; }
+  .pipe li.todo .pl{ color:#999; }
+  .pipe .ps{ color:#555; font-size:12px; }
+  @keyframes pulse{ 0%,100%{opacity:1} 50%{opacity:.35} }
+</style>
+</head>
+<body>
+
+<header class="wiz-head">
+  <h1>Find Connections <span class="muted" style="font-size:13px;font-weight:400;">Enhanced</span></h1>
+  <p class="sub">Map which Power Platform flows and connection references depend on a departing user's
+  connections. This build calls the Dataverse Web API directly from its authenticated host — no copy/paste
+  for Stages&nbsp;4+.</p>
+  <ol id="progress" class="progress"></ol>
+</header>
+
+<!-- ============ STAGE 1 — Your connections (optional, still manual) ============ -->
+<div class="step screen" data-screen="conns">
+  <h3>Your connections <span class="muted">(via Power Automate)</span> <span class="optional-badge">Optional</span></h3>
+  <p class="muted">This one stays a paste: it's the Power Automate <em>connections</em> API — a different
+  resource/token from Dataverse, and it has no field selection, so it can't be fetched the same way as the
+  stages below. Export it once (Power Automate → <span class="tag">Get Connections</span>) and paste it here.</p>
+  <label for="whoid">Your identity — Entra object id, email, or UPN (picks your connections out of an
+  environment-wide list; leave blank to treat every pasted connection as yours)</label>
+  <input type="text" id="whoid" placeholder="Your email address or EntraID UPN">
+  <label for="in-conns">Paste Get Connections output</label>
+  <textarea id="in-conns" placeholder='[ {"name":"…","properties":{"apiId":"…","displayName":"…","createdBy":{…}}} ]'></textarea>
+  <button id="parse-conns">Parse / add</button>
+  <button id="clear-conns">Clear</button>
+  <div class="count" id="out-conns"></div>
+</div>
+
+<!-- ============ STAGE 2 — Web API endpoint (manual) ============ -->
+<div class="step screen" data-screen="base">
+  <h3>Web API endpoint</h3>
+  <label for="base">Paste the environment's Dataverse Web API URL (from Power Apps Portal → Settings → Developer resources)</label>
+  <input type="text" id="base" placeholder="https://orgc356d31f.api.crm.dynamics.com/api/data/v9.2">
+  <p class="muted">Everything from here on is fetched from this endpoint by the tool itself.</p>
+</div>
+
+<!-- ============ STAGE 3 — Connect & verify (manual click; auto WhoAmI) ============ -->
+<div class="step screen" data-screen="connect">
+  <h3>Connect &amp; verify <span id="auth-badge" class="authbadge unknown">not connected</span></h3>
+  <p class="muted">One click calls <span class="tag">WhoAmI</span> against the endpoint above. That both
+  proves the tool is authenticated and captures your owner GUID — no separate sign-in-and-paste step.</p>
+  <button id="btn-connect" class="primary">🔌 Connect &amp; verify</button>
+  <div class="count" id="connect-status"></div>
+
+  <label for="uid" style="margin-top:14px;">Owner GUID (UserId) — auto-filled by Connect, or paste manually</label>
+  <input type="text" id="uid" placeholder="cc985d4a-b213-f111-8341-000d3a58b033">
+
+  <div class="authnote">
+    <strong>Auth:</strong> in its SPFx host the tool uses, in order — (1) a token from
+    <span class="tag">window.getDataverseToken(resourceOrigin)</span> if the host page defines it
+    (wire this to the SPFx <span class="tag">AadHttpClient</span>/token provider), (2) an access token
+    pasted in <em>Advanced</em> below, or (3) the ambient session cookies
+    (<span class="tag">credentials:"include"</span>). Every stage also keeps a manual-paste fallback, so a
+    blocked call never dead-ends the wizard.
+  </div>
+
+  <details>
+    <summary>Advanced — paste an access token / WhoAmI manually</summary>
+    <label for="token">Bearer access token for the Dataverse resource <span class="muted">(optional; for standalone testing outside SPFx)</span></label>
+    <textarea id="token" style="min-height:70px" placeholder="eyJ0eXAiOiJKV1Qi…"></textarea>
+    <label for="in-whoami" style="margin-top:10px;">…or paste a WhoAmI response</label>
+    <textarea id="in-whoami" style="min-height:70px" placeholder='{"@odata.context":"…","UserId":"cc985d4a-…"}'></textarea>
+    <button id="parse-whoami">Parse WhoAmI</button>
+    <div class="count" id="out-whoami"></div>
+  </details>
+</div>
+
+<!-- ============ STAGE 4 — Automated analysis pipeline (replaces old Stages 5-8) ============ -->
+<div class="step screen" data-screen="analyze">
+  <h3>Analyze the environment <span class="muted">(automatic)</span></h3>
+  <p class="muted">Fetches — directly, following <span class="tag">@odata.nextLink</span> paging and
+  chunking large filters automatically — connection references, the cloud flows that touch your
+  connections, those flows' owner names, and their solution membership. Nothing to open or paste.</p>
+  <button id="run-analysis" class="primary">▶ Run analysis</button>
+  <button id="rerun-analysis" style="display:none">↻ Re-run</button>
+
+  <ol id="pipe" class="pipe">
+    <li data-sub="crefs" class="todo"><span class="pdot"></span><span class="pl">Connection references</span><span class="ps"></span></li>
+    <li data-sub="flows"  class="todo"><span class="pdot"></span><span class="pl">Cloud flows (filtered)</span><span class="ps"></span></li>
+    <li data-sub="owners" class="todo"><span class="pdot"></span><span class="pl">Owner names</span><span class="ps"></span></li>
+    <li data-sub="sols"   class="todo"><span class="pdot"></span><span class="pl">Solution membership</span><span class="ps"></span></li>
+  </ol>
+  <div class="count" id="analyze-err"></div>
+
+  <details id="manual-fallback">
+    <summary>Fetch blocked or failed? Paste the responses manually</summary>
+
+    <h3 style="margin-top:14px;">Connection references</h3>
+    <div class="url-wrap"><span class="url" id="url-crefs">Enter the base URL in Stage 2…</span>
+      <button class="copy-icon" data-copy="url-crefs" aria-label="Copy URL" title="Copy URL"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="1"/><path d="M15 9V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h4"/></svg></button></div>
+    <button data-open="url-crefs">Open URL in New Tab</button>
+    <textarea id="in-crefs" placeholder='{"value":[ … ]}'></textarea>
+    <button id="parse-crefs">Parse / add</button><button id="clear-crefs">Clear</button>
+    <div class="count" id="out-crefs"></div>
+
+    <h3 style="margin-top:16px;">Cloud flows</h3>
+    <div id="urls-flows"><span class="url">Enter the base URL in Stage 2…</span></div>
+    <textarea id="in-flows" placeholder='{"value":[ {"name":"…","clientdata":"{…}","statecode":1} ]}'></textarea>
+    <button id="parse-flows">Parse / add</button><button id="clear-flows">Clear</button>
+    <div class="count" id="out-flows"></div>
+
+    <h3 style="margin-top:16px;">Owner names</h3>
+    <div class="url-wrap"><span class="url" id="url-owners">Parse flows first…</span>
+      <button class="copy-icon" data-copy="url-owners" aria-label="Copy URL" title="Copy URL"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="1"/><path d="M15 9V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h4"/></svg></button></div>
+    <button data-open="url-owners">Open URL in New Tab</button>
+    <textarea id="in-owners" placeholder='{"value":[ {"systemuserid":"…","fullname":"…","domainname":"…"} ]}'></textarea>
+    <button id="parse-owners">Parse / add</button><button id="clear-owners">Clear</button>
+    <div class="count" id="out-owners"></div>
+
+    <h3 style="margin-top:16px;">Solution membership</h3>
+    <div id="urls-sols"><span class="url">Enter the base URL in Stage 2…</span></div>
+    <textarea id="in-sols" placeholder='{"value":[ {"objectid":"…","_solutionid_value":"…","solutionid":{"friendlyname":"…"}} ]}'></textarea>
+    <button id="parse-sols">Parse / add</button><button id="clear-sols">Clear</button>
+    <div class="count" id="out-sols"></div>
+  </details>
+</div>
+
+<!-- ============ STAGE 5 — RESULTS ============ -->
+<div class="step screen" data-screen="results">
+  <h2 style="margin:0 0 10px;border:none;padding:0;">Results</h2>
+  <label for="successor">Who is taking over this user's work? <span class="muted">(name or email of a
+  licensed teammate — named in the exported action list; leave blank for a generic placeholder)</span></label>
+  <input type="text" id="successor" placeholder="e.g. Jane Smith (jane@contoso.com)">
+  <button id="build" style="margin-top:10px;">Rebuild mapping</button>
+  <button id="export-csv" title="Download every finding below as one distributable action list">⬇ Download action list (CSV)</button>
+  <div class="count muted" id="out-export"></div>
+  <div id="results"></div>
+</div>
+
+<nav class="wiz-nav">
+  <button id="wiz-back">← Back</button>
+  <span class="nav-hint" id="wiz-hint"></span>
+  <span class="spacer"></span>
+  <button id="wiz-next">Next →</button>
+</nav>
+
+<script>
+"use strict";
+
+/* ---------- state ---------- */
+const state = {
+  uid: "",
+  connected: false,   // Stage 3 — true once WhoAmI (or a manual GUID) has been supplied
+  envId: "",          // environment GUID — scraped from flow clientdata, for maker-portal deep links
+  crefs: new Map(),   // logicalname -> {logicalname, display, connector, connectionid, statecode, owner}
+  conns: new Map(),   // connection name(lowercase) -> {name, connector, display, createdBy*, status}
+  flows: new Map(),   // workflowid|name -> {name, state, owner, refs:Set, connectors:Set, rawConns:Set}
+  flowRefs: new Map(),
+  flowRawConns: new Map(),
+  flowsByOwner: new Map(),
+  owners: new Map(),  // systemuserid(guid) -> {fullname, domainname}
+  sols: new Map(),    // objectid(lowercase guid) -> Map(uniquename -> {name, uniquename, solid, managed})
+  solsParsed: false,
+};
+
+/* ---------- helpers ---------- */
+const $ = id => document.getElementById(id);
+
+function normBase(){
+  let b = $("base").value.trim();
+  return b.replace(/\/+$/, "");
+}
+
+/* =====================================================================================
+   DATAVERSE FETCH LAYER  (the enhancement)
+   Running inside an authenticated SPFx iframe, call the Web API directly instead of the
+   open-URL / copy-paste dance. Auth precedence: host token provider → pasted token →
+   ambient cookies. Every stage keeps a manual-paste fallback so a blocked call never
+   dead-ends the wizard.
+   ===================================================================================== */
+
+/* The SPFx host can expose window.getDataverseToken(origin) -> Promise<string>, wired to its
+   AadHttpClient / token provider. Falls back to a token pasted in the Advanced box. */
+async function acquireToken(){
+  try{
+    if (typeof window.getDataverseToken === "function"){
+      const t = await window.getDataverseToken(new URL(normBase()).origin);
+      if (t) return String(t);
+    }
+  }catch{ /* fall through to manual/cookie auth */ }
+  return $("token") ? $("token").value.trim() : "";
+}
+
+function reflectAuthMode(){
+  const badge = $("auth-badge");
+  if (!badge) return;
+  const hostToken = typeof window.getDataverseToken === "function";
+  const pasted = $("token") && $("token").value.trim();
+  if (state.connected){ badge.className = "authbadge live"; badge.textContent = "connected"; return; }
+  badge.className = "authbadge unknown";
+  badge.textContent = hostToken ? "host token available" : pasted ? "token pasted" : "not connected";
+}
+
+async function dvFetch(url){
+  const headers = { "Accept":"application/json", "OData-MaxVersion":"4.0", "OData-Version":"4.0" };
+  const token = await acquireToken();
+  const init = { method:"GET", headers };
+  if (token) headers["Authorization"] = "Bearer " + token;
+  else init.credentials = "include";                 // ambient-cookie fallback
+  let res;
+  try{ res = await fetch(url, init); }
+  catch(e){ throw new Error(`network/CORS error — ${e.message}`); }
+  if (!res.ok){
+    let detail = "";
+    try{ const j = await res.json(); detail = j?.error?.message || j?.Message || ""; }catch{}
+    throw new Error(`HTTP ${res.status} ${res.statusText}${detail ? " — " + detail : ""}`);
+  }
+  return res.json();
+}
+
+/* Follow @odata.nextLink automatically, accumulating value rows across pages. */
+async function dvFetchAll(url, onProgress){
+  const all = [];
+  let next = url, page = 0;
+  while (next){
+    const obj = await dvFetch(next);
+    for (const r of rows(obj)) all.push(r);
+    page++;
+    onProgress?.(all.length, page);
+    next = obj["@odata.nextLink"] || null;
+    if (page >= 200) throw new Error("stopped after 200 pages — unexpected paging loop");
+  }
+  return all;
+}
+
+function chunk(arr, size){
+  const out = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
+/* Split a big OR-filter into chunks that each fit a URL, fetch each (with paging), and merge —
+   replaces the copy/paste build's "too many ids → download the whole environment" compromise. */
+async function dvFetchChunked(buildUrl, values, perChunk, onProgress){
+  const all = [];
+  const parts = chunk([...values], perChunk);
+  let done = 0;
+  for (const part of parts){
+    for (const r of await dvFetchAll(buildUrl(part))) all.push(r);
+    onProgress?.(all.length, ++done, parts.length);
+  }
+  return all;
+}
+
+/* ---------- manual-fallback URL builders (only used when a fetch is blocked) ---------- */
+function buildUrls(){
+  const b = normBase();
+  const el = $("url-crefs");
+  if (el){
+    el.textContent = b
+      ? encodeURI(`${b}/connectionreferences?$select=connectionreferenceid,connectionreferencedisplayname,`
+          + `connectionreferencelogicalname,connectorid,connectionid,statecode,_ownerid_value`
+          + `&$orderby=modifiedon desc`)
+      : "Enter the base URL in Stage 2…";
+  }
+  buildDerived();
+}
+
+function urlBoxHtml(id, rawQuery){
+  return `<div class="url-wrap"><span class="url" id="${id}">${esc(encodeURI(rawQuery))}</span>`
+    + `<button class="copy-icon" data-copy="${id}" aria-label="Copy URL" title="Copy URL"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="1"/><path d="M15 9V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h4"/></svg></button></div>`
+    + `<button data-open="${id}">Open URL in New Tab</button>`;
+}
+
+function odataStr(v){ return String(v).replace(/'/g, "''"); }
+
+function riskFilterClauses(){
+  const values = new Set();
+  for (const ln of atRiskCrefs().keys()) values.add(ln);
+  for (const n of riskConnNames()) values.add(n);
+  return [...values].map(v => `contains(clientdata,'${odataStr(v)}')`);
+}
+
+function buildFlowQuery(b, clauses){
+  const filter = clauses.length ? `category eq 5 and (${clauses.join(" or ")})` : "category eq 5";
+  return `${b}/workflows?$select=name,clientdata,statecode,_ownerid_value`
+    + `&$filter=${filter}&$orderby=modifiedon desc`;
+}
+
+function buildFlowUrls(){
+  const b = normBase();
+  const box = $("urls-flows");
+  if (!box) return;
+  if (!b){ box.innerHTML = `<div class="url-wrap"><span class="url">Enter the base URL in Stage 2…</span></div>`; return; }
+  const clauses = riskFilterClauses();
+  box.innerHTML = urlBoxHtml("url-flows-0", buildFlowQuery(b, clauses.length ? clauses : []));
+}
+
+function impactedFlowKeys(){
+  const risk = atRiskCrefs();
+  const names = riskConnNames();
+  const noFilter = risk.size === 0 && names.size === 0;
+  const keys = new Set();
+  for (const [key, f] of state.flows){
+    if (noFilter || [...f.refs].some(ln => risk.has(ln)) || rawConnHits(f, names).size) keys.add(key);
+  }
+  return keys;
+}
+
+function neededOwnerGuids(){
+  const guids = new Set();
+  for (const key of impactedFlowKeys()){
+    const f = state.flows.get(key);
+    if (f && f.owner) guids.add(f.owner);
+  }
+  return guids;
+}
+
+function buildOwnerUrl(){
+  const b = normBase();
+  const el = $("url-owners");
+  if (!el) return;
+  if (!b || state.flows.size === 0){ el.textContent = "Parse flows first…"; return; }
+  const guids = neededOwnerGuids();
+  if (guids.size === 0){ el.textContent = "No owner GUIDs found on the parsed flows."; return; }
+  const filter = [...guids].map(g => `systemuserid eq ${g}`).join(" or ");
+  el.textContent = encodeURI(`${b}/systemusers?$select=systemuserid,fullname,domainname&$filter=${filter}`);
+}
+
+function ownersResolved(){
+  const have = new Set([...state.owners.keys()].map(k => k.toLowerCase()));
+  return [...neededOwnerGuids()].every(g => have.has(g.toLowerCase()));
+}
+
+function solObjectIds(){
+  const ids = new Set();
+  for (const key of impactedFlowKeys()){
+    const f = state.flows.get(key);
+    if (f && f.id) ids.add(f.id.toLowerCase());
+  }
+  for (const c of state.crefs.values()) if (c.id) ids.add(c.id.toLowerCase());
+  return ids;
+}
+
+const SOL_COMPONENT_TYPES = [29, 10156]; // workflow, connectionreference
+function buildSolQuery(b, clauses){
+  const typeFilter = SOL_COMPONENT_TYPES.map(t => `componenttype eq ${t}`).join(" or ");
+  const objFilter = clauses.length ? ` and (${clauses.join(" or ")})` : "";
+  return `${b}/solutioncomponents?$select=objectid,componenttype,_solutionid_value`
+    + `&$expand=solutionid($select=friendlyname,uniquename,ismanaged)&$filter=(${typeFilter})${objFilter}`;
+}
+
+function buildSolUrls(){
+  const b = normBase();
+  const box = $("urls-sols");
+  if (!box) return;
+  if (!b){ box.innerHTML = `<div class="url-wrap"><span class="url">Enter the base URL in Stage 2…</span></div>`; return; }
+  const ids = solObjectIds();
+  box.innerHTML = urlBoxHtml("url-sols-0", buildSolQuery(b, [...ids].map(id => `objectid eq ${id}`)));
+}
+
+function buildDerived(){ buildFlowUrls(); buildOwnerUrl(); buildSolUrls(); }
+
+/* =====================================================================================
+   ANALYSIS PIPELINE — fetch crefs → flows → owners → sols, with a live progress list.
+   Each substep feeds the SAME parse handlers the manual paste path uses, so downstream
+   logic (results / CSV) is identical regardless of how the data arrived.
+   ===================================================================================== */
+
+async function fetchCrefs(status){
+  const b = normBase();
+  state.crefs.clear();
+  status("fetching…");
+  const url = encodeURI(`${b}/connectionreferences?$select=connectionreferenceid,connectionreferencedisplayname,`
+    + `connectionreferencelogicalname,connectorid,connectionid,statecode,_ownerid_value&$orderby=modifiedon desc`);
+  const all = await dvFetchAll(url, n => status(`${n} fetched…`));
+  doParseCrefs({ value: all });
+}
+
+async function fetchFlows(status){
+  const b = normBase();
+  state.flows.clear(); state.flowRefs.clear(); state.flowRawConns.clear(); state.flowsByOwner.clear();
+  const clauses = riskFilterClauses();
+  let all;
+  if (clauses.length === 0){
+    status("no at-risk filter yet — scanning all flows…");
+    all = await dvFetchAll(encodeURI(buildFlowQuery(b, [])), n => status(`${n} flow(s)…`));
+  } else {
+    // Chunk the contains() clauses so each URL stays small; merge + de-dupe by workflowid.
+    const parts = chunk(clauses, 12);
+    const seen = new Map();
+    let p = 0;
+    for (const part of parts){
+      for (const r of await dvFetchAll(encodeURI(buildFlowQuery(b, part)))){
+        const k = r.workflowid || r.name;
+        if (k && !seen.has(k)) seen.set(k, r);
+      }
+      status(`${seen.size} matching flow(s) (${++p}/${parts.length} filter batches)…`);
+    }
+    all = [...seen.values()];
+  }
+  doParseFlows({ value: all });
+}
+
+async function fetchOwners(status){
+  const b = normBase();
+  state.owners.clear();
+  const guids = [...neededOwnerGuids()];
+  if (guids.length === 0){ status("no impacted-flow owners to resolve"); doParseOwners({ value: [] }); return; }
+  const all = await dvFetchChunked(
+    part => encodeURI(`${b}/systemusers?$select=systemuserid,fullname,domainname`
+      + `&$filter=${part.map(g => `systemuserid eq ${g}`).join(" or ")}`),
+    guids, 40, n => status(`${n}/${guids.length} resolved…`));
+  doParseOwners({ value: all });
+}
+
+async function fetchSols(status){
+  const b = normBase();
+  state.sols.clear(); state.solsParsed = false;
+  const ids = [...solObjectIds()];
+  let all;
+  if (ids.length === 0){
+    status("whole-environment scan…");
+    all = await dvFetchAll(encodeURI(buildSolQuery(b, [])), n => status(`${n} component(s)…`));
+  } else {
+    all = await dvFetchChunked(
+      part => encodeURI(buildSolQuery(b, part.map(id => `objectid eq ${id}`))),
+      ids, 30, n => status(`${n} component(s)…`));
+  }
+  doParseSols({ value: all });      // sets state.solsParsed = true
+}
+
+const SUBSTEPS = [
+  { id:"crefs",  run:fetchCrefs,  out:"out-crefs"  },
+  { id:"flows",  run:fetchFlows,  out:"out-flows"  },
+  { id:"owners", run:fetchOwners, out:"out-owners" },
+  { id:"sols",   run:fetchSols,   out:"out-sols"   },
+];
+
+function setSub(id, st, text){
+  const li = document.querySelector(`#pipe li[data-sub="${id}"]`);
+  if (!li) return;
+  li.className = st;
+  li.querySelector(".ps").textContent = text || "";
+}
+
+let analyzing = false;
+async function runAnalysis(){
+  if (analyzing) return;
+  analyzing = true;
+  $("run-analysis").disabled = true;
+  $("rerun-analysis").disabled = true;
+  $("analyze-err").textContent = "";
+  for (const s of SUBSTEPS) setSub(s.id, "todo", "");
+  try{
+    for (const s of SUBSTEPS){
+      setSub(s.id, "run", "working…");
+      try{ await s.run(msg => setSub(s.id, "run", msg)); }
+      catch(e){ setSub(s.id, "err", e.message); throw e; }
+      setSub(s.id, "done", ($(s.out).textContent || "done").replace(/^Added \d+\.\s*/, ""));
+    }
+  }catch(e){
+    $("analyze-err").className = "count err";
+    $("analyze-err").innerHTML = `Analysis stopped: ${esc(e.message)} — retry, check the token/endpoint, `
+      + `or open the manual fallback below.`;
+    $("manual-fallback").open = true;
+  }finally{
+    analyzing = false;
+    $("run-analysis").disabled = false;
+    $("rerun-analysis").disabled = false;
+    $("rerun-analysis").style.display = "inline-block";
+    refreshNav();
+  }
+}
+$("run-analysis").onclick = runAnalysis;
+$("rerun-analysis").onclick = runAnalysis;
+
+/* ---------- connect / verify (Stage 3) ---------- */
+async function connectVerify(){
+  const el = $("connect-status");
+  el.className = "count"; el.textContent = "Connecting…";
+  $("btn-connect").disabled = true;
+  try{
+    const obj = await dvFetch(encodeURI(normBase() + "/WhoAmI"));
+    doParseWhoami(obj);
+    if (!$("uid").value.trim()) throw new Error("WhoAmI returned no UserId");
+    state.connected = true;
+    el.className = "count ok";
+    el.textContent = `Connected. Your user id: ${$("uid").value.trim()}`;
+  }catch(e){
+    state.connected = false;
+    el.className = "count err";
+    el.innerHTML = `Couldn't reach the Web API: ${esc(e.message)}. Check the endpoint/token, or paste a `
+      + `WhoAmI response under Advanced.`;
+  }finally{
+    $("btn-connect").disabled = false;
+    reflectAuthMode();
+    refreshNav();
+  }
+}
+$("btn-connect").onclick = connectVerify;
+
+/* ---------- shared parse utilities ---------- */
+function parseJson(txt){
+  const t = txt.trim();
+  if (!t) throw new Error("Nothing pasted.");
+  return JSON.parse(t);
+}
+
+function rows(obj){
+  if (Array.isArray(obj)) return obj;
+  if (obj && Array.isArray(obj.value)) return obj.value;
+  return [obj]; // single record (e.g. WhoAmI)
+}
+
+function nextLinkNote(obj, el){
+  const nl = obj && (obj["@odata.nextLink"] || obj.nextLink);
+  if (nl) el.innerHTML += ` <span class="warn">— more pages exist (auto-followed when fetched).</span>`;
+}
+
+function extractClientData(cd){
+  const out = { refs:new Set(), connectors:new Set(), rawConns:new Set(), env:"" };
+  if (!cd) return out;
+  const em = cd.match(/environmentName"\s*:\s*"([0-9a-f-]{36})"/i)
+    || cd.match(/environment eq '([0-9a-f-]{36})'/i);
+  if (em) out.env = em[1];
+  let obj; try { obj = JSON.parse(cd); } catch { return out; }
+  const cr = obj?.properties?.connectionReferences ?? obj?.connectionReferences ?? {};
+  for (const v of Object.values(cr)){
+    const ln = v?.connection?.connectionReferenceLogicalName;
+    if (ln) out.refs.add(ln);
+    if (v?.api?.name) out.connectors.add(String(v.api.name).split("/").pop());
+    if (v?.connection?.id) out.rawConns.add(String(v.connection.id).split("/").pop().toLowerCase());
+  }
+  return out;
+}
+
+function addToIndex(index, value, key){
+  if (!value) return;
+  if (!index.has(value)) index.set(value, new Set());
+  index.get(value).add(key);
+}
+function removeFromIndex(index, value, key){
+  if (!value || !index.has(value)) return;
+  const keys = index.get(value);
+  keys.delete(key);
+  if (keys.size === 0) index.delete(value);
+}
+function indexFlow(key, flow){
+  for (const ln of flow.refs) addToIndex(state.flowRefs, ln, key);
+  for (const name of flow.rawConns) addToIndex(state.flowRawConns, name, key);
+  addToIndex(state.flowsByOwner, (flow.owner || "").toLowerCase(), key);
+}
+function unindexFlow(key, flow){
+  for (const ln of flow.refs) removeFromIndex(state.flowRefs, ln, key);
+  for (const name of flow.rawConns) removeFromIndex(state.flowRawConns, name, key);
+  removeFromIndex(state.flowsByOwner, (flow.owner || "").toLowerCase(), key);
+}
+function storeFlow(key, flow){
+  const old = state.flows.get(key);
+  if (old) unindexFlow(key, old);
+  state.flows.set(key, flow);
+  indexFlow(key, flow);
+}
+
+function yourConnSet(){
+  if (state.conns.size === 0) return null;
+  const ident = $("whoid").value.trim().toLowerCase();
+  const out = new Set();
+  for (const c of state.conns.values()){
+    if (!ident || [c.createdById, c.createdByEmail, c.createdByUpn, c.createdByName]
+        .some(v => v && v.toLowerCase() === ident)) out.add(c.name.toLowerCase());
+  }
+  return out;
+}
+
+function atRiskCrefs(){
+  const uid = $("uid").value.trim().toLowerCase();
+  const yours = yourConnSet();
+  const out = new Map();
+  for (const c of state.crefs.values()){
+    const reasons = [];
+    if (yours && c.connectionid && yours.has(c.connectionid.toLowerCase()))
+      reasons.push("bound to your connection");
+    if (uid && (c.owner || "").toLowerCase() === uid)
+      reasons.push(yours ? "cref record owned by you" : "owned by you (bound connection unknown — complete the connections setup)");
+    if (reasons.length) out.set(c.logicalname, reasons);
+  }
+  return out;
+}
+
+function riskConnNames(){
+  const yours = yourConnSet();
+  if (yours) return yours;
+  const s = new Set();
+  for (const ln of atRiskCrefs().keys()){
+    const c = state.crefs.get(ln);
+    if (c && c.connectionid) s.add(c.connectionid.toLowerCase());
+  }
+  return s;
+}
+
+function rawConnHits(f, names){
+  const hits = new Set();
+  if (!f.rawConns || !names || names.size === 0) return hits;
+  for (const raw of f.rawConns) if (names.has(raw)) hits.add(raw);
+  return hits;
+}
+
+/* ---------- parse handlers ---------- */
+function doParseWhoami(obj){
+  const el = $("out-whoami");
+  try{
+    obj = obj || parseJson($("in-whoami").value);
+    const uid = obj.UserId || obj.userId || (rows(obj)[0] && rows(obj)[0].UserId);
+    if (!uid) throw new Error("No UserId field found.");
+    $("uid").value = uid;
+    state.uid = uid;
+    state.connected = true;
+    if (el){ el.className = "count ok"; el.textContent = `Owner GUID: ${uid}`; }
+    $("in-whoami").value = "";
+    buildUrls();
+    reflectAuthMode();
+  }catch(e){ if (el){ el.className="count err"; el.textContent = "Parse error: " + e.message; } }
+}
+$("parse-whoami").onclick = () => doParseWhoami();
+
+function doParseCrefs(obj){
+  const el = $("out-crefs");
+  try{
+    obj = obj || parseJson($("in-crefs").value);
+    let n = 0;
+    for (const r of rows(obj)){
+      const ln = r.connectionreferencelogicalname;
+      if (!ln) continue;
+      state.crefs.set(ln, {
+        logicalname: ln,
+        id: r.connectionreferenceid || "",
+        display: r.connectionreferencedisplayname || "",
+        connector: (r.connectorid || "").split("/").pop(),
+        connectionid: r.connectionid || "",
+        statecode: r.statecode,
+        owner: r._ownerid_value || "",
+      });
+      n++;
+    }
+    el.className = "count ok";
+    el.textContent = `Added ${n}. Total connection references: ${state.crefs.size}.`;
+    nextLinkNote(obj, el);
+    $("in-crefs").value = "";
+    buildDerived();
+  }catch(e){ el.className="count err"; el.textContent = "Parse error: " + e.message; }
+}
+$("parse-crefs").onclick = () => doParseCrefs();
+$("clear-crefs").onclick = () => { state.crefs.clear(); $("out-crefs").textContent="Cleared."; $("out-crefs").className="count muted"; buildDerived(); };
+
+function doParseConns(obj){
+  const el = $("out-conns");
+  try{
+    obj = obj || parseJson($("in-conns").value);
+    let n = 0;
+    for (const r of rows(obj)){
+      const name = r.name || String(r.id || "").split("/").pop();
+      if (!name || !r.properties) continue;
+      const p = r.properties;
+      state.conns.set(name.toLowerCase(), {
+        name,
+        connector: String(p.apiId || "").split("/").pop(),
+        display: p.displayName || "",
+        createdById: p.createdBy?.id || "",
+        createdByName: p.createdBy?.displayName || "",
+        createdByEmail: p.createdBy?.email || "",
+        createdByUpn: p.createdBy?.userPrincipalName || "",
+        status: p.statuses?.[0]?.status || "",
+      });
+      n++;
+    }
+    el.className = "count ok";
+    el.textContent = `Added ${n}. Total connections: ${state.conns.size}.`;
+    nextLinkNote(obj, el);
+    $("in-conns").value = "";
+    buildDerived();
+  }catch(e){ el.className="count err"; el.textContent = "Parse error: " + e.message; }
+}
+$("parse-conns").onclick = () => doParseConns();
+$("clear-conns").onclick = () => { state.conns.clear(); $("out-conns").textContent="Cleared."; $("out-conns").className="count muted"; buildDerived(); };
+
+function doParseFlows(obj){
+  const el = $("out-flows");
+  try{
+    obj = obj || parseJson($("in-flows").value);
+    let n = 0;
+    for (const r of rows(obj)){
+      const key = r.workflowid || r.workflowidunique || r.name;
+      if (!key) continue;
+      const ex = extractClientData(r.clientdata);
+      if (ex.env) state.envId = ex.env;
+      storeFlow(key, {
+        name: r.name || "(unnamed)",
+        id: r.workflowid || "",
+        state: r.statecode,
+        owner: r._ownerid_value || r["_ownerid_value"] || "",
+        refs: ex.refs, connectors: ex.connectors, rawConns: ex.rawConns,
+      });
+      n++;
+    }
+    el.className = "count ok";
+    el.textContent = `Added ${n}. Total flows: ${state.flows.size}.`;
+    nextLinkNote(obj, el);
+    $("in-flows").value = "";
+    buildDerived();
+  }catch(e){ el.className="count err"; el.textContent = "Parse error: " + e.message; }
+}
+$("parse-flows").onclick = () => doParseFlows();
+$("clear-flows").onclick = () => { state.flows.clear(); state.flowRefs.clear(); state.flowRawConns.clear(); state.flowsByOwner.clear(); $("out-flows").textContent="Cleared."; $("out-flows").className="count muted"; buildDerived(); };
+
+function doParseOwners(obj){
+  const el = $("out-owners");
+  try{
+    obj = obj || parseJson($("in-owners").value);
+    let n = 0;
+    for (const r of rows(obj)){
+      const id = r.systemuserid;
+      if (!id) continue;
+      state.owners.set(id, { fullname: r.fullname || "", domainname: r.domainname || "" });
+      n++;
+    }
+    el.className = "count ok";
+    el.textContent = `Added ${n}. Total owners resolved: ${state.owners.size}.`;
+    nextLinkNote(obj, el);
+    $("in-owners").value = "";
+  }catch(e){ el.className="count err"; el.textContent = "Parse error: " + e.message; }
+}
+$("parse-owners").onclick = () => doParseOwners();
+$("clear-owners").onclick = () => { state.owners.clear(); $("out-owners").textContent="Cleared."; $("out-owners").className="count muted"; };
+
+function doParseSols(obj){
+  const el = $("out-sols");
+  try{
+    obj = obj || parseJson($("in-sols").value);
+    let n = 0;
+    for (const r of rows(obj)){
+      const oid = (r.objectid || "").toLowerCase();
+      const s = r.solutionid || {};
+      const un = s.uniquename || r._solutionid_value;
+      if (!oid || !un) continue;
+      if (un === "Default" || un === "Active") continue;
+      if (!state.sols.has(oid)) state.sols.set(oid, new Map());
+      state.sols.get(oid).set(un.toLowerCase(), {
+        name: s.friendlyname || un,
+        uniquename: s.uniquename || "",
+        solid: r._solutionid_value || s.solutionid || "",
+        managed: !!s.ismanaged,
+      });
+      n++;
+    }
+    state.solsParsed = true;
+    el.className = "count ok";
+    el.textContent = `Added ${n}. Components with solution info: ${state.sols.size}.`;
+    nextLinkNote(obj, el);
+    $("in-sols").value = "";
+  }catch(e){ el.className="count err"; el.textContent = "Parse error: " + e.message; }
+}
+$("parse-sols").onclick = () => doParseSols();
+$("clear-sols").onclick = () => { state.sols.clear(); state.solsParsed = false; $("out-sols").textContent="Cleared."; $("out-sols").className="count muted"; };
+
+/* Auto-parse the manual-fallback textareas after typing/pasting settles. */
+function autoParseOnValidJson(textareaId, handler){
+  let timer;
+  const el = $(textareaId);
+  if (!el) return;
+  el.addEventListener("input", () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      const t = el.value.trim();
+      if (!t) return;
+      let obj;
+      try { obj = JSON.parse(t); } catch { return; }
+      if (!obj || typeof obj !== "object") return;
+      handler(obj);
+    }, 250);
+  });
+}
+autoParseOnValidJson("in-whoami", doParseWhoami);
+autoParseOnValidJson("in-crefs", doParseCrefs);
+autoParseOnValidJson("in-conns", doParseConns);
+autoParseOnValidJson("in-flows", doParseFlows);
+autoParseOnValidJson("in-owners", doParseOwners);
+autoParseOnValidJson("in-sols", doParseSols);
+
+/* ---------- copy / open-in-new-tab buttons (delegated) ---------- */
+document.addEventListener("click", e => {
+  const cp = e.target.closest("button[data-copy]");
+  if (cp){
+    navigator.clipboard.writeText($(cp.dataset.copy).textContent).then(() => {
+      cp.setAttribute("aria-label", "Copied URL"); cp.title = "Copied!";
+      setTimeout(() => { cp.setAttribute("aria-label", "Copy URL"); cp.title = "Copy URL"; }, 1200);
+    });
+    return;
+  }
+  const op = e.target.closest("button[data-open]");
+  if (op){
+    const txt = $(op.dataset.open).textContent;
+    if (/^https?:\/\//i.test(txt)) window.open(txt, "_blank", "noopener");
+  }
+});
+
+/* ---------- build / render results ---------- */
+$("build").onclick = () => renderResults();
+
+function appBaseUrl(){
+  try { return new URL(normBase()).origin.replace(/\.api\.crm/i, ".crm"); }
+  catch { return ""; }
+}
+function flowUrl(id){
+  if (!id) return "";
+  if (state.envId) return `https://make.powerautomate.com/environments/${encodeURIComponent(state.envId)}/flows/${encodeURIComponent(id)}/details`;
+  const app = appBaseUrl();
+  return app ? `${app}/main.aspx?pagetype=entityrecord&etn=workflow&id=${encodeURIComponent(id)}` : "";
+}
+function solutionUrl(solid){
+  if (!solid) return "";
+  if (state.envId) return `https://make.powerapps.com/environments/${encodeURIComponent(state.envId)}/solutions/${encodeURIComponent(solid)}`;
+  const app = appBaseUrl();
+  return app ? `${app}/main.aspx?pagetype=entityrecord&etn=solution&id=${encodeURIComponent(solid)}` : "";
+}
+
+function summaryCard(n, label, urgent){
+  return `<div class="card${urgent ? " urgent" : ""}"><div class="n">${n}</div><div class="l">${esc(label)}</div></div>`;
+}
+
+function groupBySolution(rows){
+  const g = new Map();
+  for (const r of rows){
+    const k = r.solutions || "";
+    if (!g.has(k)) g.set(k, []);
+    g.get(k).push(r);
+  }
+  return new Map([...g.entries()].sort((a, b) =>
+    a[0] === "" ? 1 : b[0] === "" ? -1 : a[0].localeCompare(b[0])));
+}
+
+function solHeader(row){
+  const list = row.solList || [];
+  if (!list.length) return `<span class="muted">Outside any solution</span>`;
+  return list.map(s => {
+    const label = esc(s.name) + (s.managed ? ` <span class="muted">(managed)</span>` : "");
+    const url = solutionUrl(s.solid);
+    return url
+      ? `<span class="sol-chip"><a class="rec" href="${esc(url)}" target="_blank" rel="noopener">${label}</a> ↗</span>`
+      : `<span class="sol-chip">${label}</span>`;
+  }).join(" ");
+}
+
+function catBadge(cat){
+  const cls = cat === "Cloud flow" ? "flow" : cat === "Connection reference" ? "cref" : "conn";
+  return `<span class="catbadge ${cls}">${esc(cat)}</span>`;
+}
+
+function itemCell(r){
+  if (r.category === "Cloud flow"){
+    const url = flowUrl(r.technical);
+    if (url) return `<a class="rec" href="${esc(url)}" target="_blank" rel="noopener">${esc(r.name)}</a> ↗`;
+  }
+  return esc(r.name) || `<span class="muted">—</span>`;
+}
+
+function stateCell(r){
+  if (r.category === "Cloud flow")
+    return r.state === "On" ? `<span class="pill on">On</span>` : `<span class="pill off">Off/Draft</span>`;
+  return r.state ? esc(r.state) : `<span class="muted">—</span>`;
+}
+
+function actionTable(rows, plain){
+  let h = `<div class="tscroll"><table><thead><tr><th>Type</th><th>Item</th><th>State</th><th>Owner</th>`
+    + `<th>Why it needs attention</th><th>Depends on / dependents</th><th>Recommended action</th>`
+    + `</tr></thead><tbody>`;
+  for (const r of rows){
+    h += `<tr class="${!plain && r.priority === 1 ? "urgent" : ""}">`
+      + `<td>${catBadge(r.category)}</td>`
+      + `<td>${itemCell(r)}</td>`
+      + `<td>${stateCell(r)}</td>`
+      + `<td>${r.owner ? esc(r.owner) : '<span class="muted">—</span>'}</td>`
+      + `<td>${esc(r.risk)}</td>`
+      + `<td>${r.dependents ? esc(r.dependents) : '<span class="muted">—</span>'}</td>`
+      + `<td>${esc(r.action)}</td>`
+      + `</tr>`;
+  }
+  return h + `</tbody></table></div>`;
+}
+
+function renderResults(){
+  const res = $("results");
+  const rows = buildActionRows();
+  const action = rows.filter(r => r.priority !== 5);
+  const noAction = rows.filter(r => r.priority === 5);
+
+  if (action.length === 0 && noAction.length === 0){
+    res.innerHTML = state.crefs.size === 0
+      ? `<p class="err">Run the analysis in Stage 4 to see the results.</p>`
+      : `<p class="ok">Nothing needs attention — no flows, connection references, or connections depend on this user.</p>`;
+    return;
+  }
+
+  const succ = successorName();
+  const uid = $("uid").value.trim();
+  const who = $("whoid").value.trim() || ownerName(uid) || uid || "the departing user";
+
+  const nFlow = action.filter(r => r.category === "Cloud flow").length;
+  const nCref = action.filter(r => r.category === "Connection reference").length;
+  const nConn = action.filter(r => r.category === "Connection").length;
+  const nOwned = action.filter(r => r.priority === 1).length;
+  const groups = groupBySolution(action);
+  const nSol = [...groups.keys()].filter(k => k !== "").length;
+
+  let html = `<p class="muted">Action items for <strong>${esc(who)}</strong>, handed to
+    <strong>${esc(succ)}</strong> — the same findings as the <em>Download action list (CSV)</em> above.</p>`;
+  html += `<div class="sum">`
+    + summaryCard(action.length, "Action items")
+    + (nOwned ? summaryCard(nOwned, "Flows to re-own", true) : "")
+    + summaryCard(nFlow, "Cloud flows")
+    + summaryCard(nCref, "Conn. references")
+    + summaryCard(nConn, "Connections")
+    + summaryCard(nSol, "Solutions")
+    + `</div>`;
+
+  for (const [, group] of groups){
+    html += `<div class="solgroup"><h3>${solHeader(group[0])} <span class="muted">(${group.length})</span></h3>`
+      + actionTable(group) + `</div>`;
+  }
+
+  if (noAction.length){
+    html += `<details class="solgroup"><summary>${noAction.length} connection(s) with no dependents`
+      + ` — removed with the account, no action needed</summary>${actionTable(noAction, true)}</details>`;
+  }
+
+  res.innerHTML = html;
+}
+
+/* ---------- CSV export ---------- */
+function ownerName(guid){
+  if (!guid) return "";
+  const o = state.owners.get(guid);
+  if (o && o.fullname) return o.domainname ? `${o.fullname} (${o.domainname})` : o.fullname;
+  return guid;
+}
+function solNames(id){
+  const m = state.sols.get((id || "").toLowerCase());
+  if (!m || m.size === 0) return "";
+  return [...m.values()].map(s => s.managed ? `${s.name} (managed)` : s.name).join("; ");
+}
+function solObjs(id){
+  const m = state.sols.get((id || "").toLowerCase());
+  return m ? [...m.values()] : [];
+}
+function connName(nameLc){
+  const c = state.conns.get(nameLc);
+  if (c) return c.display || c.name;
+  for (const x of state.crefs.values())
+    if ((x.connectionid || "").toLowerCase() === nameLc) return x.display || x.connector || nameLc;
+  return nameLc;
+}
+function stateLabel(sc){ return sc === 1 ? "On" : "Off/Draft"; }
+function successorName(){ return $("successor").value.trim() || "a designated successor"; }
+
+function buildActionRows(){
+  const uid = $("uid").value.trim().toLowerCase();
+  const risk = atRiskCrefs();
+  const yours = yourConnSet();
+  const names = riskConnNames();
+  const succ = successorName();
+  const rows = [];
+
+  for (const f of state.flows.values()){
+    const ownedByUser = uid && (f.owner || "").toLowerCase() === uid;
+    const atRiskRefs = [...f.refs].filter(ln => risk.has(ln));
+    const covered = new Set([...f.refs]
+      .map(ln => state.crefs.get(ln)?.connectionid?.toLowerCase()).filter(Boolean));
+    const rawHits = [...rawConnHits(f, names)].filter(h => !covered.has(h));
+    if (!ownedByUser && atRiskRefs.length === 0 && rawHits.length === 0) continue;
+
+    const reasons = [];
+    if (ownedByUser) reasons.push("Owned by departing user — stops running when the account is disabled");
+    if (atRiskRefs.length) reasons.push("Uses at-risk connection reference(s)");
+    if (rawHits.length) reasons.push("Binds a departing connection directly by id");
+
+    const dependents = atRiskRefs.map(ln => state.crefs.get(ln)?.display || ln)
+      .concat(rawHits.map(connName)).join("; ");
+
+    rows.push({
+      priority: ownedByUser ? 1 : 2,
+      category: "Cloud flow",
+      name: f.name,
+      technical: f.id,
+      connector: [...f.connectors].join("; "),
+      state: stateLabel(f.state),
+      owner: ownerName(f.owner),
+      risk: reasons.join("; "),
+      dependents,
+      solutions: solNames(f.id),
+      solList: solObjs(f.id),
+      action: ownedByUser
+        ? `Add ${succ} as a co-owner and transfer ownership before the account is disabled — then re-point its connection(s) to ${succ}'s own connection(s), since ownership alone won't keep it running.`
+        : `Coordinate with the owner to re-point its connection reference(s) to ${succ}'s own connection(s).`,
+    });
+  }
+
+  for (const ln of risk.keys()){
+    const c = state.crefs.get(ln);
+    if (!c) continue;
+    const flowNames = [...(state.flowRefs.get(ln) || [])]
+      .map(k => state.flows.get(k)?.name).filter(Boolean);
+    const orphan = flowNames.length === 0;
+    rows.push({
+      priority: orphan ? 4 : 2,
+      category: "Connection reference",
+      name: c.display || ln,
+      technical: ln,
+      connector: c.connector,
+      state: "",
+      owner: ownerName(c.owner),
+      risk: risk.get(ln).join("; "),
+      dependents: orphan ? "0 — orphan" : `${flowNames.length}: ${flowNames.join("; ")}`,
+      solutions: solNames(c.id),
+      solList: solObjs(c.id),
+      action: orphan
+        ? "Confirm unused, then delete the orphaned connection reference."
+        : `Have ${succ} create their own ${c.connector} connection, then edit this reference to point at it — the dependent flow(s) stay broken until then.`,
+    });
+  }
+
+  if (state.conns.size && yours){
+    const crefsByConn = new Map();
+    for (const c of state.crefs.values()){
+      if (!c.connectionid) continue;
+      const k = c.connectionid.toLowerCase();
+      (crefsByConn.get(k) || crefsByConn.set(k, []).get(k)).push(c);
+    }
+    for (const c of state.conns.values()){
+      if (!yours.has(c.name.toLowerCase())) continue;
+      const k = c.name.toLowerCase();
+      const bound = crefsByConn.get(k) || [];
+      const flowKeys = new Set(state.flowRawConns.get(k) || []);
+      for (const x of bound) for (const key of state.flowRefs.get(x.logicalname) || []) flowKeys.add(key);
+      const hasDeps = bound.length > 0 || flowKeys.size > 0;
+      rows.push({
+        priority: hasDeps ? 3 : 5,
+        category: "Connection",
+        name: c.display || c.name,
+        technical: c.name,
+        connector: c.connector,
+        state: c.status || "",
+        owner: "Departing user",
+        risk: hasDeps
+          ? "Owned by departing user — removed when the account is disabled; connections can't be transferred to anyone else"
+          : "Owned by departing user — removed when the account is disabled, but nothing depends on it",
+        dependents: `${bound.length} connection reference(s), ${flowKeys.size} flow(s)`,
+        solutions: "",
+        solList: [],
+        action: hasDeps
+          ? `Connections can't be reassigned — ${succ} must create a replacement ${c.connector} connection under their own account, then re-point the ${bound.length} reference(s) and ${flowKeys.size} flow(s) that use it.`
+          : "No dependents — it's removed with the account; no action needed.",
+      });
+    }
+  }
+
+  const filtered = rows.filter(r => r.dependents !== "0 — orphan" && r.state !== "Error");
+  filtered.sort((a, b) => a.solutions.localeCompare(b.solutions)
+    || a.category.localeCompare(b.category)
+    || a.state.localeCompare(b.state)
+    || a.name.localeCompare(b.name));
+  return filtered;
+}
+
+const CSV_COLUMNS = [
+  { key:"solutions",  label:"Solutions" },
+  { key:"category",   label:"Category" },
+  { key:"name",       label:"Item" },
+  { key:"state",      label:"State" },
+  { key:"owner",      label:"Owner" },
+  { key:"risk",       label:"Why it needs attention" },
+  { key:"dependents", label:"Depends on / dependents" },
+  { key:"action",     label:"Recommended action" },
+  { key:"technical",  label:"Technical name / id" },
+];
+
+function toCsv(rows, columns){
+  const cell = v => {
+    const s = String(v ?? "");
+    return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const lines = [columns.map(c => cell(c.label)).join(",")];
+  for (const r of rows) lines.push(columns.map(c => cell(r[c.key])).join(","));
+  return lines.join("\r\n");
+}
+
+$("export-csv").onclick = () => {
+  const out = $("out-export");
+  const allRows = buildActionRows();
+  const rows = allRows.filter(r => r.priority !== 5);
+  const skipped = allRows.length - rows.length;
+  if (rows.length === 0){
+    out.className = "count warn";
+    out.textContent = allRows.length
+      ? `Nothing needs doing — all ${skipped} finding(s) are connections with no dependents.`
+      : "Nothing to export yet — run the analysis so the tables have findings.";
+    return;
+  }
+  const csv = "﻿" + toCsv(rows, CSV_COLUMNS);
+  const blob = new Blob([csv], { type:"text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const stamp = new Date().toISOString().slice(0, 10);
+  const ident = ($("whoid").value.trim() || $("uid").value.trim() || "user")
+    .replace(/[^a-z0-9._-]+/gi, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "user";
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `offboarding-${ident}-${stamp}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  out.className = "count ok";
+  out.textContent = `Exported ${rows.length} action item(s)`
+    + (skipped ? ` — ${skipped} no-action connection(s) omitted` : "")
+    + ` to ${a.download}.`;
+};
+
+function esc(s){ return String(s ?? "").replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+/* ---------- wire up live URL building ---------- */
+["base","uid"].forEach(id => $(id).addEventListener("input", buildUrls));
+$("whoid").addEventListener("input", buildDerived);
+$("token").addEventListener("input", reflectAuthMode);
+buildUrls();
+reflectAuthMode();
+
+/* ---------- wizard navigation ---------- */
+function isValidBase(){
+  const b = normBase();
+  if (!b) return false;
+  try { new URL(b); return /^https?:\/\//i.test(b); } catch { return false; }
+}
+
+const STEPS = [
+  { id:"conns",   label:"Connections",  required:false },
+  { id:"base",    label:"API endpoint", required:true, valid:isValidBase,
+    hint:"Enter a valid https:// Web API endpoint to continue." },
+  { id:"connect", label:"Connect",      required:true, valid:() => $("uid").value.trim() !== "",
+    hint:"Click Connect & verify to reach the Web API and capture your user id (or paste it in Advanced)." },
+  { id:"analyze", label:"Analyze",      required:true,
+    valid:() => state.crefs.size > 0 && state.solsParsed && ownersResolved(),
+    hint:"Let the analysis finish (or complete the manual fallback) to continue." },
+  { id:"results", label:"Results",      required:false },
+];
+
+let cur = 0, maxReached = 0;
+
+function stepValid(s){ return !s.required || (s.valid ? s.valid() : true); }
+
+function renderProgress(){
+  $("progress").innerHTML = STEPS.map((s, i) => {
+    const reach = i <= maxReached;
+    const done = i < cur || (i === cur && i === STEPS.length - 1);
+    const cls = done ? "done" : (i === cur ? "cur" : "todo");
+    return `<li class="pstep ${cls}${reach ? " reach" : ""}" data-i="${i}">`
+      + `<span class="pnum">${i + 1}</span><span class="plabel">${esc(s.label)}</span></li>`;
+  }).join("");
+}
+
+function refreshNav(){
+  const s = STEPS[cur];
+  const ok = stepValid(s);
+  const next = $("wiz-next");
+  next.disabled = !ok;
+  next.style.visibility = cur === STEPS.length - 1 ? "hidden" : "visible";
+  $("wiz-back").disabled = cur === 0;
+  $("wiz-hint").textContent = ok ? "" : (s.hint || "Complete this step to continue.");
+  renderProgress();
+}
+
+function goToStep(i){
+  if (i < 0 || i >= STEPS.length) return;
+  cur = i;
+  if (i > maxReached) maxReached = i;
+  document.querySelectorAll(".screen").forEach(el =>
+    el.classList.toggle("active", el.dataset.screen === STEPS[i].id));
+  document.body.classList.toggle("results-wide", STEPS[i].id === "results");
+  if (STEPS[i].id === "analyze" && state.crefs.size === 0 && !analyzing) runAnalysis();
+  if (STEPS[i].id === "results") $("build").click();
+  refreshNav();
+  window.scrollTo(0, 0);
+}
+
+$("wiz-next").onclick = () => { if (stepValid(STEPS[cur])) goToStep(cur + 1); };
+$("wiz-back").onclick = () => goToStep(cur - 1);
+$("progress").onclick = e => {
+  const li = e.target.closest("li.pstep");
+  if (li && +li.dataset.i <= maxReached) goToStep(+li.dataset.i);
+};
+
+["out-conns","out-whoami","out-crefs","out-flows","out-owners","out-sols"].forEach(id =>
+  new MutationObserver(refreshNav).observe($(id), { childList:true, characterData:true, subtree:true }));
+["base","uid","whoid"].forEach(id => $(id).addEventListener("input", refreshNav));
+
+goToStep(0);
+</script>
+</body>
+</html>
