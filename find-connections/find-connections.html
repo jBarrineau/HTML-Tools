@@ -163,8 +163,6 @@
   <textarea id="in-whoami" placeholder='{"@odata.context":"…","BusinessUnitId":"…","UserId":"cc985d4a-…","OrganizationId":"…"}'></textarea>
   <button id="parse-whoami">Parse</button>
   <div class="count" id="out-whoami"></div>
-  <label for="uid" style="margin-top:12px;">Owner GUID (UserId) — auto-filled, or paste manually</label>
-  <input type="text" id="uid" placeholder="cc985d4a-b213-f111-8341-000d3a58b033">
 </div>
 
 <!-- ============ STAGE 5 ============ -->
@@ -281,7 +279,7 @@ function normBase(){
 
 function buildUrls(){
   const b = normBase();
-  const uid = $("uid").value.trim();
+  const uid = state.uid;
   // Stage 3
   if (b){
     try { $("url-step0").textContent = new URL(b).origin + "/"; }
@@ -549,7 +547,7 @@ function yourConnSet(){
 /* Map logicalname -> array of risk-reason strings, for crefs that break on offboarding:
    bound to one of your connections (connections setup match) and/or the cref record is owned by you. */
 function atRiskCrefs(){
-  const uid = $("uid").value.trim().toLowerCase();
+  const uid = state.uid.toLowerCase();
   const yours = yourConnSet();
   const out = new Map();
   for (const c of state.crefs.values()){
@@ -594,7 +592,6 @@ function doParseWhoami(obj){
     obj = obj || parseJson($("in-whoami").value);
     const uid = obj.UserId || obj.userId || (rows(obj)[0] && rows(obj)[0].UserId);
     if (!uid) throw new Error("No UserId field found.");
-    $("uid").value = uid;
     state.uid = uid;
     el.className = "count ok";
     el.textContent = `Owner GUID: ${uid}`;
@@ -904,7 +901,7 @@ function renderResults(){
   }
 
   const succ = successorName();
-  const uid = $("uid").value.trim();
+  const uid = state.uid;
   const who = $("whoid").value.trim() || ownerName(uid) || uid || "the departing user";
 
   const nFlow = action.filter(r => r.category === "Cloud flow").length;
@@ -975,7 +972,7 @@ function successorName(){ return $("successor").value.trim() || "a designated su
    departing user AND uses at-risk references collapses to a single row with combined reasons,
    so the CSV is a de-duplicated checklist rather than a copy of each table. */
 function buildActionRows(){
-  const uid = $("uid").value.trim().toLowerCase();
+  const uid = state.uid.toLowerCase();
   const risk = atRiskCrefs();       // logicalname -> [reasons]
   const yours = yourConnSet();      // your connection names (lowercase), or null
   const names = riskConnNames();    // names to hunt for in raw flow bindings
@@ -1129,7 +1126,7 @@ $("export-csv").onclick = () => {
   const blob = new Blob([csv], { type:"text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const stamp = new Date().toISOString().slice(0, 10);
-  const ident = ($("whoid").value.trim() || $("uid").value.trim() || "user")
+  const ident = ($("whoid").value.trim() || state.uid || "user")
     .replace(/[^a-z0-9._-]+/gi, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "user";
   const a = document.createElement("a");
   a.href = url;
@@ -1147,7 +1144,8 @@ $("export-csv").onclick = () => {
 function esc(s){ return String(s ?? "").replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
 /* ---------- wire up live URL building ---------- */
-["base","uid"].forEach(id => $(id).addEventListener("input", buildUrls)); // buildUrls ends with buildDerived()
+$("base").addEventListener("input", buildUrls); // buildUrls ends with buildDerived()
+$("base").addEventListener("paste", () => setTimeout(() => { if (isValidBase()) onPasteParsed("base"); }, 0));
 $("whoid").addEventListener("input", buildDerived); // identity changes the at-risk set too
 buildUrls();
 
@@ -1166,8 +1164,8 @@ const STEPS = [
     hint:"Enter a valid https:// Web API endpoint to continue." },
   { id:"auth",    label:"Authenticate",     required:true,  valid:() => $("ack-auth").checked,
     hint:"Sign in via the URL above, then tick the confirmation box to continue." },
-  { id:"whoami",  label:"Who am I",         required:true,  valid:() => $("uid").value.trim() !== "",
-    hint:"Parse the WhoAmI response (or paste your owner GUID) to continue." },
+  { id:"whoami",  label:"Who am I",         required:true,  valid:() => state.uid !== "",
+    hint:"Parse the WhoAmI response to continue." },
   { id:"crefs",   label:"Conn. references", required:true,  valid:() => state.crefs.size > 0,
     hint:"Parse at least one connection reference to continue." },
   { id:"flows",   label:"Cloud flows",      required:false },
@@ -1243,7 +1241,7 @@ $("progress").onclick = e => {
 /* Re-evaluate the gate whenever a parse updates a count or a key field changes. */
 ["out-conns","out-whoami","out-crefs","out-flows","out-owners","out-sols"].forEach(id =>
   new MutationObserver(refreshNav).observe($(id), { childList:true, characterData:true, subtree:true }));
-["base","uid","whoid"].forEach(id => $(id).addEventListener("input", refreshNav));
+["base","whoid"].forEach(id => $(id).addEventListener("input", refreshNav));
 $("ack-auth").addEventListener("change", refreshNav);
 
 goToStep(0);
