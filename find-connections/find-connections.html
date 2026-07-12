@@ -1048,23 +1048,22 @@ function buildActionRows(){
     }
   }
 
-  rows.sort((a, b) => a.priority - b.priority
+  const filtered = rows.filter(r => r.dependents !== "0 — orphan" && r.state !== "Error");
+  filtered.sort((a, b) => a.solutions.localeCompare(b.solutions)
     || a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
-  return rows;
+  return filtered;
 }
 
 const CSV_COLUMNS = [
-  { key:"priority",   label:"Priority" },
+  { key:"solutions",  label:"Solutions" },
   { key:"category",   label:"Category" },
   { key:"name",       label:"Item" },
-  { key:"technical",  label:"Technical name / id" },
-  { key:"connector",  label:"Connector" },
   { key:"state",      label:"State" },
   { key:"owner",      label:"Owner" },
   { key:"risk",       label:"Why it needs attention" },
   { key:"dependents", label:"Depends on / dependents" },
-  { key:"solutions",  label:"Solutions" },
   { key:"action",     label:"Recommended action" },
+  { key:"technical",  label:"Technical name / id" },
 ];
 
 function toCsv(rows, columns){
