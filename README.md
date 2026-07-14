@@ -6,6 +6,12 @@ A collection of single-page, client-side HTML tools — no installation, no depe
 
 ## Tools
 
+### Power BI
+
+| Tool | Description |
+|------|-------------|
+| [Model Sweep](power-bi-unused-finder/power-bi-unused-finder.html) | Upload a Power BI Project (`.pbip`) folder and find unused measures and columns by tracing report, DAX, and model-structure references locally in the browser. |
+
 ### Power Automate
 
 | Tool | Description |

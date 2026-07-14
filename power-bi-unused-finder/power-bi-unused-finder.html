@@ -1,0 +1,1758 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Model Sweep — PBIP unused object finder</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f5f6fa;
+      --surface: #ffffff;
+      --surface-soft: #fafafe;
+      --text: #18213a;
+      --muted: #677087;
+      --line: #e3e6ef;
+      --accent: #6246d9;
+      --accent-dark: #4d35b7;
+      --accent-soft: #eeeafd;
+      --danger: #c9364d;
+      --danger-soft: #fff0f2;
+      --warning: #a96608;
+      --warning-soft: #fff7e8;
+      --success: #18794e;
+      --success-soft: #ecf9f2;
+      --shadow: 0 12px 32px rgba(31, 38, 68, 0.08);
+      --radius: 16px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+
+    button, input, select { font: inherit; }
+    button { cursor: pointer; }
+    button:disabled { cursor: not-allowed; opacity: .55; }
+
+    :focus-visible {
+      outline: 3px solid rgba(98, 70, 217, .3);
+      outline-offset: 2px;
+    }
+
+    .topbar {
+      height: 68px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+    }
+
+    .topbar-inner, .page {
+      width: min(1180px, calc(100% - 40px));
+      margin: 0 auto;
+    }
+
+    .topbar-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 11px;
+      color: var(--text);
+      font-weight: 760;
+      letter-spacing: -.02em;
+    }
+
+    .brand-mark {
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      background: var(--accent);
+      box-shadow: 0 7px 18px rgba(98, 70, 217, .22);
+    }
+
+    .privacy-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 7px 11px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--muted);
+      background: var(--surface-soft);
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    .page { padding: 56px 0 72px; }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(320px, .85fr);
+      gap: 30px;
+      align-items: end;
+      margin-bottom: 30px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 13px;
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0;
+      max-width: 760px;
+      font-size: clamp(35px, 5vw, 54px);
+      line-height: 1.04;
+      letter-spacing: -.045em;
+    }
+
+    .hero-copy {
+      max-width: 700px;
+      margin: 19px 0 0;
+      color: var(--muted);
+      font-size: 17px;
+    }
+
+    .scope-card {
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(255, 255, 255, .72);
+    }
+
+    .scope-card h2 {
+      margin: 0 0 11px;
+      font-size: 15px;
+    }
+
+    .scope-list {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .scope-list li {
+      display: flex;
+      gap: 9px;
+      align-items: flex-start;
+      margin-top: 8px;
+    }
+
+    .scope-list svg { flex: 0 0 auto; margin-top: 2px; color: var(--success); }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    .upload-card { padding: 22px; }
+
+    .upload-zone {
+      min-height: 250px;
+      border: 2px dashed #cfd3df;
+      border-radius: 14px;
+      background: var(--surface-soft);
+      display: grid;
+      place-items: center;
+      padding: 28px;
+      text-align: center;
+      transition: border-color .18s ease, background .18s ease, transform .18s ease;
+    }
+
+    .upload-zone.dragover {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+      transform: translateY(-2px);
+    }
+
+    .upload-icon {
+      width: 54px;
+      height: 54px;
+      margin: 0 auto 14px;
+      border-radius: 15px;
+      display: grid;
+      place-items: center;
+      color: var(--accent);
+      background: var(--accent-soft);
+    }
+
+    .upload-zone h2 { margin: 0; font-size: 20px; letter-spacing: -.02em; }
+    .upload-zone p { max-width: 560px; margin: 8px auto 17px; color: var(--muted); font-size: 14px; }
+
+    .button-row {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 9px;
+    }
+
+    .btn {
+      min-height: 40px;
+      border: 1px solid transparent;
+      border-radius: 10px;
+      padding: 8px 14px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 750;
+      transition: background .15s ease, border-color .15s ease, transform .15s ease;
+    }
+
+    .btn:hover:not(:disabled) { transform: translateY(-1px); }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: var(--accent-dark); }
+    .btn-secondary { background: var(--surface); color: var(--text); border-color: var(--line); }
+    .btn-secondary:hover:not(:disabled) { border-color: #bcc2d1; background: #fafafe; }
+    .btn-quiet { background: transparent; color: var(--muted); border-color: transparent; }
+    .btn-quiet:hover:not(:disabled) { color: var(--text); background: #f0f1f6; }
+
+    .upload-status {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      margin-top: 16px;
+      padding: 14px 15px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fbfbfd;
+    }
+
+    .upload-status.visible { display: flex; }
+    .file-meta { min-width: 0; }
+    .file-meta strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .file-meta span { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+    .progress {
+      height: 4px;
+      margin-top: 14px;
+      border-radius: 99px;
+      overflow: hidden;
+      background: #e9eaf1;
+      display: none;
+    }
+
+    .progress.visible { display: block; }
+    .progress > span { display: block; width: 42%; height: 100%; border-radius: inherit; background: var(--accent); animation: scan 1s ease-in-out infinite alternate; }
+
+    @keyframes scan { from { transform: translateX(-65%); } to { transform: translateX(205%); } }
+
+    .results { display: none; margin-top: 28px; }
+    .results.visible { display: block; }
+
+    .results-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 24px;
+      align-items: flex-start;
+      margin-bottom: 16px;
+    }
+
+    .results-head h2 { margin: 0; font-size: 24px; letter-spacing: -.025em; }
+    .results-head p { margin: 5px 0 0; color: var(--muted); font-size: 13px; }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .metric {
+      padding: 17px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: var(--surface);
+    }
+
+    .metric-label { color: var(--muted); font-size: 12px; font-weight: 700; }
+    .metric-value { margin-top: 4px; font-size: 27px; font-weight: 800; letter-spacing: -.035em; }
+    .metric-note { margin-top: 1px; color: var(--muted); font-size: 11px; }
+    .metric.danger .metric-value { color: var(--danger); }
+    .metric.warning .metric-value { color: var(--warning); }
+
+    .notice {
+      display: flex;
+      align-items: flex-start;
+      gap: 11px;
+      padding: 13px 14px;
+      margin-bottom: 16px;
+      border: 1px solid #edd39c;
+      border-radius: 12px;
+      color: #6f4b0b;
+      background: var(--warning-soft);
+      font-size: 13px;
+    }
+
+    .notice strong { color: #573b09; }
+    .notice ul { margin: 4px 0 0; padding-left: 18px; }
+    .notice.hidden { display: none; }
+
+    .results-card { overflow: hidden; }
+
+    .toolbar {
+      padding: 14px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .filter-group { display: flex; gap: 5px; flex-wrap: wrap; }
+
+    .filter-btn {
+      border: 0;
+      border-radius: 8px;
+      padding: 7px 10px;
+      color: var(--muted);
+      background: transparent;
+      font-size: 12px;
+      font-weight: 750;
+    }
+
+    .filter-btn.active { color: var(--accent-dark); background: var(--accent-soft); }
+
+    .toolbar-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+    .search-wrap { position: relative; }
+    .search-wrap svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #8a91a3; pointer-events: none; }
+
+    .search-input, .type-select {
+      min-height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      color: var(--text);
+      background: var(--surface);
+      font-size: 12px;
+    }
+
+    .search-input { width: 210px; padding: 8px 10px 8px 33px; }
+    .type-select { padding: 7px 29px 7px 10px; }
+
+    .table-wrap { overflow-x: auto; }
+
+    table { width: 100%; border-collapse: collapse; min-width: 840px; }
+    th, td { padding: 13px 15px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: middle; }
+    th { color: var(--muted); background: #fbfbfd; font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+    td { font-size: 13px; }
+    tbody tr.data-row:hover { background: #fcfcfe; }
+    tbody tr:last-child td { border-bottom: 0; }
+
+    .object-name { font-weight: 760; }
+    .table-name { color: var(--muted); }
+
+    .kind {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      color: #454d62;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .kind-dot { width: 8px; height: 8px; border-radius: 50%; background: #8690a8; }
+    .kind.measure .kind-dot { background: var(--accent); }
+    .kind.column .kind-dot { background: #2d8ba8; }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      white-space: nowrap;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 780;
+    }
+
+    .badge.unused { color: var(--danger); background: var(--danger-soft); }
+    .badge.cascade { color: var(--warning); background: var(--warning-soft); }
+    .badge.used { color: var(--success); background: var(--success-soft); }
+    .badge.confidence { color: #566077; background: #f0f2f6; }
+
+    .reason { max-width: 360px; color: var(--muted); font-size: 12px; }
+
+    .detail-btn {
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      background: var(--surface);
+    }
+
+    .detail-row { display: none; }
+    .detail-row.open { display: table-row; }
+    .detail-row td { padding: 0 15px 15px; background: #fcfcfe; }
+
+    .detail-panel {
+      display: grid;
+      grid-template-columns: 1.1fr .9fr;
+      gap: 20px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      color: var(--muted);
+      background: var(--surface);
+      font-size: 12px;
+    }
+
+    .detail-panel strong { color: var(--text); }
+    .detail-panel code { color: #3e4660; word-break: break-all; }
+    .detail-panel ul { margin: 5px 0 0; padding-left: 18px; }
+
+    .empty {
+      padding: 54px 20px;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    .empty strong { display: block; margin-bottom: 4px; color: var(--text); font-size: 15px; }
+
+    .table-footer {
+      display: flex;
+      justify-content: space-between;
+      gap: 15px;
+      align-items: center;
+      padding: 12px 15px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .method-note {
+      margin-top: 18px;
+      padding: 18px 20px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: rgba(255, 255, 255, .65);
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .method-note summary { color: var(--text); font-size: 13px; font-weight: 760; cursor: pointer; }
+    .method-note p { margin: 10px 0 0; }
+
+    .toast {
+      position: fixed;
+      right: 20px;
+      bottom: 20px;
+      z-index: 10;
+      max-width: 340px;
+      padding: 11px 14px;
+      border-radius: 10px;
+      color: #fff;
+      background: #242b3d;
+      box-shadow: var(--shadow);
+      font-size: 13px;
+      opacity: 0;
+      transform: translateY(10px);
+      pointer-events: none;
+      transition: opacity .18s ease, transform .18s ease;
+    }
+
+    .toast.show { opacity: 1; transform: translateY(0); }
+
+    @media (max-width: 880px) {
+      .hero { grid-template-columns: 1fr; align-items: start; }
+      .scope-card { max-width: 650px; }
+      .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .results-head { flex-direction: column; }
+      .detail-panel { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 560px) {
+      .topbar-inner, .page { width: min(100% - 24px, 1180px); }
+      .page { padding-top: 36px; }
+      .privacy-pill span { display: none; }
+      .hero { gap: 20px; }
+      .upload-card { padding: 12px; }
+      .upload-zone { min-height: 235px; padding: 22px 14px; }
+      .upload-status { align-items: stretch; flex-direction: column; }
+      .summary-grid { grid-template-columns: 1fr 1fr; }
+      .toolbar { align-items: stretch; }
+      .toolbar-actions { width: 100%; }
+      .search-wrap { flex: 1 1 180px; }
+      .search-input { width: 100%; }
+      .table-footer { align-items: flex-start; flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand" aria-label="Model Sweep home">
+        <span class="brand-mark" aria-hidden="true">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none"><path d="M4 6.5h16M7 11.5h10M9.5 16.5h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M18.5 3.5l2 2-2 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </span>
+        <span>Model Sweep</span>
+      </div>
+      <div class="privacy-pill" title="Files stay in this browser tab">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2" stroke="currentColor" stroke-width="2"/><path d="M8 10V7a4 4 0 1 1 8 0v3" stroke="currentColor" stroke-width="2"/></svg>
+        <span>Local browser analysis</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="page">
+    <section class="hero" aria-labelledby="page-title">
+      <div>
+        <div class="eyebrow">PBIP cleanup analyzer</div>
+        <h1 id="page-title">Find model objects that no longer earn their keep.</h1>
+        <p class="hero-copy">Upload a Power BI Project folder to trace report, DAX, relationship, hierarchy, role, and perspective references. You get a reviewable list of unused columns and measures—without changing the project.</p>
+      </div>
+      <aside class="scope-card" aria-label="Scan coverage">
+        <h2>What this scan checks</h2>
+        <ul class="scope-list">
+          <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="m5 12 4 4L19 6" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span>TMDL and TMSL semantic model definitions</span></li>
+          <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="m5 12 4 4L19 6" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span>PBIR and PBIR-Legacy report references</span></li>
+          <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="m5 12 4 4L19 6" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Transitive DAX dependencies and structural usage</span></li>
+        </ul>
+      </aside>
+    </section>
+
+    <section class="card upload-card" aria-labelledby="upload-title">
+      <div class="upload-zone" id="dropZone" aria-describedby="upload-help">
+        <div>
+          <div class="upload-icon" aria-hidden="true">
+            <svg width="27" height="27" viewBox="0 0 24 24" fill="none"><path d="M3.5 7.5h6l2 2h9v8.75A2.25 2.25 0 0 1 18.25 20H5.75a2.25 2.25 0 0 1-2.25-2.25V7.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 16v-4m0 0-2 2m2-2 2 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <h2 id="upload-title">Choose your PBIP project folder</h2>
+          <p id="upload-help">Select the folder containing the <strong>.pbip</strong>, <strong>.Report</strong>, and <strong>.SemanticModel</strong> items. You can also drop the whole folder here.</p>
+          <div class="button-row">
+            <button class="btn btn-primary" id="browseButton" type="button">Choose folder</button>
+            <button class="btn btn-secondary" id="demoButton" type="button">Try the demo</button>
+          </div>
+          <input id="folderInput" type="file" webkitdirectory directory multiple hidden>
+        </div>
+      </div>
+      <div class="upload-status" id="uploadStatus" aria-live="polite">
+        <div class="file-meta">
+          <strong id="projectName">No folder selected</strong>
+          <span id="projectMeta"></span>
+        </div>
+        <button class="btn btn-primary" id="analyzeButton" type="button" disabled>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="6" stroke="currentColor" stroke-width="2"/><path d="m16 16 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          <span id="analyzeLabel">Analyze project</span>
+        </button>
+      </div>
+      <div class="progress" id="progress" role="progressbar" aria-label="Analyzing project"><span></span></div>
+    </section>
+
+    <section class="results" id="results" aria-labelledby="results-title">
+      <div class="results-head">
+        <div>
+          <h2 id="results-title">Scan results</h2>
+          <p id="resultsMeta"></p>
+        </div>
+        <div class="button-row">
+          <button class="btn btn-secondary" id="copyButton" type="button">Copy candidates</button>
+          <button class="btn btn-secondary" id="csvButton" type="button">Download CSV</button>
+          <button class="btn btn-secondary" id="jsonButton" type="button">Download JSON</button>
+        </div>
+      </div>
+
+      <div class="summary-grid" id="summaryGrid"></div>
+      <div class="notice hidden" id="warningNotice"></div>
+
+      <div class="card results-card">
+        <div class="toolbar">
+          <div class="filter-group" aria-label="Status filters">
+            <button class="filter-btn active" type="button" data-status="candidates">Removal candidates</button>
+            <button class="filter-btn" type="button" data-status="unused">Unused</button>
+            <button class="filter-btn" type="button" data-status="cascade">Used by unused</button>
+            <button class="filter-btn" type="button" data-status="all">All objects</button>
+          </div>
+          <div class="toolbar-actions">
+            <select class="type-select" id="typeFilter" aria-label="Filter by object type">
+              <option value="all">All types</option>
+              <option value="measure">Measures</option>
+              <option value="column">Columns</option>
+            </select>
+            <label class="search-wrap">
+              <span class="visually-hidden" hidden>Search results</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="6" stroke="currentColor" stroke-width="2"/><path d="m16 16 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              <input class="search-input" id="searchInput" type="search" placeholder="Search table or object" aria-label="Search results">
+            </label>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table aria-label="Power BI model object usage results">
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>Object</th>
+                <th>Table</th>
+                <th>Status</th>
+                <th>Confidence</th>
+                <th>Why</th>
+                <th><span class="visually-hidden" hidden>Details</span></th>
+              </tr>
+            </thead>
+            <tbody id="resultsBody"></tbody>
+          </table>
+          <div class="empty" id="emptyState" hidden>
+            <strong>No objects match this view</strong>
+            Try another status, type, or search term.
+          </div>
+        </div>
+        <div class="table-footer">
+          <span id="rowCount"></span>
+          <span>Nothing is deleted. Review candidates in Power BI Desktop before removal.</span>
+        </div>
+      </div>
+
+      <details class="method-note">
+        <summary>How Model Sweep decides an object is unused</summary>
+        <p>An object is <strong>used</strong> when it is referenced by an uploaded report or by model structure such as relationships, row-level security, hierarchies, or perspectives. DAX dependencies are followed transitively. An object marked <strong>used by unused</strong> is referenced only from another removal candidate, so those objects should be reviewed and removed as a group.</p>
+        <p>This is a static project scan. It cannot see reports, Excel workbooks, XMLA clients, or other consumers outside the uploaded folder, and dynamic references can be impossible to prove from text alone. Treat the result as a cleanup shortlist, keep a backup, and re-open the project in Power BI Desktop after any manual edit.</p>
+      </details>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    (() => {
+      "use strict";
+
+      const MAX_TEXT_FILE_BYTES = 12 * 1024 * 1024;
+      const state = {
+        pendingEntries: [],
+        projectName: "",
+        analysis: null,
+        statusFilter: "candidates",
+        typeFilter: "all",
+        query: ""
+      };
+
+      const els = {
+        folderInput: document.getElementById("folderInput"),
+        browseButton: document.getElementById("browseButton"),
+        demoButton: document.getElementById("demoButton"),
+        dropZone: document.getElementById("dropZone"),
+        uploadStatus: document.getElementById("uploadStatus"),
+        projectName: document.getElementById("projectName"),
+        projectMeta: document.getElementById("projectMeta"),
+        analyzeButton: document.getElementById("analyzeButton"),
+        analyzeLabel: document.getElementById("analyzeLabel"),
+        progress: document.getElementById("progress"),
+        results: document.getElementById("results"),
+        resultsMeta: document.getElementById("resultsMeta"),
+        summaryGrid: document.getElementById("summaryGrid"),
+        warningNotice: document.getElementById("warningNotice"),
+        resultsBody: document.getElementById("resultsBody"),
+        emptyState: document.getElementById("emptyState"),
+        rowCount: document.getElementById("rowCount"),
+        typeFilter: document.getElementById("typeFilter"),
+        searchInput: document.getElementById("searchInput"),
+        copyButton: document.getElementById("copyButton"),
+        csvButton: document.getElementById("csvButton"),
+        jsonButton: document.getElementById("jsonButton"),
+        toast: document.getElementById("toast")
+      };
+
+      els.browseButton.addEventListener("click", (event) => {
+        event.stopPropagation();
+        els.folderInput.click();
+      });
+
+      els.demoButton.addEventListener("click", (event) => {
+        event.stopPropagation();
+        loadDemo();
+      });
+
+      els.folderInput.addEventListener("change", () => {
+        const files = Array.from(els.folderInput.files || []);
+        const entries = files.map(file => ({
+          path: normalizePath(file.webkitRelativePath || file.name),
+          file
+        }));
+        stageEntries(entries);
+      });
+
+      ["dragenter", "dragover"].forEach(type => {
+        els.dropZone.addEventListener(type, event => {
+          event.preventDefault();
+          els.dropZone.classList.add("dragover");
+        });
+      });
+
+      ["dragleave", "drop"].forEach(type => {
+        els.dropZone.addEventListener(type, event => {
+          event.preventDefault();
+          els.dropZone.classList.remove("dragover");
+        });
+      });
+
+      els.dropZone.addEventListener("drop", async event => {
+        try {
+          const entries = await collectDropEntries(event.dataTransfer);
+          stageEntries(entries);
+        } catch (error) {
+          showToast("That folder could not be read. Try Choose folder instead.");
+        }
+      });
+
+      els.analyzeButton.addEventListener("click", analyzePendingEntries);
+
+      document.querySelectorAll("[data-status]").forEach(button => {
+        button.addEventListener("click", () => {
+          state.statusFilter = button.dataset.status;
+          document.querySelectorAll("[data-status]").forEach(item => item.classList.toggle("active", item === button));
+          renderRows();
+        });
+      });
+
+      els.typeFilter.addEventListener("change", () => {
+        state.typeFilter = els.typeFilter.value;
+        renderRows();
+      });
+
+      els.searchInput.addEventListener("input", () => {
+        state.query = els.searchInput.value.trim().toLocaleLowerCase();
+        renderRows();
+      });
+
+      els.resultsBody.addEventListener("click", event => {
+        const button = event.target.closest("[data-detail]");
+        if (!button) return;
+        const detail = document.getElementById(button.dataset.detail);
+        const open = !detail.classList.contains("open");
+        detail.classList.toggle("open", open);
+        button.setAttribute("aria-expanded", String(open));
+      });
+
+      els.copyButton.addEventListener("click", copyCandidates);
+      els.csvButton.addEventListener("click", downloadCsv);
+      els.jsonButton.addEventListener("click", downloadJson);
+
+      function normalizePath(value) {
+        return String(value || "").replace(/\\/g, "/").replace(/^\/+/, "");
+      }
+
+      function stageEntries(entries) {
+        const usable = entries.filter(entry => entry && entry.file);
+        if (!usable.length) {
+          showToast("No files were found in that selection.");
+          return;
+        }
+        state.pendingEntries = usable;
+        state.projectName = inferProjectName(usable);
+        const projectFiles = usable.filter(entry => isProjectTextPath(entry.path)).length;
+        els.projectName.textContent = state.projectName;
+        els.projectMeta.textContent = `${usable.length.toLocaleString()} files selected · ${projectFiles.toLocaleString()} readable project files`;
+        els.uploadStatus.classList.add("visible");
+        els.analyzeLabel.textContent = "Analyze project";
+        els.analyzeButton.disabled = projectFiles === 0;
+        els.results.classList.remove("visible");
+      }
+
+      function inferProjectName(entries) {
+        const pbip = entries.find(entry => /\.pbip$/i.test(entry.path));
+        if (pbip) return pbip.path.split("/").pop().replace(/\.pbip$/i, "");
+        const first = entries[0].path.split("/")[0];
+        return first || "Power BI project";
+      }
+
+      function isProjectTextPath(path) {
+        if (/\/(?:\.pbi)\/(?:cache\.abf|localSettings\.json)$/i.test(path)) return false;
+        return /\.(?:tmdl|json|bim|pbir|pbism|pbip|dax|m)$/i.test(path);
+      }
+
+      async function analyzePendingEntries() {
+        if (!state.pendingEntries.length) return;
+        setBusy(true);
+        try {
+          const records = [];
+          const readWarnings = [];
+          for (const entry of state.pendingEntries) {
+            if (!isProjectTextPath(entry.path)) continue;
+            if (entry.file.size > MAX_TEXT_FILE_BYTES) {
+              readWarnings.push(`Skipped large file: ${entry.path}`);
+              continue;
+            }
+            try {
+              records.push({ path: entry.path, text: await entry.file.text() });
+            } catch (error) {
+              readWarnings.push(`Could not read: ${entry.path}`);
+            }
+          }
+          state.analysis = analyzeProject(records, state.projectName, readWarnings);
+          renderAnalysis();
+        } catch (error) {
+          console.error(error);
+          showToast(`Analysis stopped: ${error.message || "unknown error"}`);
+        } finally {
+          setBusy(false);
+        }
+      }
+
+      function setBusy(busy) {
+        els.progress.classList.toggle("visible", busy);
+        els.analyzeButton.disabled = busy;
+        els.analyzeLabel.textContent = busy ? "Analyzing…" : "Analyze project";
+      }
+
+      function analyzeProject(records, projectName, initialWarnings = []) {
+        const warnings = [...initialWarnings];
+        const objects = [];
+        const objectMap = new Map();
+        const hierarchyIndex = new Map();
+        const rootReasons = new Map();
+        const dependencyGraph = new Map();
+        const parseErrors = [];
+
+        const tmdlRecords = records.filter(record => /\.tmdl$/i.test(record.path) && /\/(?:definition)\//i.test(record.path) && !/\/TMDLScripts\//i.test(record.path));
+        const bimRecords = records.filter(record => /\/model\.bim$/i.test(record.path) || /^model\.bim$/i.test(record.path));
+        const reportRecords = records.filter(record => isReportRecord(record.path));
+        const pbipRecords = records.filter(record => /\.pbip$/i.test(record.path));
+
+        function objectId(kind, table, name) {
+          return `${kind}|${String(table).toLocaleLowerCase()}|${String(name).toLocaleLowerCase()}`;
+        }
+
+        function addObject(object) {
+          const id = objectId(object.kind, object.table, object.name);
+          if (!object.name || !object.table) return null;
+          if (objectMap.has(id)) return objectMap.get(id);
+          const value = { ...object, id, dependencies: [], roots: [] };
+          objects.push(value);
+          objectMap.set(id, value);
+          dependencyGraph.set(id, new Set());
+          return value;
+        }
+
+        for (const record of tmdlRecords) parseTmdlRecord(record, addObject, hierarchyIndex, warnings);
+        for (const record of bimRecords) parseBimRecord(record, addObject, hierarchyIndex, warnings, parseErrors);
+
+        if (!objects.length) {
+          warnings.push("No TMDL table definitions or TMSL model.bim objects were found.");
+        }
+
+        const indexes = buildObjectIndexes(objects);
+
+        function addDependency(fromId, toId) {
+          if (!fromId || !toId || fromId === toId || !objectMap.has(toId)) return;
+          dependencyGraph.get(fromId).add(toId);
+        }
+
+        function addRoot(id, reason) {
+          if (!id || !objectMap.has(id)) return;
+          if (!rootReasons.has(id)) rootReasons.set(id, new Set());
+          rootReasons.get(id).add(reason);
+        }
+
+        for (const object of objects) {
+          const refs = resolveDaxRefs(object.expression || "", object.table, indexes);
+          refs.forEach(ref => addDependency(object.id, ref));
+          if (object.sortByColumn) {
+            resolveObject(indexes, "column", object.table, object.sortByColumn).forEach(ref => addDependency(object.id, ref));
+          }
+        }
+
+        applyTmdlStructuralUsage(tmdlRecords, indexes, hierarchyIndex, addRoot);
+        applyBimStructuralUsage(bimRecords, indexes, hierarchyIndex, addRoot, warnings);
+
+        for (const record of reportRecords) {
+          try {
+            scanReportRecord(record, indexes, hierarchyIndex, id => addRoot(id, `Report: ${shortPath(record.path)}`));
+          } catch (error) {
+            parseErrors.push(record.path);
+            scanQualifiedText(record.text, indexes).forEach(id => addRoot(id, `Report text: ${shortPath(record.path)}`));
+          }
+        }
+
+        if (!reportRecords.length) {
+          warnings.push("No report definition was found. The scan cannot prove whether model objects are used by a report outside this folder.");
+        }
+        if (!pbipRecords.length) {
+          warnings.push("No .pbip pointer file was found. The selected folder may be a partial project export.");
+        }
+        if (parseErrors.length) {
+          warnings.push(`${parseErrors.length} report or model file${parseErrors.length === 1 ? "" : "s"} could not be parsed as JSON; text matching was used where possible.`);
+        }
+
+        const modelRoots = new Set(records.map(record => semanticModelRoot(record.path)).filter(Boolean));
+        if (modelRoots.size > 1) {
+          warnings.push("Multiple semantic models were found. References are matched across them conservatively; review duplicate names carefully.");
+        }
+
+        const used = new Set();
+        const queue = [...rootReasons.keys()];
+        while (queue.length) {
+          const current = queue.shift();
+          if (used.has(current)) continue;
+          used.add(current);
+          for (const dependency of dependencyGraph.get(current) || []) {
+            if (!used.has(dependency)) queue.push(dependency);
+          }
+        }
+
+        const incoming = new Map(objects.map(object => [object.id, new Set()]));
+        for (const [fromId, refs] of dependencyGraph.entries()) {
+          refs.forEach(toId => incoming.get(toId)?.add(fromId));
+        }
+
+        const scanIsComplete = reportRecords.length > 0 && parseErrors.length === 0 && modelRoots.size <= 1;
+        for (const object of objects) {
+          object.dependencies = [...(dependencyGraph.get(object.id) || [])];
+          object.roots = [...(rootReasons.get(object.id) || [])];
+          object.incoming = [...(incoming.get(object.id) || [])];
+          if (used.has(object.id)) {
+            object.status = "used";
+            object.confidence = "Confirmed reference";
+            object.reason = object.roots.length
+              ? object.roots[0]
+              : "Required by an object that is used.";
+          } else {
+            const candidateIncoming = object.incoming.filter(id => !used.has(id));
+            if (candidateIncoming.length) {
+              object.status = "cascade";
+              object.confidence = "Review as group";
+              object.reason = `Referenced only by ${candidateIncoming.length} unused object${candidateIncoming.length === 1 ? "" : "s"}.`;
+            } else {
+              object.status = "unused";
+              object.confidence = scanIsComplete ? "High" : "Review scope";
+              object.reason = "No uploaded report, DAX, or structural reference found.";
+            }
+          }
+        }
+
+        const candidates = objects.filter(object => object.status !== "used");
+        const format = tmdlRecords.length && bimRecords.length ? "TMDL + TMSL" : tmdlRecords.length ? "TMDL" : bimRecords.length ? "TMSL" : "Unknown";
+        return {
+          projectName,
+          records,
+          objects: objects.sort(compareObjects),
+          candidates: candidates.sort(compareObjects),
+          objectMap,
+          warnings: unique(warnings),
+          reportFileCount: reportRecords.length,
+          modelFileCount: tmdlRecords.length + bimRecords.length,
+          format,
+          stats: {
+            scanned: objects.length,
+            candidates: candidates.length,
+            measures: candidates.filter(item => item.kind === "measure").length,
+            columns: candidates.filter(item => item.kind === "column").length,
+            cascade: candidates.filter(item => item.status === "cascade").length,
+            used: objects.filter(item => item.status === "used").length
+          }
+        };
+      }
+
+      function parseTmdlRecord(record, addObject, hierarchyIndex, warnings) {
+        const lines = record.text.replace(/\r\n?/g, "\n").split("\n");
+        let table = "";
+        for (let i = 0; i < lines.length; i++) {
+          const tableMatch = lines[i].match(/^\s*table\s+(.+)$/i);
+          if (tableMatch) {
+            table = readTmdlName(tableMatch[1]);
+            break;
+          }
+        }
+        if (!table && /\/tables\//i.test(record.path)) table = fileStem(record.path);
+        if (!table) return;
+
+        for (let i = 0; i < lines.length; i++) {
+          const match = lines[i].match(/^(\s*)(measure|column|calculatedColumn)\s+(.+)$/i);
+          if (!match) continue;
+          const indent = indentation(match[1]);
+          const name = readTmdlName(match[3]);
+          if (!name) continue;
+          let end = i + 1;
+          while (end < lines.length) {
+            if (lines[end].trim() && indentation((lines[end].match(/^\s*/) || [""])[0]) <= indent) break;
+            end++;
+          }
+          const block = lines.slice(i, end).join("\n");
+          const kind = /^measure$/i.test(match[2]) ? "measure" : "column";
+          const sortMatch = block.match(/^\s*sortByColumn\s*:\s*(.+)$/im);
+          addObject({
+            kind,
+            table,
+            name,
+            expression: extractTmdlExpression(block),
+            sortByColumn: sortMatch ? readTmdlName(sortMatch[1]) : "",
+            calculated: kind === "column" && (/calculatedColumn/i.test(match[2]) || /=/.test(lines[i])),
+            sourcePath: record.path,
+            line: i + 1
+          });
+        }
+
+        parseTmdlHierarchies(lines, table, hierarchyIndex);
+      }
+
+      function extractTmdlExpression(block) {
+        const equal = block.indexOf("=");
+        if (equal === -1) return block;
+        return block.slice(equal + 1);
+      }
+
+      function parseTmdlHierarchies(lines, table, hierarchyIndex) {
+        let hierarchy = null;
+        let level = null;
+        for (let i = 0; i < lines.length; i++) {
+          const raw = lines[i];
+          const indent = indentation((raw.match(/^\s*/) || [""])[0]);
+          const hierarchyMatch = raw.match(/^\s*hierarchy\s+(.+)$/i);
+          if (hierarchyMatch) {
+            hierarchy = { name: readTmdlName(hierarchyMatch[1]), indent };
+            level = null;
+            continue;
+          }
+          if (hierarchy && raw.trim() && indent <= hierarchy.indent) {
+            hierarchy = null;
+            level = null;
+          }
+          if (!hierarchy) continue;
+          const levelMatch = raw.match(/^\s*level\s+(.+)$/i);
+          if (levelMatch) {
+            level = { name: readTmdlName(levelMatch[1]), indent };
+            continue;
+          }
+          if (level && raw.trim() && indent <= level.indent) level = null;
+          const columnMatch = raw.match(/^\s*column\s*:\s*(.+)$/i);
+          if (level && columnMatch) {
+            hierarchyIndex.set(hierarchyKey(table, hierarchy.name, level.name), readTmdlName(columnMatch[1]));
+          }
+        }
+      }
+
+      function parseBimRecord(record, addObject, hierarchyIndex, warnings, parseErrors) {
+        let data;
+        try {
+          data = JSON.parse(record.text);
+        } catch (error) {
+          parseErrors.push(record.path);
+          return;
+        }
+        const model = findModelNode(data);
+        if (!model) {
+          warnings.push(`No tabular model was found in ${shortPath(record.path)}.`);
+          return;
+        }
+        for (const table of model.tables || []) {
+          for (const column of table.columns || []) {
+            addObject({
+              kind: "column",
+              table: table.name,
+              name: column.name,
+              expression: expressionText(column.expression || column.expressionSource || ""),
+              sortByColumn: column.sortByColumn || "",
+              calculated: Boolean(column.expression),
+              sourcePath: record.path,
+              line: null
+            });
+          }
+          for (const measure of table.measures || []) {
+            addObject({
+              kind: "measure",
+              table: table.name,
+              name: measure.name,
+              expression: expressionText(measure.expression || ""),
+              sortByColumn: "",
+              calculated: true,
+              sourcePath: record.path,
+              line: null
+            });
+          }
+          for (const hierarchy of table.hierarchies || []) {
+            for (const level of hierarchy.levels || []) {
+              const column = typeof level.column === "string" ? level.column : level.column?.name;
+              if (column) hierarchyIndex.set(hierarchyKey(table.name, hierarchy.name, level.name), column);
+            }
+          }
+        }
+      }
+
+      function findModelNode(value, depth = 0) {
+        if (!value || typeof value !== "object" || depth > 8) return null;
+        if (Array.isArray(value.tables)) return value;
+        for (const child of Object.values(value)) {
+          const found = findModelNode(child, depth + 1);
+          if (found) return found;
+        }
+        return null;
+      }
+
+      function buildObjectIndexes(objects) {
+        const qualified = new Map();
+        const measures = new Map();
+        const columns = new Map();
+        for (const object of objects) {
+          const qKey = qualifiedKey(object.table, object.name);
+          if (!qualified.has(qKey)) qualified.set(qKey, []);
+          qualified.get(qKey).push(object.id);
+          const index = object.kind === "measure" ? measures : columns;
+          const key = object.name.toLocaleLowerCase();
+          if (!index.has(key)) index.set(key, []);
+          index.get(key).push(object.id);
+        }
+        return { qualified, measures, columns, objects };
+      }
+
+      function resolveObject(indexes, kind, table, name) {
+        const exact = (indexes.qualified.get(qualifiedKey(table, name)) || []).filter(id => !kind || id.startsWith(`${kind}|`));
+        if (exact.length) return exact;
+        const index = kind === "measure" ? indexes.measures : indexes.columns;
+        const matches = index.get(String(name || "").toLocaleLowerCase()) || [];
+        return matches.length === 1 ? matches : [];
+      }
+
+      function resolveDaxRefs(text, ownerTable, indexes) {
+        const clean = stripDaxNoise(String(text || ""));
+        const refs = new Set();
+        const qualifiedRanges = [];
+        let match;
+
+        const quotedQualified = /'((?:''|[^'])+)'\s*\[((?:\]\]|[^\]])+)\]/g;
+        while ((match = quotedQualified.exec(clean))) {
+          const table = match[1].replace(/''/g, "'");
+          const name = match[2].replace(/\]\]/g, "]");
+          (indexes.qualified.get(qualifiedKey(table, name)) || []).forEach(id => refs.add(id));
+          qualifiedRanges.push([match.index, quotedQualified.lastIndex]);
+        }
+
+        const bareQualified = /\b([A-Za-z_][A-Za-z0-9_ ]*)\s*\[((?:\]\]|[^\]])+)\]/g;
+        while ((match = bareQualified.exec(clean))) {
+          const table = match[1].trim();
+          const name = match[2].replace(/\]\]/g, "]");
+          const found = indexes.qualified.get(qualifiedKey(table, name)) || [];
+          if (found.length) {
+            found.forEach(id => refs.add(id));
+            qualifiedRanges.push([match.index, bareQualified.lastIndex]);
+          }
+        }
+
+        const unqualified = /\[((?:\]\]|[^\]])+)\]/g;
+        while ((match = unqualified.exec(clean))) {
+          if (qualifiedRanges.some(range => match.index >= range[0] && match.index < range[1])) continue;
+          const name = match[1].replace(/\]\]/g, "]");
+          const measures = indexes.measures.get(name.toLocaleLowerCase()) || [];
+          if (measures.length) {
+            measures.forEach(id => refs.add(id));
+            continue;
+          }
+          const local = resolveObject(indexes, "column", ownerTable, name);
+          if (local.length) local.forEach(id => refs.add(id));
+          else {
+            const columns = indexes.columns.get(name.toLocaleLowerCase()) || [];
+            if (columns.length === 1) refs.add(columns[0]);
+          }
+        }
+        return refs;
+      }
+
+      function stripDaxNoise(text) {
+        return text
+          .replace(/\/\*[\s\S]*?\*\//g, " ")
+          .replace(/\/\/.*$/gm, " ")
+          .replace(/--.*$/gm, " ")
+          .replace(/"(?:""|[^"])*"/g, "\"\"");
+      }
+
+      function applyTmdlStructuralUsage(records, indexes, hierarchyIndex, addRoot) {
+        for (const record of records) {
+          const lower = record.path.toLocaleLowerCase();
+          if (/relationships\.tmdl$/.test(lower)) {
+            scanQualifiedText(record.text, indexes).forEach(id => addRoot(id, `Relationship: ${shortPath(record.path)}`));
+            scanRelationshipProperties(record.text, indexes).forEach(id => addRoot(id, `Relationship: ${shortPath(record.path)}`));
+          }
+          if (/\/roles\//.test(lower) || /roles\.tmdl$/.test(lower)) {
+            const tableMatch = record.text.match(/tablePermission\s+(.+?)(?:\s*=|$)/i);
+            const table = tableMatch ? readTmdlName(tableMatch[1]) : "";
+            resolveDaxRefs(record.text, table, indexes).forEach(id => addRoot(id, `Role: ${shortPath(record.path)}`));
+          }
+          if (/\/perspectives\//.test(lower) || /perspectives\.tmdl$/.test(lower)) {
+            scanPerspective(record.text, indexes).forEach(id => addRoot(id, `Perspective: ${shortPath(record.path)}`));
+          }
+          if (/calculationgroup|calculationitems/i.test(lower)) {
+            resolveDaxRefs(record.text, "", indexes).forEach(id => addRoot(id, `Calculation group: ${shortPath(record.path)}`));
+          }
+        }
+      }
+
+      function scanRelationshipProperties(text, indexes) {
+        const refs = new Set();
+        const regex = /(?:fromColumn|toColumn)\s*:\s*(.+)$/gim;
+        let match;
+        while ((match = regex.exec(text))) {
+          const value = match[1].trim();
+          const quotedDot = value.match(/^(?:'((?:''|[^'])+)'|([A-Za-z_][A-Za-z0-9_ ]*))\s*\.\s*(?:'((?:''|[^'])+)'|([A-Za-z_][A-Za-z0-9_ ]*))/);
+          const bracket = value.match(/^(?:'((?:''|[^'])+)'|([^\[]+))\s*\[([^\]]+)\]/);
+          const bareDot = value.match(/^([^.'\s]+)\.([^\s]+)/);
+          let table = "", name = "";
+          if (quotedDot) [table, name] = [(quotedDot[1] || quotedDot[2]).trim().replace(/''/g, "'"), (quotedDot[3] || quotedDot[4]).trim().replace(/''/g, "'")];
+          else if (bracket) [table, name] = [(bracket[1] || bracket[2]).trim().replace(/''/g, "'"), bracket[3].trim()];
+          else if (bareDot) [table, name] = [bareDot[1], bareDot[2]];
+          resolveObject(indexes, "column", table, name).forEach(id => refs.add(id));
+        }
+        return refs;
+      }
+
+      function scanPerspective(text, indexes) {
+        const refs = new Set(scanQualifiedText(text, indexes));
+        const lines = text.replace(/\r\n?/g, "\n").split("\n");
+        let table = "";
+        for (const line of lines) {
+          const tableMatch = line.match(/^\s*(?:perspectiveTable|table)\s+(.+)$/i);
+          if (tableMatch) {
+            table = readTmdlName(tableMatch[1]);
+            continue;
+          }
+          const objectMatch = line.match(/^\s*(measure|column|perspectiveMeasure|perspectiveColumn)\s+(.+)$/i);
+          if (!objectMatch || !table) continue;
+          const kind = /measure/i.test(objectMatch[1]) ? "measure" : "column";
+          resolveObject(indexes, kind, table, readTmdlName(objectMatch[2])).forEach(id => refs.add(id));
+        }
+        return refs;
+      }
+
+      function applyBimStructuralUsage(records, indexes, hierarchyIndex, addRoot, warnings) {
+        for (const record of records) {
+          let data;
+          try { data = JSON.parse(record.text); } catch (error) { continue; }
+          const model = findModelNode(data);
+          if (!model) continue;
+          for (const relationship of model.relationships || []) {
+            resolveObject(indexes, "column", relationship.fromTable, relationship.fromColumn).forEach(id => addRoot(id, "Model relationship"));
+            resolveObject(indexes, "column", relationship.toTable, relationship.toColumn).forEach(id => addRoot(id, "Model relationship"));
+          }
+          for (const role of model.roles || []) {
+            for (const permission of role.tablePermissions || []) {
+              resolveDaxRefs(expressionText(permission.filterExpression || permission.expression || ""), permission.name || permission.table || "", indexes)
+                .forEach(id => addRoot(id, `Role: ${role.name || "model role"}`));
+            }
+          }
+          for (const perspective of model.perspectives || []) {
+            const tables = perspective.perspectiveTables || perspective.tables || [];
+            for (const table of tables) {
+              const tableName = table.name || table.table;
+              for (const name of normalizeNamedCollection(table.columns)) resolveObject(indexes, "column", tableName, name).forEach(id => addRoot(id, `Perspective: ${perspective.name}`));
+              for (const name of normalizeNamedCollection(table.measures)) resolveObject(indexes, "measure", tableName, name).forEach(id => addRoot(id, `Perspective: ${perspective.name}`));
+            }
+          }
+          for (const table of model.tables || []) {
+            const items = table.calculationGroup?.calculationItems || [];
+            for (const item of items) {
+              resolveDaxRefs(expressionText(item.expression || ""), table.name, indexes).forEach(id => addRoot(id, `Calculation group: ${table.name}`));
+            }
+          }
+        }
+      }
+
+      function normalizeNamedCollection(value) {
+        if (!value) return [];
+        if (Array.isArray(value)) return value.map(item => typeof item === "string" ? item : item.name).filter(Boolean);
+        return Object.keys(value);
+      }
+
+      function scanReportRecord(record, indexes, hierarchyIndex, addRoot) {
+        const seenStrings = new Set();
+
+        function processValue(value) {
+          if (!value || typeof value !== "object") return;
+          const aliases = collectAliases(value);
+          walk(value, aliases);
+        }
+
+        function walk(value, aliases) {
+          if (value == null) return;
+          if (typeof value === "string") {
+            const trimmed = value.trim();
+            if ((trimmed.startsWith("{") || trimmed.startsWith("[")) && trimmed.length < 3_000_000 && !seenStrings.has(trimmed)) {
+              seenStrings.add(trimmed);
+              try { processValue(JSON.parse(trimmed)); } catch (error) { /* Some report strings are not JSON. */ }
+            }
+            scanQualifiedText(value, indexes).forEach(addRoot);
+            return;
+          }
+          if (Array.isArray(value)) {
+            value.forEach(item => walk(item, aliases));
+            return;
+          }
+          if (typeof value !== "object") return;
+
+          for (const [kindName, kind] of [["Measure", "measure"], ["Column", "column"]]) {
+            if (value[kindName] && typeof value[kindName] === "object") {
+              const ref = value[kindName];
+              const name = ref.Property || ref.property || ref.Name || ref.name;
+              const source = findSourceRef(ref.Expression || ref.expression || ref, aliases);
+              if (name && source) resolveObject(indexes, kind, source, name).forEach(addRoot);
+            }
+          }
+
+          const hierarchyRef = value.HierarchyLevel || value.hierarchyLevel;
+          if (hierarchyRef && typeof hierarchyRef === "object") {
+            const level = hierarchyRef.Level || hierarchyRef.level;
+            const hierarchyNode = hierarchyRef.Expression?.Hierarchy || hierarchyRef.expression?.hierarchy || hierarchyRef.Hierarchy || hierarchyRef.hierarchy;
+            const hierarchy = hierarchyNode?.Hierarchy || hierarchyNode?.hierarchy || hierarchyNode?.Name || hierarchyNode?.name;
+            const source = findSourceRef(hierarchyNode?.Expression || hierarchyNode?.expression || hierarchyNode, aliases);
+            const column = hierarchyIndex.get(hierarchyKey(source, hierarchy, level));
+            if (column) resolveObject(indexes, "column", source, column).forEach(addRoot);
+          }
+
+          for (const [key, child] of Object.entries(value)) {
+            if ((key === "queryRef" || key === "nativeQueryRef") && typeof child === "string") {
+              resolveQueryRef(child, indexes).forEach(addRoot);
+            }
+            walk(child, aliases);
+          }
+        }
+
+        try {
+          processValue(JSON.parse(record.text));
+        } catch (error) {
+          scanQualifiedText(record.text, indexes).forEach(addRoot);
+          throw error;
+        }
+      }
+
+      function collectAliases(root) {
+        const aliases = new Map();
+        const stack = [root];
+        let visited = 0;
+        while (stack.length && visited < 150000) {
+          const value = stack.pop();
+          visited++;
+          if (!value || typeof value !== "object") continue;
+          if (Array.isArray(value)) {
+            value.forEach(item => stack.push(item));
+            continue;
+          }
+          const from = value.From || value.from;
+          if (Array.isArray(from)) {
+            for (const source of from) {
+              const alias = source.Name || source.name || source.Source || source.source;
+              const entity = source.Entity || source.entity;
+              if (alias && entity) aliases.set(alias, entity);
+            }
+          }
+          const sourceRef = value.SourceRef || value.sourceRef;
+          if (sourceRef?.Source && sourceRef?.Entity) aliases.set(sourceRef.Source, sourceRef.Entity);
+          Object.values(value).forEach(child => {
+            if (child && typeof child === "object") stack.push(child);
+          });
+        }
+        return aliases;
+      }
+
+      function findSourceRef(value, aliases, depth = 0) {
+        if (!value || typeof value !== "object" || depth > 10) return "";
+        const sourceRef = value.SourceRef || value.sourceRef;
+        if (sourceRef) {
+          const entity = sourceRef.Entity || sourceRef.entity;
+          if (entity) return entity;
+          const source = sourceRef.Source || sourceRef.source;
+          if (source && aliases.has(source)) return aliases.get(source);
+        }
+        for (const child of Object.values(value)) {
+          if (child && typeof child === "object") {
+            const found = findSourceRef(child, aliases, depth + 1);
+            if (found) return found;
+          }
+        }
+        return "";
+      }
+
+      function resolveQueryRef(value, indexes) {
+        const refs = new Set();
+        const clean = value.replace(/^Sum\(|^Count\(|\)$/gi, "");
+        const dot = clean.indexOf(".");
+        if (dot > 0) {
+          const table = clean.slice(0, dot).replace(/^'|'$/g, "");
+          const name = clean.slice(dot + 1).replace(/^'|'$/g, "");
+          (indexes.qualified.get(qualifiedKey(table, name)) || []).forEach(id => refs.add(id));
+        }
+        return refs;
+      }
+
+      function scanQualifiedText(text, indexes) {
+        const refs = new Set(resolveDaxRefs(String(text || "").replace(/\\"/g, "\""), "", indexes));
+        const dotRegex = /'((?:''|[^'])+)'\s*\.\s*'((?:''|[^'])+)'/g;
+        let match;
+        while ((match = dotRegex.exec(text))) {
+          (indexes.qualified.get(qualifiedKey(match[1].replace(/''/g, "'"), match[2].replace(/''/g, "'"))) || []).forEach(id => refs.add(id));
+        }
+        return refs;
+      }
+
+      function isReportRecord(path) {
+        const normalized = normalizePath(path);
+        if (!/\.(?:json|pbir)$/i.test(normalized)) return false;
+        if (/\/(?:\.pbi|StaticResources|CustomVisuals)\//i.test(normalized)) return false;
+        return /\.Report\//i.test(normalized) || /\/report\.json$/i.test(normalized) || /\/visual\.json$/i.test(normalized);
+      }
+
+      function semanticModelRoot(path) {
+        const match = normalizePath(path).match(/(^|\/)([^/]+\.(?:SemanticModel|Dataset))(?:\/|$)/i);
+        return match ? match[2].toLocaleLowerCase() : "";
+      }
+
+      function readTmdlName(value) {
+        const text = String(value || "").trim();
+        if (!text) return "";
+        if (text[0] === "'") {
+          let result = "";
+          for (let i = 1; i < text.length; i++) {
+            if (text[i] === "'" && text[i + 1] === "'") {
+              result += "'";
+              i++;
+            } else if (text[i] === "'") {
+              return result;
+            } else result += text[i];
+          }
+          return result;
+        }
+        if (text[0] === "\"") {
+          const end = text.indexOf("\"", 1);
+          return end > 0 ? text.slice(1, end) : text.slice(1);
+        }
+        return text.split(/\s*=|\s|:/)[0].trim();
+      }
+
+      function indentation(value) {
+        return [...String(value || "")].reduce((sum, char) => sum + (char === "\t" ? 4 : 1), 0);
+      }
+
+      function expressionText(value) {
+        return Array.isArray(value) ? value.join("\n") : String(value || "");
+      }
+
+      function fileStem(path) {
+        const name = normalizePath(path).split("/").pop() || "";
+        return name.replace(/\.[^.]+$/, "");
+      }
+
+      function shortPath(path) {
+        const parts = normalizePath(path).split("/");
+        return parts.length > 4 ? `…/${parts.slice(-4).join("/")}` : parts.join("/");
+      }
+
+      function qualifiedKey(table, name) {
+        return `${String(table || "").trim().toLocaleLowerCase()}\u0000${String(name || "").trim().toLocaleLowerCase()}`;
+      }
+
+      function hierarchyKey(table, hierarchy, level) {
+        return `${String(table || "").toLocaleLowerCase()}\u0000${String(hierarchy || "").toLocaleLowerCase()}\u0000${String(level || "").toLocaleLowerCase()}`;
+      }
+
+      function compareObjects(a, b) {
+        const statusOrder = { unused: 0, cascade: 1, used: 2 };
+        return statusOrder[a.status] - statusOrder[b.status]
+          || a.kind.localeCompare(b.kind)
+          || a.table.localeCompare(b.table)
+          || a.name.localeCompare(b.name);
+      }
+
+      function unique(values) {
+        return [...new Set(values.filter(Boolean))];
+      }
+
+      function renderAnalysis() {
+        const analysis = state.analysis;
+        state.statusFilter = "candidates";
+        state.typeFilter = "all";
+        state.query = "";
+        els.typeFilter.value = "all";
+        els.searchInput.value = "";
+        document.querySelectorAll("[data-status]").forEach(button => button.classList.toggle("active", button.dataset.status === "candidates"));
+
+        els.resultsMeta.textContent = `${analysis.projectName} · ${analysis.format} model · ${analysis.reportFileCount.toLocaleString()} report definition file${analysis.reportFileCount === 1 ? "" : "s"} scanned`;
+        els.summaryGrid.innerHTML = [
+          metricHtml("Objects scanned", analysis.stats.scanned, "Measures and columns"),
+          metricHtml("Removal candidates", analysis.stats.candidates, "Red + amber findings", "danger"),
+          metricHtml("Unused measures", analysis.stats.measures, "Candidate measures"),
+          metricHtml("Unused columns", analysis.stats.columns, `${analysis.stats.cascade} used only by unused`, "warning")
+        ].join("");
+
+        if (analysis.warnings.length) {
+          els.warningNotice.classList.remove("hidden");
+          els.warningNotice.innerHTML = `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 8v5m0 3.2v.1M10.1 4.5 3.4 17a2 2 0 0 0 1.8 3h13.6a2 2 0 0 0 1.8-3L13.9 4.5a2 2 0 0 0-3.8 0Z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><div><strong>Review the scan scope</strong><ul>${analysis.warnings.map(item => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>`;
+        } else {
+          els.warningNotice.classList.add("hidden");
+          els.warningNotice.innerHTML = "";
+        }
+
+        renderRows();
+        els.results.classList.add("visible");
+        els.results.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+
+      function metricHtml(label, value, note, className = "") {
+        return `<div class="metric ${className}"><div class="metric-label">${escapeHtml(label)}</div><div class="metric-value">${Number(value).toLocaleString()}</div><div class="metric-note">${escapeHtml(note)}</div></div>`;
+      }
+
+      function filteredObjects() {
+        if (!state.analysis) return [];
+        return state.analysis.objects.filter(object => {
+          const statusMatch = state.statusFilter === "all"
+            || (state.statusFilter === "candidates" && object.status !== "used")
+            || object.status === state.statusFilter;
+          const typeMatch = state.typeFilter === "all" || object.kind === state.typeFilter;
+          const queryMatch = !state.query || `${object.table} ${object.name} ${object.kind}`.toLocaleLowerCase().includes(state.query);
+          return statusMatch && typeMatch && queryMatch;
+        });
+      }
+
+      function renderRows() {
+        if (!state.analysis) return;
+        const rows = filteredObjects();
+        els.resultsBody.innerHTML = rows.map((object, index) => rowHtml(object, index)).join("");
+        els.emptyState.hidden = rows.length > 0;
+        els.resultsBody.closest("table").hidden = rows.length === 0;
+        els.rowCount.textContent = `Showing ${rows.length.toLocaleString()} of ${state.analysis.objects.length.toLocaleString()} objects`;
+      }
+
+      function rowHtml(object, index) {
+        const detailId = `detail-${index}`;
+        const status = object.status === "unused" ? "Unused" : object.status === "cascade" ? "Used by unused" : "Used";
+        const incomingNames = object.incoming.map(id => state.analysis.objectMap.get(id)).filter(Boolean);
+        const dependencyNames = object.dependencies.map(id => state.analysis.objectMap.get(id)).filter(Boolean);
+        return `
+          <tr class="data-row">
+            <td><span class="kind ${object.kind}"><span class="kind-dot"></span>${object.kind === "measure" ? "Measure" : object.calculated ? "Calculated column" : "Column"}</span></td>
+            <td><span class="object-name">${escapeHtml(object.name)}</span></td>
+            <td><span class="table-name">${escapeHtml(object.table)}</span></td>
+            <td><span class="badge ${object.status}">${status}</span></td>
+            <td><span class="badge confidence">${escapeHtml(object.confidence)}</span></td>
+            <td><div class="reason">${escapeHtml(object.reason)}</div></td>
+            <td><button class="detail-btn" type="button" data-detail="${detailId}" aria-controls="${detailId}" aria-expanded="false" title="Show evidence"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="m9 6 6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></td>
+          </tr>
+          <tr class="detail-row" id="${detailId}">
+            <td colspan="7">
+              <div class="detail-panel">
+                <div><strong>Evidence</strong><div>${escapeHtml(object.reason)}</div>${incomingNames.length ? `<ul>${incomingNames.map(item => `<li>${escapeHtml(item.table)}[${escapeHtml(item.name)}] — ${escapeHtml(item.status)}</li>`).join("")}</ul>` : ""}</div>
+                <div><strong>Definition</strong><div><code>${escapeHtml(shortPath(object.sourcePath))}${object.line ? `:${object.line}` : ""}</code></div>${dependencyNames.length ? `<div style="margin-top:8px"><strong>Depends on</strong>: ${dependencyNames.map(item => `${escapeHtml(item.table)}[${escapeHtml(item.name)}]`).join(", ")}</div>` : ""}</div>
+              </div>
+            </td>
+          </tr>`;
+      }
+
+      function exportCandidates() {
+        return (state.analysis?.candidates || []).map(object => ({
+          type: object.kind,
+          table: object.table,
+          name: object.name,
+          status: object.status === "cascade" ? "used-by-unused" : object.status,
+          confidence: object.confidence,
+          reason: object.reason,
+          sourceFile: object.sourcePath,
+          sourceLine: object.line
+        }));
+      }
+
+      async function copyCandidates() {
+        const rows = exportCandidates();
+        const text = rows.map(item => `${item.type}\t${item.table}\t${item.name}\t${item.status}`).join("\n");
+        try {
+          await navigator.clipboard.writeText(text);
+          showToast(`${rows.length} candidate${rows.length === 1 ? "" : "s"} copied.`);
+        } catch (error) {
+          const area = document.createElement("textarea");
+          area.value = text;
+          document.body.appendChild(area);
+          area.select();
+          document.execCommand("copy");
+          area.remove();
+          showToast(`${rows.length} candidate${rows.length === 1 ? "" : "s"} copied.`);
+        }
+      }
+
+      function downloadCsv() {
+        const rows = exportCandidates();
+        const headers = ["Type", "Table", "Object", "Status", "Confidence", "Reason", "Source file", "Source line"];
+        const csv = [headers, ...rows.map(item => [item.type, item.table, item.name, item.status, item.confidence, item.reason, item.sourceFile, item.sourceLine || ""])]
+          .map(row => row.map(csvCell).join(","))
+          .join("\r\n");
+        downloadBlob(`${safeFileName(state.analysis.projectName)}-unused-objects.csv`, csv, "text/csv;charset=utf-8");
+      }
+
+      function downloadJson() {
+        const payload = {
+          generatedAt: new Date().toISOString(),
+          project: state.analysis.projectName,
+          modelFormat: state.analysis.format,
+          reportFilesScanned: state.analysis.reportFileCount,
+          warnings: state.analysis.warnings,
+          candidates: exportCandidates()
+        };
+        downloadBlob(`${safeFileName(state.analysis.projectName)}-unused-objects.json`, JSON.stringify(payload, null, 2), "application/json;charset=utf-8");
+      }
+
+      function csvCell(value) {
+        const text = String(value ?? "");
+        return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+      }
+
+      function safeFileName(value) {
+        return String(value || "pbip").replace(/[^a-z0-9_-]+/gi, "-").replace(/^-|-$/g, "").toLocaleLowerCase() || "pbip";
+      }
+
+      function downloadBlob(name, content, type) {
+        const url = URL.createObjectURL(new Blob([content], { type }));
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = name;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      }
+
+      function escapeHtml(value) {
+        return String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
+      }
+
+      let toastTimer;
+      function showToast(message) {
+        clearTimeout(toastTimer);
+        els.toast.textContent = message;
+        els.toast.classList.add("show");
+        toastTimer = setTimeout(() => els.toast.classList.remove("show"), 2600);
+      }
+
+      async function collectDropEntries(dataTransfer) {
+        const items = Array.from(dataTransfer?.items || []);
+        const roots = items.map(item => item.webkitGetAsEntry?.()).filter(Boolean);
+        if (!roots.length) {
+          return Array.from(dataTransfer?.files || []).map(file => ({ path: file.name, file }));
+        }
+        const output = [];
+        for (const root of roots) await walkDropEntry(root, "", output);
+        return output;
+      }
+
+      async function walkDropEntry(entry, parent, output) {
+        const path = parent ? `${parent}/${entry.name}` : entry.name;
+        if (entry.isFile) {
+          const file = await new Promise((resolve, reject) => entry.file(resolve, reject));
+          output.push({ path, file });
+          return;
+        }
+        if (!entry.isDirectory) return;
+        const reader = entry.createReader();
+        const children = [];
+        while (true) {
+          const batch = await new Promise((resolve, reject) => reader.readEntries(resolve, reject));
+          if (!batch.length) break;
+          children.push(...batch);
+        }
+        for (const child of children) await walkDropEntry(child, path, output);
+      }
+
+      function loadDemo() {
+        const demoRecords = [
+          {
+            path: "Sales demo/Sales.pbip",
+            text: JSON.stringify({ version: "1.0", artifacts: [{ report: { path: "Sales.Report" } }] })
+          },
+          {
+            path: "Sales demo/Sales.SemanticModel/definition/tables/Sales.tmdl",
+            text: `table Sales
+	column Amount
+		dataType: decimal
+		sourceColumn: Amount
+
+	column Cost
+		dataType: decimal
+		sourceColumn: Cost
+
+	column 'Legacy Flag'
+		dataType: int64
+		sourceColumn: LegacyFlag
+
+	column Notes
+		dataType: string
+		sourceColumn: Notes
+
+	column 'Date Key'
+		dataType: int64
+		sourceColumn: DateKey
+
+	measure 'Total Sales' = SUM(Sales[Amount])
+
+	measure Margin = [Total Sales] - SUM(Sales[Cost])
+
+	measure 'Old KPI' = SUM(Sales[Legacy Flag])
+
+	measure 'Old KPI label' = FORMAT([Old KPI], "0")`
+          },
+          {
+            path: "Sales demo/Sales.SemanticModel/definition/tables/Date.tmdl",
+            text: `table Date
+	column 'Date Key'
+		dataType: int64
+		sourceColumn: DateKey
+
+	column Year
+		dataType: int64
+		sourceColumn: Year`
+          },
+          {
+            path: "Sales demo/Sales.SemanticModel/definition/relationships.tmdl",
+            text: `relationship 00000000-0000-0000-0000-000000000001
+	fromColumn: Sales.'Date Key'
+	toColumn: Date.'Date Key'`
+          },
+          {
+            path: "Sales demo/Sales.Report/definition/pages/Page1/visuals/Card/visual.json",
+            text: JSON.stringify({
+              visual: { visualType: "card" },
+              query: { queryState: { Values: { projections: [
+                { field: { Measure: { Expression: { SourceRef: { Entity: "Sales" } }, Property: "Margin" } } },
+                { field: { Column: { Expression: { SourceRef: { Entity: "Date" } }, Property: "Year" } } }
+              ] } } }
+            }, null, 2)
+          }
+        ];
+        state.projectName = "Sales demo";
+        state.pendingEntries = [];
+        els.projectName.textContent = "Sales demo";
+        els.projectMeta.textContent = "5 demo project files · ready to explore";
+        els.uploadStatus.classList.add("visible");
+        els.analyzeLabel.textContent = "Demo loaded";
+        els.analyzeButton.disabled = true;
+        state.analysis = analyzeProject(demoRecords, "Sales demo", []);
+        renderAnalysis();
+      }
+    })();
+  </script>
+</body>
+</html>
