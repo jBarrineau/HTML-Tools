@@ -177,6 +177,7 @@
 
     .upload-zone {
       min-height: 250px;
+      cursor: pointer;
       border: 2px dashed #cfd3df;
       border-radius: 14px;
       background: var(--surface-soft);
@@ -343,6 +344,28 @@
     }
 
     .filter-btn.active { color: var(--accent-dark); background: var(--accent-soft); }
+
+    .filter-count {
+      margin-left: 6px;
+      padding: 1px 6px;
+      border-radius: 999px;
+      background: rgba(24, 33, 58, .08);
+      font-size: 10.5px;
+    }
+
+    .filter-btn.active .filter-count { background: rgba(98, 70, 217, .16); }
+
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      margin: -1px;
+      padding: 0;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+      border: 0;
+    }
 
     .toolbar-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 
@@ -592,10 +615,10 @@
       <div class="card results-card">
         <div class="toolbar">
           <div class="filter-group" aria-label="Status filters">
-            <button class="filter-btn active" type="button" data-status="candidates">Removal candidates</button>
-            <button class="filter-btn" type="button" data-status="unused">Unused</button>
-            <button class="filter-btn" type="button" data-status="cascade">Used by unused</button>
-            <button class="filter-btn" type="button" data-status="all">All objects</button>
+            <button class="filter-btn active" type="button" data-status="candidates">Removal candidates<span class="filter-count" hidden></span></button>
+            <button class="filter-btn" type="button" data-status="unused">Unused<span class="filter-count" hidden></span></button>
+            <button class="filter-btn" type="button" data-status="cascade">Used by unused<span class="filter-count" hidden></span></button>
+            <button class="filter-btn" type="button" data-status="all">All objects<span class="filter-count" hidden></span></button>
           </div>
           <div class="toolbar-actions">
             <select class="type-select" id="typeFilter" aria-label="Filter by object type">
@@ -604,7 +627,7 @@
               <option value="column">Columns</option>
             </select>
             <label class="search-wrap">
-              <span class="visually-hidden" hidden>Search results</span>
+              <span class="visually-hidden">Search results</span>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="6" stroke="currentColor" stroke-width="2"/><path d="m16 16 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
               <input class="search-input" id="searchInput" type="search" placeholder="Search table or object" aria-label="Search results">
             </label>
@@ -620,7 +643,7 @@
                 <th>Status</th>
                 <th>Confidence</th>
                 <th>Why</th>
-                <th><span class="visually-hidden" hidden>Details</span></th>
+                <th><span class="visually-hidden">Details</span></th>
               </tr>
             </thead>
             <tbody id="resultsBody"></tbody>
@@ -650,7 +673,7 @@
     (() => {
       "use strict";
 
-      const MAX_TEXT_FILE_BYTES = 12 * 1024 * 1024;
+      const MAX_TEXT_FILE_BYTES = 48 * 1024 * 1024;
       const state = {
         pendingEntries: [],
         projectName: "",
@@ -702,7 +725,12 @@
           path: normalizePath(file.webkitRelativePath || file.name),
           file
         }));
+        els.folderInput.value = "";
         stageEntries(entries);
+      });
+
+      els.dropZone.addEventListener("click", () => {
+        els.folderInput.click();
       });
 
       ["dragenter", "dragover"].forEach(type => {
@@ -837,7 +865,7 @@
         const dependencyGraph = new Map();
         const parseErrors = [];
 
-        const tmdlRecords = records.filter(record => /\.tmdl$/i.test(record.path) && /\/(?:definition)\//i.test(record.path) && !/\/TMDLScripts\//i.test(record.path));
+        const tmdlRecords = records.filter(record => /\.tmdl$/i.test(record.path) && /\/(?:definition)\//i.test(record.path) && !/\/(?:TMDLScripts|cultures)\//i.test(record.path));
         const bimRecords = records.filter(record => /\/model\.bim$/i.test(record.path) || /^model\.bim$/i.test(record.path));
         const reportRecords = records.filter(record => isReportRecord(record.path));
         const pbipRecords = records.filter(record => /\.pbip$/i.test(record.path));
@@ -887,6 +915,11 @@
 
         applyTmdlStructuralUsage(tmdlRecords, indexes, hierarchyIndex, addRoot);
         applyBimStructuralUsage(bimRecords, indexes, hierarchyIndex, addRoot, warnings);
+
+        for (const [key, column] of hierarchyIndex.entries()) {
+          const table = key.split("\u0000")[0];
+          resolveObject(indexes, "column", table, column).forEach(id => addRoot(id, "Hierarchy level"));
+        }
 
         for (const record of reportRecords) {
           try {
@@ -1020,7 +1053,7 @@
 
       function extractTmdlExpression(block) {
         const equal = block.indexOf("=");
-        if (equal === -1) return block;
+        if (equal === -1) return "";
         return block.slice(equal + 1);
       }
 
@@ -1135,8 +1168,8 @@
         return matches.length === 1 ? matches : [];
       }
 
-      function resolveDaxRefs(text, ownerTable, indexes) {
-        const clean = stripDaxNoise(String(text || ""));
+      function resolveDaxRefs(text, ownerTable, indexes, rawText = false) {
+        const clean = rawText ? String(text || "") : stripDaxNoise(String(text || ""));
         const refs = new Set();
         const qualifiedRanges = [];
         let match;
@@ -1180,11 +1213,37 @@
       }
 
       function stripDaxNoise(text) {
-        return text
-          .replace(/\/\*[\s\S]*?\*\//g, " ")
-          .replace(/\/\/.*$/gm, " ")
-          .replace(/--.*$/gm, " ")
-          .replace(/"(?:""|[^"])*"/g, "\"\"");
+        let out = "";
+        let i = 0;
+        while (i < text.length) {
+          const char = text[i];
+          const next = text[i + 1];
+          if (char === "\"") {
+            i++;
+            while (i < text.length) {
+              if (text[i] === "\"" && text[i + 1] === "\"") { i += 2; continue; }
+              if (text[i] === "\"") { i++; break; }
+              i++;
+            }
+            out += "\"\"";
+            continue;
+          }
+          if (char === "/" && next === "*") {
+            const end = text.indexOf("*/", i + 2);
+            i = end === -1 ? text.length : end + 2;
+            out += " ";
+            continue;
+          }
+          if ((char === "/" && next === "/") || (char === "-" && next === "-")) {
+            const end = text.indexOf("\n", i + 2);
+            i = end === -1 ? text.length : end;
+            out += " ";
+            continue;
+          }
+          out += char;
+          i++;
+        }
+        return out;
       }
 
       function applyTmdlStructuralUsage(records, indexes, hierarchyIndex, addRoot) {
@@ -1195,17 +1254,59 @@
             scanRelationshipProperties(record.text, indexes).forEach(id => addRoot(id, `Relationship: ${shortPath(record.path)}`));
           }
           if (/\/roles\//.test(lower) || /roles\.tmdl$/.test(lower)) {
-            const tableMatch = record.text.match(/tablePermission\s+(.+?)(?:\s*=|$)/i);
-            const table = tableMatch ? readTmdlName(tableMatch[1]) : "";
-            resolveDaxRefs(record.text, table, indexes).forEach(id => addRoot(id, `Role: ${shortPath(record.path)}`));
+            for (const block of tmdlBlocks(record.text, /^\s*tablePermission\s+(.+)$/i)) {
+              const table = readTmdlName(block.head[1]);
+              const equal = block.text.indexOf("=");
+              if (equal === -1) continue;
+              resolveDaxRefs(block.text.slice(equal + 1), table, indexes).forEach(id => addRoot(id, `Role: ${shortPath(record.path)}`));
+            }
           }
           if (/\/perspectives\//.test(lower) || /perspectives\.tmdl$/.test(lower)) {
             scanPerspective(record.text, indexes).forEach(id => addRoot(id, `Perspective: ${shortPath(record.path)}`));
           }
-          if (/calculationgroup|calculationitems/i.test(lower)) {
-            resolveDaxRefs(record.text, "", indexes).forEach(id => addRoot(id, `Calculation group: ${shortPath(record.path)}`));
-          }
+          scanTmdlTableUsage(record, indexes, addRoot);
         }
+      }
+
+      function scanTmdlTableUsage(record, indexes, addRoot) {
+        const table = tmdlTableName(record);
+        for (const block of tmdlBlocks(record.text, /^\s*partition\s+.+?=\s*calculated\s*$/i)) {
+          const sourceIndex = block.text.search(/^\s*source\b/m);
+          if (sourceIndex === -1) continue;
+          const rest = block.text.slice(sourceIndex);
+          const equal = rest.indexOf("=");
+          if (equal === -1) continue;
+          resolveDaxRefs(rest.slice(equal + 1), table, indexes).forEach(id => addRoot(id, `Calculated table: ${table || shortPath(record.path)}`));
+        }
+        for (const block of tmdlBlocks(record.text, /^\s*calculationItem\s+(.+)$/i)) {
+          const equal = block.text.indexOf("=");
+          if (equal === -1) continue;
+          resolveDaxRefs(block.text.slice(equal + 1), table, indexes).forEach(id => addRoot(id, `Calculation group: ${table || shortPath(record.path)}`));
+        }
+      }
+
+      function tmdlBlocks(text, headRegex) {
+        const lines = text.replace(/\r\n?/g, "\n").split("\n");
+        const blocks = [];
+        for (let i = 0; i < lines.length; i++) {
+          const head = lines[i].match(headRegex);
+          if (!head) continue;
+          const indent = indentation((lines[i].match(/^\s*/) || [""])[0]);
+          let end = i + 1;
+          while (end < lines.length) {
+            if (lines[end].trim() && indentation((lines[end].match(/^\s*/) || [""])[0]) <= indent) break;
+            end++;
+          }
+          blocks.push({ head, text: lines.slice(i, end).join("\n") });
+          i = end - 1;
+        }
+        return blocks;
+      }
+
+      function tmdlTableName(record) {
+        const match = record.text.match(/^\s*table\s+(.+)$/im);
+        if (match) return readTmdlName(match[1]);
+        return /\/tables\//i.test(record.path) ? fileStem(record.path) : "";
       }
 
       function scanRelationshipProperties(text, indexes) {
@@ -1273,6 +1374,12 @@
             for (const item of items) {
               resolveDaxRefs(expressionText(item.expression || ""), table.name, indexes).forEach(id => addRoot(id, `Calculation group: ${table.name}`));
             }
+            for (const partition of table.partitions || []) {
+              const source = partition?.source || {};
+              if (/calculated/i.test(source.type || "")) {
+                resolveDaxRefs(expressionText(source.expression || ""), table.name, indexes).forEach(id => addRoot(id, `Calculated table: ${table.name}`));
+              }
+            }
           }
         }
       }
@@ -1336,19 +1443,14 @@
           }
         }
 
-        try {
-          processValue(JSON.parse(record.text));
-        } catch (error) {
-          scanQualifiedText(record.text, indexes).forEach(addRoot);
-          throw error;
-        }
+        processValue(JSON.parse(record.text));
       }
 
       function collectAliases(root) {
         const aliases = new Map();
         const stack = [root];
         let visited = 0;
-        while (stack.length && visited < 150000) {
+        while (stack.length && visited < 600000) {
           const value = stack.pop();
           visited++;
           if (!value || typeof value !== "object") continue;
@@ -1393,9 +1495,8 @@
 
       function resolveQueryRef(value, indexes) {
         const refs = new Set();
-        const clean = value.replace(/^Sum\(|^Count\(|\)$/gi, "");
-        const dot = clean.indexOf(".");
-        if (dot > 0) {
+        const clean = String(value || "").trim().replace(/^[A-Za-z]+\((.*)\)$/s, "$1").trim();
+        for (let dot = clean.indexOf("."); dot > 0; dot = clean.indexOf(".", dot + 1)) {
           const table = clean.slice(0, dot).replace(/^'|'$/g, "");
           const name = clean.slice(dot + 1).replace(/^'|'$/g, "");
           (indexes.qualified.get(qualifiedKey(table, name)) || []).forEach(id => refs.add(id));
@@ -1404,10 +1505,11 @@
       }
 
       function scanQualifiedText(text, indexes) {
-        const refs = new Set(resolveDaxRefs(String(text || "").replace(/\\"/g, "\""), "", indexes));
+        const clean = String(text || "").replace(/\\"/g, "\"").replace(/"/g, " ");
+        const refs = new Set(resolveDaxRefs(clean, "", indexes, true));
         const dotRegex = /'((?:''|[^'])+)'\s*\.\s*'((?:''|[^'])+)'/g;
         let match;
-        while ((match = dotRegex.exec(text))) {
+        while ((match = dotRegex.exec(clean))) {
           (indexes.qualified.get(qualifiedKey(match[1].replace(/''/g, "'"), match[2].replace(/''/g, "'"))) || []).forEach(id => refs.add(id));
         }
         return refs;
@@ -1493,6 +1595,19 @@
         els.typeFilter.value = "all";
         els.searchInput.value = "";
         document.querySelectorAll("[data-status]").forEach(button => button.classList.toggle("active", button.dataset.status === "candidates"));
+
+        const statusCounts = {
+          candidates: analysis.stats.candidates,
+          unused: analysis.stats.candidates - analysis.stats.cascade,
+          cascade: analysis.stats.cascade,
+          all: analysis.objects.length
+        };
+        document.querySelectorAll("[data-status]").forEach(button => {
+          const badge = button.querySelector(".filter-count");
+          if (!badge) return;
+          badge.hidden = false;
+          badge.textContent = statusCounts[button.dataset.status].toLocaleString();
+        });
 
         els.resultsMeta.textContent = `${analysis.projectName} · ${analysis.format} model · ${analysis.reportFileCount.toLocaleString()} report definition file${analysis.reportFileCount === 1 ? "" : "s"} scanned`;
         els.summaryGrid.innerHTML = [
@@ -1752,6 +1867,9 @@
         state.analysis = analyzeProject(demoRecords, "Sales demo", []);
         renderAnalysis();
       }
+
+      // Console hook for testing the analyzer with synthetic records.
+      window.modelSweepAnalyze = (records, name = "test") => analyzeProject(records, name, []);
     })();
   </script>
 </body>
