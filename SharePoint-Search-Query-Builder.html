@@ -1,0 +1,1178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SharePoint Search Query Builder</title>
+<style>
+/* ══════════════════════════════════════════════════════════════════════════
+   Organic — design-system tokens and component classes.
+   Ported from the original artifact; web fonts replaced with system stacks.
+   ══════════════════════════════════════════════════════════════════════ */
+:root {
+  --color-bg: #f5ead8;
+  --color-surface: #ebddc5;
+  --color-text: #201e1d;
+  --color-accent: #c67139;
+  --color-accent-2: #7a8a5e;
+  --color-divider: color-mix(in srgb, #201e1d 16%, transparent);
+
+  /* Tonal ramps — generated in OKLCH on one shared lightness scale, so the
+     same step of any role matches the others in visual value. */
+  --color-neutral-100: #f9f4ed;
+  --color-neutral-200: #eee7db;
+  --color-neutral-300: #dcd3c4;
+  --color-neutral-400: #c0b6a5;
+  --color-neutral-500: #a19786;
+  --color-neutral-600: #82796a;
+  --color-neutral-700: #645c50;
+  --color-neutral-800: #474238;
+  --color-neutral-900: #2e2b25;
+
+  --color-accent-100: #fff2eb;
+  --color-accent-200: #ffe1d0;
+  --color-accent-300: #ffc6a5;
+  --color-accent-400: #f6a06b;
+  --color-accent-500: #d67f48;
+  --color-accent-600: #b2622d;
+  --color-accent-700: #8c491a;
+  --color-accent-800: #643312;
+  --color-accent-900: #402310;
+
+  --color-accent-2-100: #f0fae1;
+  --color-accent-2-200: #e1eecc;
+  --color-accent-2-300: #ccdbb2;
+  --color-accent-2-400: #aebf92;
+  --color-accent-2-500: #8fa073;
+  --color-accent-2-600: #728157;
+  --color-accent-2-700: #56633f;
+  --color-accent-2-800: #3d472b;
+  --color-accent-2-900: #272e1b;
+
+  /* The original used Caprasimo (display) + Figtree (body). System stacks
+     stand in; heading weight goes to 700 because no system face carries
+     Caprasimo's inherent heaviness at 400. */
+  --font-heading: "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-heading-weight: 700;
+  --font-body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  --space-1: 4.4px;
+  --space-2: 8.8px;
+  --space-3: 13.2px;
+  --space-4: 17.6px;
+  --space-6: 26.4px;
+  --space-8: 35.2px;
+
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-lg: 28px;
+
+  /* Elevation — derived from the ground: soft ink-tinted shadows on a
+     light theme, a hairline edge + ambient darkness on a dark one. */
+  --shadow-sm: 0 1px 2px color-mix(in srgb, #2e2b25 14%, transparent);
+  --shadow-md: 0 3px 10px color-mix(in srgb, #2e2b25 16%, transparent);
+  --shadow-lg: 0 12px 32px color-mix(in srgb, #2e2b25 22%, transparent);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0; font-size: 15px; line-height: 1.55; font-weight: 400;
+  background: var(--color-bg); color: var(--color-text);
+  font-family: var(--font-body);
+}
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  line-height: 1.12; letter-spacing: -0.015em; margin: 0 0 var(--space-2);
+}
+h1 { font-size: 42px; }
+h2 { font-size: 32px; }
+h3 { font-size: 25px; }
+h4 { font-size: 20px; }
+h5 { font-size: 16px; }
+h6 { font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; }
+p { margin: 0 0 var(--space-3); }
+a { color: var(--color-accent); text-underline-offset: 3px; }
+img { display: block; max-width: 100%; }
+.text-muted { color: color-mix(in srgb, var(--color-text) 55%, transparent); }
+:focus { outline: none; }
+:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+::selection { background: color-mix(in srgb, var(--color-accent) 30%, transparent); }
+
+/* — buttons — */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  cursor: pointer; text-decoration: none;
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 14px; line-height: 1.2; color: var(--color-text);
+  background: transparent; border: 1px solid transparent;
+  padding: var(--space-2) calc(var(--space-3) * 1.2);
+  border-radius: var(--radius-md);
+}
+.btn svg { display: block; }
+/* .btn sets display, which would otherwise beat the UA [hidden] rule. */
+.btn[hidden] { display: none; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-primary { background: var(--color-accent); color: var(--color-bg); }
+.btn-primary:hover { background: var(--color-accent-600); }
+.btn-primary:active { background: var(--color-accent-700); }
+.btn-secondary { border-color: var(--color-divider); }
+.btn-secondary:hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+.btn-secondary:active { background: color-mix(in srgb, var(--color-text) 14%, transparent); }
+.btn-ghost { color: var(--color-accent); padding-inline: var(--space-1); }
+.btn-ghost:hover { background: color-mix(in srgb, var(--color-accent) 10%, transparent); }
+.btn-ghost:active { background: color-mix(in srgb, var(--color-accent) 18%, transparent); }
+.btn-icon { width: 36px; height: 36px; padding: 0; }
+
+/* — forms — */
+.field > label {
+  display: block; font-size: 12px; margin-bottom: 5px;
+  color: color-mix(in srgb, var(--color-text) 70%, transparent);
+}
+.input {
+  width: 100%; min-height: 36px; padding: 6px 10px; font: inherit;
+  font-size: 14px; color: var(--color-text); caret-color: var(--color-accent);
+  background: var(--color-surface);
+  border: 1px solid var(--color-divider); border-radius: var(--radius-md);
+}
+.input:hover { border-color: color-mix(in srgb, var(--color-text) 45%, transparent); }
+.input:focus-visible { border-color: var(--color-accent); outline-offset: 0; }
+select.input { appearance: none; }
+.seg {
+  display: inline-flex; overflow: hidden;
+  border: 1px solid var(--color-divider); border-radius: var(--radius-md);
+}
+.seg-opt {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 12px; font-size: 13px; cursor: pointer;
+}
+.seg-opt input {
+  position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none;
+}
+.seg-opt + .seg-opt { border-left: 1px solid var(--color-divider); }
+.seg-opt:has(input:checked) { background: var(--color-accent); color: var(--color-bg); }
+.seg-opt:not(:has(input:checked)):hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+.seg-opt:has(input:focus-visible) { outline: 2px solid var(--color-accent); outline-offset: -2px; }
+
+/* — cards — */
+.card {
+  display: flex; flex-direction: column; gap: var(--space-2);
+  padding: var(--space-3); border-radius: var(--radius-md); background: var(--color-surface);
+}
+.elev-sm { box-shadow: var(--shadow-sm); }
+.elev-md { box-shadow: var(--shadow-md); }
+.elev-lg { box-shadow: var(--shadow-lg); }
+
+/* — tags — */
+.tag {
+  display: inline-flex; align-items: center; font-size: 11px;
+  letter-spacing: 0.02em; padding: 3px 10px;
+  border-radius: calc(var(--radius-md) * 0.75);
+}
+
+/* — navigation — */
+.nav {
+  display: flex; align-items: center; gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: none;
+}
+.nav-brand {
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 18px; margin-right: auto;
+}
+
+/* — rounded frame: everything softens, small controls go pill — */
+.card { border-radius: calc(var(--radius-lg) * 1.15); }
+.btn, .tag, .seg, .input { border-radius: 999px; }
+.input { padding-inline: 14px; }
+
+/* ── app-specific ──────────────────────────────────────────────────────── */
+.sq-scroll::-webkit-scrollbar { width: 10px; }
+.sq-scroll::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--color-text) 22%, transparent); border-radius: 999px; }
+.sq-lab { display: block; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-neutral-700); margin-bottom: 6px; }
+.sq-check { display: flex; align-items: center; gap: var(--space-2); font-size: 13px; cursor: pointer; }
+.sq-check input { width: 18px; height: 18px; accent-color: var(--color-accent); }
+
+.sq-app { width: 100%; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+.sq-split { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(680px, 56%) 1fr; }
+.sq-left { overflow: auto; padding: var(--space-6); display: flex; flex-direction: column; gap: var(--space-4); }
+.sq-right { background: var(--color-surface); padding: var(--space-6); display: flex; flex-direction: column; gap: var(--space-4); min-height: 0; }
+.sq-card { display: block; background: var(--color-neutral-100); padding: var(--space-6); }
+.sq-step { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-3); }
+.sq-step-n {
+  width: 26px; height: 26px; border-radius: 999px; background: var(--color-accent-2);
+  color: var(--color-bg); font-family: var(--font-heading); font-size: 13px;
+  display: flex; align-items: center; justify-content: center; flex: none;
+}
+.sq-cond-row { display: grid; grid-template-columns: 52px 1fr 178px 1fr 36px; align-items: center; gap: var(--space-2); }
+.sq-cond-join { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; color: var(--color-neutral-600); text-align: right; }
+.sq-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-3); }
+.sq-code {
+  background: var(--color-neutral-100); border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4); font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 13px; color: var(--color-accent-700); word-break: break-word;
+}
+.sq-out {
+  flex: 1; min-height: 0; margin: 0; overflow: auto;
+  background: var(--color-accent-900); color: var(--color-accent-200);
+  border-radius: var(--radius-md); padding: var(--space-4);
+  font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12.5px;
+  line-height: 1.7; white-space: pre-wrap; word-break: break-all;
+}
+
+/* The explanation and the query text both scale with what the user typed.
+   Left unbounded they push the notices and the output out of a viewport-
+   height pane, which is exactly when the warnings matter most. */
+.sq-clamp { max-height: 20vh; overflow: auto; }
+
+/* — validation notices — the palette carries no red, so severity is
+   signalled by the weight of the accent rather than by hue alone. — */
+.sq-notes { display: flex; flex-direction: column; gap: 6px; }
+.sq-notes:empty { display: none; }
+.sq-note {
+  font-size: 12.5px; line-height: 1.45; padding: 8px 12px;
+  border-radius: var(--radius-sm); border-left: 4px solid;
+}
+.sq-note-error { background: var(--color-accent-200); color: var(--color-accent-900); border-left-color: var(--color-accent-600); }
+.sq-note-warn { background: var(--color-neutral-200); color: var(--color-neutral-900); border-left-color: var(--color-neutral-500); }
+.sq-note b { font-weight: 700; }
+
+/* Below this the two panes no longer fit side by side, so the shell stops
+   owning the viewport height and the page scrolls as one column. */
+@media (max-width: 1100px) {
+  .sq-app { height: auto; overflow: visible; }
+  .sq-split { grid-template-columns: 1fr; }
+  .sq-left { overflow: visible; padding: var(--space-4); }
+  .sq-right { padding: var(--space-4); }
+  .sq-out { max-height: 60vh; }
+  .sq-card { padding: var(--space-4); }
+  .sq-grid-3 { grid-template-columns: repeat(2, 1fr); }
+  /* Property and value keep a row each; the join label and delete button
+     ride along on the ends rather than holding fixed columns. */
+  .sq-cond-row { grid-template-columns: 46px 1fr 32px; row-gap: 6px; }
+  .sq-cond-row > :nth-child(3) { grid-column: 2 / 4; }
+  .sq-cond-row > :nth-child(4) { grid-column: 2 / 4; }
+  .sq-cond-row > :nth-child(5) { grid-row: 1; grid-column: 3; }
+}
+@media (max-width: 620px) {
+  .nav { flex-wrap: wrap; }
+  .sq-grid-3 { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="sq-app">
+
+  <div class="nav" style="background:var(--color-surface); justify-content:space-between; gap:var(--space-6);">
+    <div style="display:flex; align-items:center; gap:var(--space-3); margin-right:auto;">
+      <div style="width:38px; height:38px; border-radius:999px; background:var(--color-accent); color:var(--color-bg); display:flex; align-items:center; justify-content:center; flex:none;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4.35-4.35"></path></svg>
+      </div>
+      <div>
+        <div class="nav-brand" style="font-size:22px; line-height:1.1;">Search Query Builder</div>
+        <div style="font-size:12px; color:var(--color-neutral-700);">Click your way to a SharePoint Search REST query — no KQL required</div>
+      </div>
+    </div>
+    <div style="display:flex; align-items:center; gap:var(--space-2);">
+      <span class="sq-lab" style="margin-bottom:0;">Request</span>
+      <div class="seg" style="background:var(--color-neutral-100);">
+        <label class="seg-opt" style="padding:8px 20px; font-family:var(--font-heading);">
+          <input type="radio" name="sq-method" id="m-get">GET
+        </label>
+        <label class="seg-opt" style="padding:8px 20px; font-family:var(--font-heading);">
+          <input type="radio" name="sq-method" id="m-post">POST
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <div class="sq-split">
+
+    <div class="sq-left sq-scroll">
+
+      <div class="card elev-sm sq-card">
+        <div class="sq-step">
+          <div class="sq-step-n">1</div>
+          <h4 style="margin:0;">Where should we look?</h4>
+        </div>
+        <div class="field">
+          <span class="sq-lab">Site or tenant URL</span>
+          <input class="input" id="site">
+        </div>
+      </div>
+
+      <div class="card elev-sm sq-card">
+        <div class="sq-step">
+          <div class="sq-step-n">2</div>
+          <h4 style="margin:0;">What are you looking for?</h4>
+        </div>
+
+        <div id="presets" style="display:flex; flex-wrap:wrap; gap:var(--space-2); margin-bottom:var(--space-4);"></div>
+
+        <div class="field" style="margin-bottom:var(--space-4);">
+          <span class="sq-lab">Words to match (optional)</span>
+          <input class="input" id="keywords" placeholder="e.g. quarterly budget">
+        </div>
+
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:var(--space-3); margin-bottom:var(--space-2);">
+          <span class="sq-lab" style="margin-bottom:0;">Conditions</span>
+          <div style="display:flex; align-items:center; gap:var(--space-2);">
+            <span style="font-size:12px; color:var(--color-neutral-600);">Match</span>
+            <div class="seg" style="background:var(--color-surface);">
+              <label class="seg-opt" style="font-size:12px; padding:6px 14px;">
+                <input type="radio" name="sq-join" id="j-all">ALL
+              </label>
+              <label class="seg-opt" style="font-size:12px; padding:6px 14px;">
+                <input type="radio" name="sq-join" id="j-any">ANY
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div id="conds" style="display:flex; flex-direction:column; gap:var(--space-2);"></div>
+
+        <button type="button" class="btn btn-secondary" id="add-cond" style="margin-top:var(--space-3);">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+          Add a condition
+        </button>
+      </div>
+
+      <div class="card elev-sm sq-card">
+        <div class="sq-step">
+          <div class="sq-step-n">3</div>
+          <h4 style="margin:0;">What comes back?</h4>
+        </div>
+
+        <span class="sq-lab" style="margin-bottom:var(--space-2);">Fields to return</span>
+        <div id="chips" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:var(--space-4);"></div>
+
+        <div class="sq-grid-3">
+          <div class="field">
+            <span class="sq-lab">Rows</span>
+            <input class="input" type="number" id="rowLimit" style="font-size:13px;">
+          </div>
+          <div class="field">
+            <span class="sq-lab">Sort by</span>
+            <select class="input" id="sortP" style="font-size:13px;"></select>
+          </div>
+          <div class="field">
+            <span class="sq-lab">Direction</span>
+            <select class="input" id="sortD" style="font-size:13px;">
+              <option value="desc">Newest / highest first</option>
+              <option value="asc">Oldest / lowest first</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display:flex; flex-wrap:wrap; gap:var(--space-4); margin-top:var(--space-4);">
+          <label class="sq-check"><input type="checkbox" id="trim">Hide duplicate results</label>
+          <label class="sq-check"><input type="checkbox" id="stem">Match word variations</label>
+          <label class="sq-check"><input type="checkbox" id="nick">Match name nicknames</label>
+        </div>
+      </div>
+
+      <div class="card elev-sm sq-card" style="padding:var(--space-4) var(--space-6) var(--space-6);">
+        <button type="button" class="btn btn-ghost" id="toggle-adv" style="font-size:16px; color:var(--color-text);">
+          <span style="color:var(--color-accent);" id="adv-caret">+</span> Advanced parameters
+          <span style="font-family:var(--font-body); font-size:12px; font-weight:600; color:var(--color-neutral-600);" id="adv-count"></span>
+        </button>
+        <div id="adv-panel" hidden>
+          <div class="sq-grid-3" style="margin-top:var(--space-4);">
+            <div class="field">
+              <span class="sq-lab">StartRow</span>
+              <input class="input" type="number" id="startRow" min="0" max="50000" style="font-size:13px;">
+            </div>
+            <div class="field">
+              <span class="sq-lab">Refiners</span>
+              <input class="input" id="refiners" placeholder="author,size" style="font-size:13px;">
+            </div>
+            <div class="field">
+              <span class="sq-lab">ClientType</span>
+              <input class="input" id="clientType" style="font-size:13px;">
+            </div>
+            <div class="field">
+              <span class="sq-lab">Culture (LCID)</span>
+              <input class="input" id="culture" placeholder="1033" style="font-size:13px;">
+            </div>
+            <div class="field">
+              <span class="sq-lab">Timeout (ms)</span>
+              <input class="input" type="number" id="timeout" style="font-size:13px;">
+            </div>
+            <div class="field">
+              <span class="sq-lab">SourceId</span>
+              <input class="input" id="sourceId" placeholder="GUID" style="font-size:13px;">
+            </div>
+          </div>
+          <label class="sq-check" style="margin-top:var(--space-3);">
+            <input type="checkbox" id="fql">Treat the query as FQL (EnableFql)
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="sq-right">
+      <div>
+        <h4 style="margin:0 0 6px;">In plain English</h4>
+        <div class="sq-clamp sq-scroll" style="font-size:14px; color:var(--color-neutral-800); text-wrap:pretty;" id="explain"></div>
+      </div>
+
+      <div>
+        <div style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:var(--space-2);">
+          <span class="sq-lab" style="margin-bottom:0;">Query text (KQL)</span>
+          <span style="font-size:11px; color:var(--color-neutral-600);" id="qtLen"></span>
+        </div>
+        <div class="sq-code sq-clamp sq-scroll" id="queryText"></div>
+      </div>
+
+      <div class="sq-notes" id="notices"></div>
+
+      <div style="flex:1; min-height:0; display:flex; flex-direction:column;">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:var(--space-3); margin-bottom:var(--space-2);">
+          <span class="sq-lab" style="margin-bottom:0;" id="outLabel"></span>
+          <div style="display:flex; align-items:center; gap:var(--space-2); flex:none;">
+            <button type="button" class="btn btn-primary" id="copyUrl">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V5a2 2 0 0 1 2-2h8"></path></svg>
+              <span id="copyUrlLabel">Copy URL</span>
+            </button>
+            <button type="button" class="btn btn-primary" id="copyBody" hidden>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V5a2 2 0 0 1 2-2h8"></path></svg>
+              <span id="copyBodyLabel">Copy body</span>
+            </button>
+          </div>
+        </div>
+        <pre class="sq-out sq-scroll" id="output"></pre>
+        <div style="margin-top:var(--space-2); font-size:11.5px; color:var(--color-neutral-700); font-family:ui-monospace, Menlo, Consolas, monospace;" id="headerHint"></div>
+        <!-- The output itself updates on every keystroke and would be far
+             too chatty to announce; the copy result is the useful event. -->
+        <div role="status" aria-live="polite" style="font-size:12px; min-height:1.4em; margin-top:6px;" id="copyStatus"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/* Carried over from the artifact's props panel, which no longer exists.
+   Kept as named constants so the behaviour stays explicit. */
+var SHOW_EXPLAIN = true;
+var URL_ENCODE = false;
+
+/* ── query generation ────────────────────────────────────────────────────
+   Pure functions over a state object. No DOM access until the closing
+   marker. Started as a verbatim copy of the artifact's methods; now
+   diverging as TASKS.md items land. */
+
+var DEFAULT_ROW_LIMIT = 10;
+var DEFAULT_TIMEOUT = 30000;
+
+var PROPS = [
+  { n: 'Title', label: 'Title', t: 'text', hint: 'annual report' },
+  { n: 'Author', label: 'Author (created by)', t: 'text', hint: 'Jane Doe' },
+  { n: 'Editor', label: 'Editor (last modified by)', t: 'text', hint: 'Jane Doe' },
+  { n: 'FileExtension', label: 'File extension', t: 'text', hint: 'docx' },
+  { n: 'FileType', label: 'File type', t: 'text', hint: 'pdf' },
+  { n: 'ContentType', label: 'Content type', t: 'text', hint: 'Document' },
+  { n: 'Path', label: 'Path (URL)', t: 'text', hint: 'https://contoso.sharepoint.com/sites/hr' },
+  { n: 'SiteTitle', label: 'Site title', t: 'text', hint: 'Marketing' },
+  { n: 'ContentClass', label: 'Content class', t: 'text', hint: 'STS_ListItem' },
+  { n: 'IsDocument', label: 'Is a document', t: 'bool', hint: 'true' },
+  { n: 'Created', label: 'Created date', t: 'date', hint: '2026-01-01' },
+  { n: 'LastModifiedTime', label: 'Modified date', t: 'date', hint: '2026-01-01' },
+  { n: 'Size', label: 'Size (bytes)', t: 'number', hint: '1048576' },
+  { n: 'RefinableString00', label: 'RefinableString00', t: 'text', hint: 'value' }
+];
+
+var OPS = {
+  contains: 'contains',
+  equals: 'is exactly',
+  not: 'is not',
+  startsWith: 'starts with',
+  gt: 'is more than',
+  lt: 'is less than'
+};
+
+/* Which operators each property type accepts, most useful first. The first
+   entry is the fallback when a property change invalidates the current one. */
+var TYPE_OPS = {
+  text: ['contains', 'equals', 'not', 'startsWith'],
+  bool: ['equals', 'not'],
+  date: ['equals', 'gt', 'lt'],
+  number: ['equals', 'not', 'gt', 'lt']
+};
+
+/* A comparison reads differently on a date than on a number. */
+var TYPE_OP_LABELS = { date: { gt: 'is after', lt: 'is before' } };
+
+function propType(name) {
+  var f = PROPS.filter(function (x) { return x.n === name; })[0];
+  return f ? f.t : 'text';
+}
+function opsFor(t) { return TYPE_OPS[t] || TYPE_OPS.text; }
+function validOp(t, o) { return opsFor(t).indexOf(o) >= 0; }
+function defaultOp(t) { return opsFor(t)[0]; }
+function opLabel(t, o) {
+  return (TYPE_OP_LABELS[t] && TYPE_OP_LABELS[t][o]) || OPS[o] || o;
+}
+
+var CHIPS = ['Title', 'Path', 'Author', 'LastModifiedTime', 'Created', 'FileExtension', 'Size', 'SiteTitle', 'HitHighlightedSummary', 'ContentType'];
+
+var PRESETS = [
+  { label: 'All documents', patch: { keywords: '', join: 'AND', conds: [{ p: 'IsDocument', o: 'equals', v: 'true' }], select: ['Title', 'Path', 'Author', 'LastModifiedTime'], sortP: 'LastModifiedTime', sortD: 'desc' } },
+  { label: 'Word + PDF files', patch: { keywords: '', join: 'OR', conds: [{ p: 'FileExtension', o: 'equals', v: 'docx' }, { p: 'FileExtension', o: 'equals', v: 'pdf' }], select: ['Title', 'Path', 'FileExtension', 'Size'], sortP: '', sortD: 'desc' } },
+  { label: 'Changed this year', patch: { keywords: '', join: 'AND', conds: [{ p: 'LastModifiedTime', o: 'gt', v: '2026-01-01' }], select: ['Title', 'Path', 'Editor', 'LastModifiedTime'], sortP: 'LastModifiedTime', sortD: 'desc' } },
+  { label: 'By one person', patch: { keywords: '', join: 'AND', conds: [{ p: 'Author', o: 'contains', v: 'Jane Doe' }], select: ['Title', 'Path', 'Author', 'Created'], sortP: 'Created', sortD: 'desc' } },
+  { label: 'Inside one site', patch: { keywords: '', join: 'AND', conds: [{ p: 'Path', o: 'startsWith', v: 'https://contoso.sharepoint.com/sites/hr' }], select: ['Title', 'Path', 'ContentType'], sortP: '', sortD: 'desc' } }
+];
+
+function blank() {
+  return {
+    site: 'https://contoso.sharepoint.com/sites/marketing',
+    keywords: 'quarterly budget',
+    join: 'AND',
+    conds: [
+      { p: 'FileExtension', o: 'equals', v: 'docx' },
+      { p: 'LastModifiedTime', o: 'gt', v: '2026-01-01' }
+    ],
+    rowLimit: 20,
+    startRow: 0,
+    select: ['Title', 'Path', 'Author', 'LastModifiedTime'],
+    sortP: 'LastModifiedTime',
+    sortD: 'desc',
+    trim: true,
+    stem: true,
+    nick: false,
+    fql: false,
+    refiners: '',
+    culture: '',
+    clientType: 'custom',
+    timeout: 30000,
+    sourceId: '',
+    adv: false,
+    method: 'get',
+    copied: '',
+    copyFailed: ''
+  };
+}
+
+/* Numeric fields reach state as strings and may be blank or non-numeric.
+   Falls back to the documented default rather than to zero, so a cleared
+   box behaves like an untouched one. A deliberate 0 survives. */
+function num(v, fallback) {
+  var raw = String(v == null ? '' : v).trim();
+  if (!raw) return fallback;
+  var n = Number(raw);
+  return isFinite(n) ? n : fallback;
+}
+
+/* A KQL term can stand unquoted only while every character is inert.
+   `*` is in the safe set so a wildcard keeps working outside quotes. */
+var BARE_TERM = /^[\w.@/*-]+$/;
+
+/* Q1 in TASKS.md: no escape convention for a literal `"` inside a KQL
+   phrase is documented. Backslash is the assumption — recorded in the
+   README, and the one thing here that a tenant test could overturn. */
+function quote(v) {
+  var esc = String(v).replace(/"/g, '\\"');
+  return esc === v && BARE_TERM.test(v) ? v : '"' + esc + '"';
+}
+
+/* OData string literals are single-quoted, and a literal `'` is doubled.
+   Applies to every GET parameter written inside `'…'`; the POST body needs
+   none of it, since JSON.stringify does its own escaping. */
+function odata(v) {
+  return String(v).replace(/'/g, "''");
+}
+
+function term(c) {
+  var v = (c.v || '').trim();
+  if (!v || !c.p) return null;
+  if (c.o === 'contains') return c.p + ':' + quote(v);
+  if (c.o === 'equals') return c.p + '=' + quote(v);
+  if (c.o === 'not') return '-' + c.p + '=' + quote(v);
+  /* The `*` goes inside the quotes, or a quoted phrase prefix would end
+     before the wildcard and stop matching as a prefix. */
+  if (c.o === 'startsWith') return c.p + ':' + quote(v + '*');
+  if (c.o === 'gt') return c.p + '>' + quote(v);
+  if (c.o === 'lt') return c.p + '<' + quote(v);
+  return null;
+}
+
+/* The ALL/ANY control sits in the Conditions header, so it joins the
+   conditions only. Keywords are a separate restriction, ANDed against the
+   whole group. Both sides are parenthesised once they hold more than one
+   term, so the grouping survives regardless of KQL's own precedence. */
+function queryText(s) {
+  var kw = (s.keywords || '').trim();
+  var terms = [];
+  s.conds.forEach(function (c) {
+    var t = term(c);
+    if (t) terms.push(t);
+  });
+  var group = terms.length > 1
+    ? '(' + terms.join(' ' + s.join + ' ') + ')'
+    : terms.join('');
+  if (kw && /\s/.test(kw)) kw = '(' + kw + ')';
+  if (kw && group) return kw + ' AND ' + group;
+  return kw || group || '*';
+}
+
+function activeAdv(s) {
+  var n = 0;
+  if (num(s.startRow, 0) > 0) n++;
+  if ((s.refiners || '').trim()) n++;
+  if ((s.clientType || '').trim() && s.clientType !== 'custom') n++;
+  if (num(s.culture, null) !== null) n++;
+  if (num(s.timeout, DEFAULT_TIMEOUT) !== DEFAULT_TIMEOUT) n++;
+  if ((s.sourceId || '').trim()) n++;
+  if (s.fql) n++;
+  return n;
+}
+
+function endpoint(s) {
+  var base = (s.site || '').replace(/\/+$/, '');
+  return base + (s.method === 'get' ? '/_api/search/query' : '/_api/search/postquery');
+}
+
+function getParams(s, encode) {
+  var startRow = num(s.startRow, 0);
+  var culture = num(s.culture, null);
+  var timeout = num(s.timeout, DEFAULT_TIMEOUT);
+  var p = [];
+  /* Every quoted value goes through odata(); encodeURIComponent leaves `'`
+     alone, so doubling first survives the encoding. */
+  var lit = function (name, value) {
+    var v = odata(value);
+    p.push(name + "='" + (encode ? encodeURIComponent(v) : v) + "'");
+  };
+  lit('querytext', queryText(s));
+  p.push('rowlimit=' + num(s.rowLimit, DEFAULT_ROW_LIMIT));
+  if (startRow > 0) p.push('startrow=' + startRow);
+  if (s.select.length) lit('selectproperties', s.select.join(','));
+  if (s.sortP) lit('sortlist', s.sortP + ':' + (s.sortD === 'desc' ? 'descending' : 'ascending'));
+  if (!s.trim) p.push('trimduplicates=false');
+  if (!s.stem) p.push('enablestemming=false');
+  if (s.nick) p.push('enablenicknames=true');
+  if (s.fql) p.push('enablefql=true');
+  if ((s.refiners || '').trim()) lit('refiners', s.refiners.trim());
+  if (culture !== null) p.push('culture=' + culture);
+  if ((s.clientType || '').trim()) lit('clienttype', s.clientType.trim());
+  if ((s.sourceId || '').trim()) lit('sourceid', s.sourceId.trim());
+  if (timeout !== DEFAULT_TIMEOUT) p.push('timeout=' + timeout);
+  return p;
+}
+
+/* Clipboard payload — one line, pasteable into an address bar or curl. */
+function getUrl(s, encode) {
+  return endpoint(s) + '?' + getParams(s, encode).join('&');
+}
+
+/* Display only. The line breaks make a long parameter list readable and
+   would corrupt the URL if pasted, so they never reach the clipboard. */
+function getUrlPretty(s, encode) {
+  return endpoint(s) + '?' + getParams(s, encode).join('\n  &');
+}
+
+/* Q3 in TASKS.md: the overview shows both a bare `{request:{…}}` wrapper and
+   a `__metadata`-annotated body. Verbose OData is the mode that wants the type
+   annotation, so the tool emits both together and the header hint says
+   `odata=verbose` — one self-consistent pairing rather than the mismatch it
+   had. Unconfirmed against a live tenant. */
+var SEARCH_REQUEST_TYPE = 'Microsoft.Office.Server.Search.REST.SearchRequest';
+
+/* Clipboard payload — the JSON body alone, no request-line preamble. */
+function postBody(s) {
+  var startRow = num(s.startRow, 0);
+  var culture = num(s.culture, null);
+  var timeout = num(s.timeout, DEFAULT_TIMEOUT);
+  var req = {
+    __metadata: { type: SEARCH_REQUEST_TYPE },
+    Querytext: queryText(s),
+    RowLimit: num(s.rowLimit, DEFAULT_ROW_LIMIT)
+  };
+  if (startRow > 0) req.StartRow = startRow;
+  if (s.select.length) req.SelectProperties = { results: s.select };
+  if (s.sortP) req.SortList = { results: [{ Property: s.sortP, Direction: s.sortD === 'desc' ? 1 : 0 }] };
+  req.TrimDuplicates = !!s.trim;
+  if (!s.stem) req.EnableStemming = false;
+  if (s.nick) req.EnableNicknames = true;
+  if (s.fql) req.EnableFQL = true;
+  if ((s.refiners || '').trim()) req.Refiners = s.refiners.trim();
+  if (culture !== null) req.Culture = culture;
+  if ((s.clientType || '').trim()) req.ClientType = s.clientType.trim();
+  if ((s.sourceId || '').trim()) req.SourceId = s.sourceId.trim();
+  if (timeout !== DEFAULT_TIMEOUT) req.Timeout = timeout;
+  return JSON.stringify({ request: req }, null, 2);
+}
+
+function listOf(items) {
+  if (items.length < 2) return items.join('');
+  return items.slice(0, -1).join(', ') + ' and ' + items[items.length - 1];
+}
+
+function explain(s) {
+  var label = function (n) {
+    var f = PROPS.filter(function (x) { return x.n === n; })[0];
+    return f ? f.label.toLowerCase() : n;
+  };
+  var clauses = s.conds.filter(function (c) { return (c.v || '').trim(); }).map(function (c) {
+    return label(c.p) + ' ' + opLabel(propType(c.p), c.o) + ' “' + c.v.trim() + '”';
+  });
+  var rows = num(s.rowLimit, DEFAULT_ROW_LIMIT);
+  var startRow = num(s.startRow, 0);
+  var culture = num(s.culture, null);
+  var timeout = num(s.timeout, DEFAULT_TIMEOUT);
+
+  var out = 'Send a ' + (s.method === 'get' ? 'GET' : 'POST') + ' request that searches ';
+  out += ((s.site || '').replace(/^https?:\/\//, '') || 'your site') + ' for ';
+  out += (s.keywords || '').trim() ? 'items about “' + s.keywords.trim() + '”' : 'all items';
+  /* Mirrors queryText(): the keyword restriction always applies, and
+     ALL/ANY governs the conditions among themselves. */
+  if (clauses.length === 1) out += ' where ' + clauses[0];
+  else if (clauses.length) {
+    out += ' where ' + (s.join === 'AND' ? 'all' : 'any') + ' of: ' + clauses.join(', ');
+  }
+  out += '. Return up to ' + rows + ' result' + (rows === 1 ? '' : 's');
+  out += s.select.length ? ' showing ' + s.select.join(', ') : '';
+  out += s.sortP ? ', ordered by ' + label(s.sortP) + (s.sortD === 'desc' ? ' (newest first)' : ' (oldest first)') : ', ordered by relevance';
+  out += s.trim ? ', with duplicates hidden.' : ', duplicates included.';
+
+  var extras = [];
+  if (startRow > 0) extras.push('skipping the first ' + startRow + ' result' + (startRow === 1 ? '' : 's'));
+  if (!s.stem) extras.push('without matching word variations');
+  if (s.nick) extras.push('matching name nicknames');
+  if (s.fql) extras.push('reading the query as FQL rather than KQL');
+  if ((s.refiners || '').trim()) extras.push('returning refiners for ' + s.refiners.trim());
+  if ((s.sourceId || '').trim()) extras.push('against result source ' + s.sourceId.trim());
+  if (culture !== null) extras.push('in culture (LCID) ' + culture);
+  if ((s.clientType || '').trim()) extras.push('identifying as client “' + s.clientType.trim() + '”');
+  if (timeout !== DEFAULT_TIMEOUT) extras.push('giving up after ' + timeout + ' ms');
+  if (extras.length) out += ' Also ' + listOf(extras) + '.';
+  return out;
+}
+
+/* Documented limits. StartRow's maximum is normative; the other two come
+   from the anonymous-query template sample, so they warn and never block.
+   No maximum for RowLimit is documented — see Q2 in TASKS.md. */
+var START_ROW_MAX = 50000;
+var MAX_URL_LENGTH = 2048;
+var MAX_QUERY_TEXT_LENGTH = 4096;
+var QUERY_TEXT_WARN_AT = Math.floor(MAX_QUERY_TEXT_LENGTH * 0.9);
+
+function issues(s, encode) {
+  var out = [];
+  var startRaw = String(s.startRow == null ? '' : s.startRow).trim();
+  var startRow = num(s.startRow, 0);
+  if (startRaw && (startRow < 0 || startRow > START_ROW_MAX)) {
+    out.push({
+      level: 'error',
+      text: 'StartRow must be between 0 and ' + START_ROW_MAX.toLocaleString() +
+            '. Beyond that the service rejects the query — page through the results instead.'
+    });
+  }
+  var qtLen = queryText(s).length;
+  if (qtLen > MAX_QUERY_TEXT_LENGTH) {
+    out.push({
+      level: 'warn',
+      text: 'Query text is ' + qtLen.toLocaleString() + ' characters, past the documented ' +
+            'MaxKeywordQueryTextLength of ' + MAX_QUERY_TEXT_LENGTH.toLocaleString() + '.'
+    });
+  }
+  if (s.method === 'get') {
+    var urlLen = getUrl(s, encode).length;
+    if (urlLen > MAX_URL_LENGTH) {
+      out.push({
+        level: 'warn',
+        text: 'This URL is ' + urlLen.toLocaleString() + ' characters, past the ' +
+              MAX_URL_LENGTH.toLocaleString() + '-character limit. Switch the request to POST.'
+      });
+    }
+  }
+  return out;
+}
+
+/* ── end query generation ─────────────────────────────────────────────── */
+
+var state = blank();
+var copyTimer = null;
+var el = {};
+
+['m-get', 'm-post', 'site', 'presets', 'keywords', 'j-all', 'j-any', 'conds',
+ 'add-cond', 'chips', 'rowLimit', 'sortP', 'sortD', 'trim', 'stem', 'nick',
+ 'toggle-adv', 'adv-caret', 'adv-count', 'adv-panel', 'startRow', 'refiners',
+ 'clientType', 'culture', 'timeout', 'sourceId', 'fql', 'explain', 'qtLen',
+ 'queryText', 'notices', 'outLabel', 'copyUrl', 'copyUrlLabel', 'copyBody',
+ 'copyBodyLabel', 'output', 'headerHint', 'copyStatus'
+].forEach(function (id) { el[id] = document.getElementById(id); });
+
+/* Sort-by options mirror PROPS, with relevance as the empty default. */
+(function buildSortOptions() {
+  var frag = document.createDocumentFragment();
+  frag.appendChild(new Option('Relevance (rank)', ''));
+  PROPS.forEach(function (p) { frag.appendChild(new Option(p.n, p.n)); });
+  el.sortP.appendChild(frag);
+})();
+
+(function buildPresets() {
+  PRESETS.forEach(function (preset) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'btn btn-secondary';
+    b.style.cssText = 'border-color:color-mix(in srgb, var(--color-accent) 40%, transparent); background:var(--color-accent-100); color:var(--color-accent-800);';
+    b.textContent = preset.label;
+    b.addEventListener('click', function () {
+      Object.assign(state, preset.patch, {
+        conds: preset.patch.conds.map(function (c) { return Object.assign({}, c); })
+      });
+      syncControls();
+      renderConds();
+      renderChips();
+      render();
+    });
+    el.presets.appendChild(b);
+  });
+})();
+
+(function buildChips() {
+  CHIPS.forEach(function (name) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'tag';
+    b.dataset.name = name;
+    b.style.cssText = 'cursor:pointer; padding:7px 14px; font-size:12.5px;';
+    b.textContent = name;
+    b.addEventListener('click', function () {
+      var i = state.select.indexOf(name);
+      if (i >= 0) state.select.splice(i, 1);
+      else state.select.push(name);
+      renderChips();
+      render();
+    });
+    el.chips.appendChild(b);
+  });
+})();
+
+function renderChips() {
+  Array.prototype.forEach.call(el.chips.children, function (b) {
+    var on = state.select.indexOf(b.dataset.name) >= 0;
+    b.style.border = '1px solid ' + (on ? 'var(--color-accent)' : 'var(--color-divider)');
+    b.style.background = on ? 'var(--color-accent)' : 'var(--color-surface)';
+    b.style.color = on ? 'var(--color-bg)' : 'var(--color-neutral-800)';
+    /* Selection is otherwise conveyed by colour alone. */
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+}
+
+/* The value control is whatever the property's type can hold: a date
+   picker, a number spinner, a true/false select, or plain text. */
+function valueControl(c) {
+  var t = propType(c.p);
+  var val;
+  if (t === 'bool') {
+    val = document.createElement('select');
+    val.appendChild(new Option('true', 'true'));
+    val.appendChild(new Option('false', 'false'));
+    val.value = c.v === 'false' ? 'false' : 'true';
+    c.v = val.value;
+  } else {
+    val = document.createElement('input');
+    if (t === 'date') val.type = 'date';
+    else if (t === 'number') { val.type = 'number'; val.min = '0'; }
+    val.value = c.v;
+    val.placeholder = hintFor(c.p);
+  }
+  val.className = 'input';
+  val.style.fontSize = '13px';
+  return val;
+}
+
+/* Rows are rebuilt only on add/remove, and on a property change that
+   switches type. Editing a value mutates state and patches that row in
+   place, so the field the user is typing in never gets torn out from
+   under the caret. */
+function renderConds(focusRow) {
+  el.conds.textContent = '';
+  state.conds.forEach(function (c, i) {
+    var row = document.createElement('div');
+    row.className = 'sq-cond-row';
+    var type = propType(c.p);
+    if (!validOp(type, c.o)) c.o = defaultOp(type);
+
+    var join = document.createElement('div');
+    join.className = 'sq-cond-join';
+    join.textContent = i === 0 ? 'WHERE' : state.join;
+
+    var propSel = document.createElement('select');
+    propSel.className = 'input';
+    propSel.style.fontSize = '13px';
+    propSel.setAttribute('aria-label', 'Condition ' + (i + 1) + ' property');
+    PROPS.forEach(function (p) { propSel.appendChild(new Option(p.label, p.n)); });
+    propSel.value = c.p;
+
+    var opSel = document.createElement('select');
+    opSel.className = 'input';
+    opSel.style.fontSize = '13px';
+    opSel.setAttribute('aria-label', 'Condition ' + (i + 1) + ' operator');
+    opsFor(type).forEach(function (k) { opSel.appendChild(new Option(opLabel(type, k), k)); });
+    opSel.value = c.o;
+
+    var val = valueControl(c);
+    val.setAttribute('aria-label', 'Condition ' + (i + 1) + ' value');
+
+    var del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'btn btn-secondary btn-icon';
+    del.title = 'Remove condition';
+    /* `title` alone leaves the button without an accessible name. */
+    del.setAttribute('aria-label', 'Remove condition: ' + hintLabel(c.p) + ' ' + opLabel(type, c.o));
+    del.style.color = 'var(--color-neutral-700)';
+    del.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"></path></svg>';
+
+    propSel.addEventListener('change', function () {
+      var was = propType(c.p);
+      c.p = propSel.value;
+      var now = propType(c.p);
+      if (was !== now) {
+        /* A value typed for one type rarely survives another, and the
+           operator may no longer be legal. Rebuild the row from the
+           type's defaults rather than leaving an illegal pair, keeping
+           focus on the select the user just used. */
+        c.v = '';
+        if (!validOp(now, c.o)) c.o = defaultOp(now);
+        renderConds(i);
+      } else {
+        val.placeholder = hintFor(c.p);
+        del.setAttribute('aria-label', 'Remove condition: ' + hintLabel(c.p) + ' ' + opLabel(now, c.o));
+      }
+      render();
+    });
+    opSel.addEventListener('change', function () {
+      c.o = opSel.value;
+      del.setAttribute('aria-label', 'Remove condition: ' + hintLabel(c.p) + ' ' + opLabel(type, c.o));
+      render();
+    });
+    val.addEventListener('input', function () { c.v = val.value; render(); });
+    val.addEventListener('change', function () { c.v = val.value; render(); });
+    del.addEventListener('click', function () {
+      var at = state.conds.indexOf(c);
+      if (at >= 0) state.conds.splice(at, 1);
+      renderConds();
+      render();
+    });
+
+    row.appendChild(join);
+    row.appendChild(propSel);
+    row.appendChild(opSel);
+    row.appendChild(val);
+    row.appendChild(del);
+    el.conds.appendChild(row);
+  });
+  if (focusRow != null && el.conds.children[focusRow]) {
+    el.conds.children[focusRow].children[1].focus();
+  }
+}
+
+function hintFor(name) {
+  var f = PROPS.filter(function (x) { return x.n === name; })[0];
+  return f ? f.hint : 'value';
+}
+
+function hintLabel(name) {
+  var f = PROPS.filter(function (x) { return x.n === name; })[0];
+  return f ? f.label : name;
+}
+
+/* Writes state back into the form controls. Only needed when something
+   other than the user changes state (init, presets) — never while typing. */
+function syncControls() {
+  el['m-get'].checked = state.method === 'get';
+  el['m-post'].checked = state.method !== 'get';
+  el['j-all'].checked = state.join === 'AND';
+  el['j-any'].checked = state.join !== 'AND';
+  el.site.value = state.site;
+  el.keywords.value = state.keywords;
+  el.rowLimit.value = state.rowLimit;
+  el.sortP.value = state.sortP;
+  el.sortD.value = state.sortD;
+  el.trim.checked = state.trim;
+  el.stem.checked = state.stem;
+  el.nick.checked = state.nick;
+  el.startRow.value = state.startRow;
+  el.refiners.value = state.refiners;
+  el.clientType.value = state.clientType;
+  el.culture.value = state.culture;
+  el.timeout.value = state.timeout;
+  el.sourceId.value = state.sourceId;
+  el.fql.checked = state.fql;
+}
+
+/* What the pane shows: annotated and line-wrapped for reading. */
+function displayOutput() {
+  return state.method === 'get'
+    ? getUrlPretty(state, URL_ENCODE)
+    : 'POST ' + endpoint(state) + '\n\n' + postBody(state);
+}
+
+/* What a copy button puts on the clipboard: the payload alone, ready to
+   paste into an address bar, curl, or a REST client's body field. */
+function copyPayload(kind) {
+  if (kind === 'body') return postBody(state);
+  return state.method === 'get' ? getUrl(state, URL_ENCODE) : endpoint(state);
+}
+
+function render() {
+  var qt = queryText(state);
+  var isGet = state.method === 'get';
+  var advN = activeAdv(state);
+
+  el.explain.textContent = SHOW_EXPLAIN ? explain(state) : '—';
+  el.queryText.textContent = qt;
+
+  /* MaxKeywordQueryTextLength is documented in a template sample rather
+     than as a guarantee, so the counter warns instead of blocking. */
+  el.qtLen.textContent = qt.length.toLocaleString() + ' / ' +
+    MAX_QUERY_TEXT_LENGTH.toLocaleString() + ' chars';
+  el.qtLen.style.color = qt.length > MAX_QUERY_TEXT_LENGTH ? 'var(--color-accent-700)'
+    : qt.length >= QUERY_TEXT_WARN_AT ? 'var(--color-accent-600)'
+    : 'var(--color-neutral-600)';
+  el.qtLen.style.fontWeight = qt.length >= QUERY_TEXT_WARN_AT ? '700' : '400';
+
+  el.notices.textContent = '';
+  issues(state, URL_ENCODE).forEach(function (n) {
+    var d = document.createElement('div');
+    d.className = 'sq-note sq-note-' + n.level;
+    d.textContent = n.text;
+    el.notices.appendChild(d);
+  });
+
+  el.output.textContent = displayOutput();
+  el.outLabel.textContent = isGet ? 'GET request' : 'POST request + body';
+  el.headerHint.textContent = isGet
+    ? 'Header: accept: application/json;odata=nometadata'
+    : 'Headers: accept: application/json;odata=nometadata · content-type: application/json;odata=verbose';
+  el['adv-caret'].textContent = state.adv ? '−' : '+';
+  el['adv-count'].textContent = advN ? advN + ' set' : 'all at defaults';
+  el['adv-panel'].hidden = !state.adv;
+
+  /* GET has one payload, so its button is the primary action. POST has
+     two, and the endpoint URL is otherwise unobtainable from the UI. */
+  el.copyBody.hidden = isGet;
+  el.copyUrl.className = 'btn ' + (isGet ? 'btn-primary' : 'btn-secondary');
+  el.copyUrlLabel.textContent = copyLabel('url', 'Copy URL');
+  el.copyBodyLabel.textContent = copyLabel('body', 'Copy body');
+  el.copyStatus.textContent = state.copyFailed
+    ? 'Copy failed — the browser blocked clipboard access. Select the text above and press Ctrl+C.'
+    : state.copied ? 'Copied the ' + (state.copied === 'body' ? 'request body' : 'URL') + ' to the clipboard.' : '';
+  el.copyStatus.style.color = state.copyFailed ? 'var(--color-accent-700)' : 'var(--color-neutral-700)';
+
+  Array.prototype.forEach.call(el.conds.children, function (row, i) {
+    row.firstChild.textContent = i === 0 ? 'WHERE' : state.join;
+  });
+}
+
+/* ── wiring ──────────────────────────────────────────────────────────── */
+
+function bindText(id, key) {
+  el[id].addEventListener('input', function () { state[key] = el[id].value; render(); });
+}
+function bindPick(id, key) {
+  el[id].addEventListener('change', function () { state[key] = el[id].value; render(); });
+}
+function bindCheck(id, key) {
+  el[id].addEventListener('change', function () { state[key] = el[id].checked; render(); });
+}
+
+bindText('site', 'site');
+bindText('keywords', 'keywords');
+bindText('rowLimit', 'rowLimit');
+bindText('startRow', 'startRow');
+bindText('refiners', 'refiners');
+bindText('clientType', 'clientType');
+bindText('culture', 'culture');
+bindText('timeout', 'timeout');
+bindText('sourceId', 'sourceId');
+bindPick('sortP', 'sortP');
+bindPick('sortD', 'sortD');
+bindCheck('trim', 'trim');
+bindCheck('stem', 'stem');
+bindCheck('nick', 'nick');
+bindCheck('fql', 'fql');
+
+el['m-get'].addEventListener('change', function () { state.method = 'get'; render(); });
+el['m-post'].addEventListener('change', function () { state.method = 'post'; render(); });
+el['j-all'].addEventListener('change', function () { state.join = 'AND'; render(); });
+el['j-any'].addEventListener('change', function () { state.join = 'OR'; render(); });
+
+el['toggle-adv'].addEventListener('click', function () { state.adv = !state.adv; render(); });
+
+el['add-cond'].addEventListener('click', function () {
+  state.conds.push({ p: 'Title', o: 'contains', v: '' });
+  renderConds();
+  render();
+});
+
+/* Backstop for contexts where the async API is missing or rejects. From
+   file:// Chromium reports isSecureContext true and exposes
+   navigator.clipboard, but the write still rejects while the document is
+   unfocused — so this runs more often than its age suggests. */
+function legacyCopy(text) {
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  ta.setAttribute('readonly', '');
+  ta.style.cssText = 'position:fixed; top:0; left:-9999px; opacity:0;';
+  document.body.appendChild(ta);
+  ta.select();
+  var ok = false;
+  try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+  document.body.removeChild(ta);
+  return ok;
+}
+
+/* Resolves to whether the text actually reached the clipboard. */
+function copyText(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    return navigator.clipboard.writeText(text).then(
+      function () { return true; },
+      function () { return legacyCopy(text); }
+    );
+  }
+  return Promise.resolve(legacyCopy(text));
+}
+
+function copyLabel(kind, idle) {
+  if (state.copyFailed === kind) return 'Copy failed';
+  if (state.copied === kind) return 'Copied';
+  return idle;
+}
+
+function bindCopy(id, kind) {
+  el[id].addEventListener('click', function () {
+    copyText(copyPayload(kind)).then(function (ok) {
+      state.copied = ok ? kind : '';
+      state.copyFailed = ok ? '' : kind;
+      render();
+      clearTimeout(copyTimer);
+      /* A failure needs longer on screen than a success — it asks the
+         user to do something. */
+      copyTimer = setTimeout(function () {
+        state.copied = '';
+        state.copyFailed = '';
+        render();
+      }, ok ? 1400 : 6000);
+    });
+  });
+}
+
+bindCopy('copyUrl', 'url');
+bindCopy('copyBody', 'body');
+
+/* ── boot ────────────────────────────────────────────────────────────── */
+
+syncControls();
+renderConds();
+renderChips();
+render();
+</script>
+</body>
+</html>
