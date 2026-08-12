@@ -1,0 +1,1569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Site Schema — SharePoint list &amp; library relationships</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --board:#131C2B; --board-2:#0D1420; --bar:#1B2637;
+  --grid:rgba(143,168,196,.055); --grid-2:rgba(143,168,196,.11);
+  --paper:#EFF0E9; --paper-2:#E3E5DB; --paper-3:#D8DACE;
+  --ink:#19212D; --ink-2:#5A6472; --ink-3:#626A58;
+  --rule:#C4C7B9;
+  --list:#1F6E6A; --lib:#8A5F14; --sys:#5C6675;
+  --wire:#7189A2; --lit:#F0C24E; --danger:#B04236; --casc:#C8584A;
+  --chrome-ink:#C7D3E0; --chrome-ink-2:#93A3B7;
+  --cw:272px; --insp-w:334px;
+  --f-disp:"IBM Plex Sans Condensed", "Helvetica Neue", Arial, sans-serif;
+  --f-body:"IBM Plex Sans", -apple-system, Segoe UI, sans-serif;
+  --f-mono:"IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; background:var(--board-2); color:var(--chrome-ink);
+  font-family:var(--f-body); overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--lit); outline-offset:2px}
+
+/* ── top bar ─────────────────────────────────────────── */
+#bar{
+  position:fixed; inset:0 0 auto 0; height:52px; z-index:40;
+  display:flex; align-items:center; gap:6px; padding:0 12px;
+  background:var(--bar); border-bottom:1px solid #000;
+  box-shadow:0 1px 0 rgba(255,255,255,.05) inset, 0 6px 18px rgba(0,0,0,.35);
+  overflow-x:auto; overflow-y:hidden; scrollbar-width:none;
+}
+#bar::-webkit-scrollbar{height:0}
+#bar > *{flex:none}
+.brand{display:flex;align-items:baseline;gap:9px;padding-right:14px;margin-right:6px;border-right:1px solid #2C3A4E}
+.brand b{font-family:var(--f-disp);font-weight:700;font-size:15px;letter-spacing:.14em;text-transform:uppercase;color:#EFF0E9}
+.brand span{font-family:var(--f-mono);font-size:10px;color:var(--chrome-ink-2)}
+#site{
+  flex:0 1 280px; min-width:110px; height:30px; padding:0 10px;
+  background:#0B121D; border:1px solid #2C3A4E; border-radius:2px 0 0 2px;
+  font-family:var(--f-mono); font-size:11.5px; color:#93A3B7; cursor:default;
+}
+.badge{
+  height:30px; display:grid; place-items:center; padding:0 7px; margin-left:-1px;
+  border:1px solid #2C3A4E; border-left:0; border-radius:0 2px 2px 0;
+  font-family:var(--f-disp); font-size:10px; font-weight:600; letter-spacing:.14em;
+  color:#141C29; background:var(--chrome-ink-2);
+}
+.spacer{flex:1 1 auto;min-width:8px}
+.btn{
+  height:30px; padding:0 11px; background:transparent; border:1px solid #2C3A4E;
+  border-radius:2px; font-family:var(--f-disp); font-weight:600; font-size:11px;
+  letter-spacing:.11em; text-transform:uppercase; color:var(--chrome-ink);
+  cursor:pointer; white-space:nowrap;
+}
+.btn:hover{background:#243247;border-color:#42566F}
+.btn[aria-pressed="true"]{background:#F0C24E;border-color:#F0C24E;color:#141C29}
+/* toggles carry a state lamp so they read differently from one-shot actions */
+.tgl::before{
+  content:""; display:inline-block; width:6px; height:6px; margin-right:7px;
+  vertical-align:1px; border:1px solid currentColor; border-radius:1px; opacity:.55;
+}
+.tgl[aria-pressed="true"]::before{background:#141C29;opacity:1}
+#tTrace[aria-pressed="true"]{background:var(--casc);border-color:var(--casc);color:#FFF2EF}
+.grp{display:flex;flex:none}
+.grp .btn{border-radius:0;margin-left:-1px}
+.grp .btn:first-child{border-radius:2px 0 0 2px;margin-left:0}
+.grp .btn:last-child{border-radius:0 2px 2px 0}
+#zoomval{
+  min-width:56px; font-family:var(--f-mono); font-size:11px; font-weight:400;
+  letter-spacing:0; text-transform:none; color:var(--chrome-ink-2);
+}
+.findwrap{position:relative;display:flex;align-items:center}
+#find{
+  width:150px;height:30px;padding:0 26px 0 10px;background:#0E1725;
+  border:1px solid #2C3A4E;border-radius:2px;font-size:12px;
+}
+#find::placeholder{color:#8296AC}
+#findclear{
+  position:absolute;right:1px;width:24px;height:28px;background:none;border:0;
+  color:var(--chrome-ink-2);font-size:15px;line-height:1;cursor:pointer;
+}
+#findclear:hover{color:#EFF0E9}
+
+/* ── board ───────────────────────────────────────────── */
+#board{
+  position:fixed; inset:52px 0 0 0; overflow:hidden; cursor:grab;
+  background:var(--board);
+  -webkit-user-select:none; user-select:none;
+}
+#board.panning{cursor:grabbing}
+#sheet{
+  position:absolute; top:0; left:0; width:5600px; height:3600px;
+  transform-origin:0 0;
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px),
+    linear-gradient(var(--grid-2) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-2) 1px, transparent 1px);
+  background-size:16px 16px,16px 16px,96px 96px,96px 96px;
+}
+#wires{position:absolute;top:0;left:0;width:100%;height:100%;overflow:visible;pointer-events:none}
+#wires .edge{pointer-events:auto}
+.wire{fill:none;stroke:var(--wire);stroke-width:1.6px;stroke-linecap:square}
+.hit{fill:none;stroke:transparent;stroke-width:16px;cursor:pointer}
+.mark{fill:none;stroke:var(--wire);stroke-width:1.6px}
+.mark.dot{fill:var(--board)}
+/* cascade is the destructive one, so it carries the risk colour */
+.edge[data-behavior="Cascade"] .wire,.edge[data-behavior="Cascade"] .mark{stroke:var(--casc)}
+.edge[data-behavior="Restrict"] .wire{stroke-dasharray:7 4}
+.edge[data-behavior="None"] .wire{stroke-dasharray:2 4}
+.edge[data-behavior="Person"] .wire{stroke-dasharray:1 5;stroke-width:1.3px;stroke:#586E86}
+.edge[data-behavior="Person"] .mark{stroke:#586E86}
+.edge.lit .wire,.edge.lit .mark{stroke:var(--lit);stroke-width:2.2px}
+.edge.lit .mark.dot{fill:var(--board)}
+.edge.hot .wire,.edge.hot .mark{stroke:#FFFFFF;stroke-width:2.4px}
+.edge.dim{opacity:.3}
+.edge.trace .wire,.edge.trace .mark{stroke:var(--casc);stroke-width:2.8px;stroke-dasharray:none}
+.edge.trace .wire{filter:drop-shadow(0 0 5px rgba(200,88,74,.75))}
+
+/* ── card ────────────────────────────────────────────── */
+.card{
+  position:absolute; width:var(--cw); background:var(--paper); color:var(--ink);
+  border:1px solid #0A0F17; border-radius:2px;
+  box-shadow:0 10px 22px -12px rgba(0,0,0,.75), 0 2px 0 rgba(0,0,0,.25);
+  font-family:var(--f-mono); overflow:hidden;
+  transition:opacity .12s linear;
+}
+.card.dim{opacity:.45}
+.card.sel{box-shadow:0 0 0 2px var(--lit), 0 14px 26px -12px rgba(0,0,0,.8)}
+.card.trace{box-shadow:0 0 0 2px var(--casc), 0 14px 26px -12px rgba(0,0,0,.8)}
+.card.nomatch{opacity:.28}
+.card:focus-visible{outline:2px solid var(--lit);outline-offset:3px}
+.card .strip{height:4px;background:var(--list)}
+.card[data-kind="library"] .strip{background:var(--lib)}
+.card[data-kind="system"] .strip{background:var(--sys)}
+.card .head{
+  height:34px;display:flex;align-items:center;gap:8px;padding:0 9px;cursor:grab;
+  background:linear-gradient(var(--paper),var(--paper-2));border-bottom:1px solid var(--rule);
+}
+.card .head:active{cursor:grabbing}
+.card h3{
+  margin:0;flex:1;font-family:var(--f-disp);font-weight:700;font-size:14px;
+  letter-spacing:.05em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.kind{
+  font-family:var(--f-disp);font-weight:600;font-size:10px;letter-spacing:.12em;
+  padding:1px 4px;border:1px solid var(--list);color:var(--list);border-radius:1px;
+}
+.card[data-kind="library"] .kind{border-color:var(--lib);color:var(--lib)}
+.card[data-kind="system"] .kind{border-color:var(--sys);color:var(--sys)}
+.count{font-size:10px;color:var(--ink-2);letter-spacing:.02em}
+.card .sub{
+  height:19px;display:flex;align-items:center;gap:5px;padding:0 9px;font-size:10px;
+  color:var(--ink-2);background:var(--paper-2);border-bottom:1px solid var(--rule);
+  white-space:nowrap;overflow:hidden;text-decoration:none;
+}
+.card .sub span{overflow:hidden;text-overflow:ellipsis}
+.card .sub i{font-style:normal;flex:none;opacity:.7}
+.card .sub:hover{color:var(--ink);background:var(--paper-3);text-decoration:underline}
+.rows{border-bottom:1px solid var(--rule)}
+.row{
+  height:22px;display:flex;align-items:center;gap:0;padding:0 9px 0 0;font-size:11px;
+  border-bottom:1px solid rgba(196,199,185,.5);
+}
+.row:last-child{border-bottom:0}
+.row.fk{background:rgba(240,194,78,.13)}
+.row.pk{background:rgba(31,110,106,.09)}
+.row.sys{color:var(--ink-3)}
+.row.lit{background:var(--lit);color:#141C29}
+.row.match{box-shadow:inset 3px 0 0 var(--list)}
+.key{
+  width:26px;flex:none;text-align:center;font-size:10px;font-weight:600;
+  letter-spacing:.02em;color:var(--ink-2);
+}
+.row.pk .key{color:var(--list)}
+.row.fk .key{color:#7A5709}
+.ty{
+  width:16px;height:16px;flex:none;display:grid;place-items:center;margin-right:7px;
+  border:1px solid var(--rule);border-radius:1px;font-size:10px;line-height:1;
+  color:var(--ink-2);background:rgba(255,255,255,.5);
+}
+.nm{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-.01em}
+.flags{flex:none;display:flex;gap:5px;font-size:10px;color:var(--ink-2);letter-spacing:.02em}
+.flags i{font-style:normal}
+.req{color:var(--danger);font-weight:600}
+.more{
+  height:20px;display:flex;align-items:center;gap:6px;padding-left:26px;font-size:10px;
+  color:var(--ink-2);background:var(--paper-2);cursor:pointer;border:0;width:100%;
+  font-family:var(--f-mono);text-align:left;
+}
+.more:hover{color:var(--ink);background:var(--paper-3)}
+.more.haslk{background:rgba(240,194,78,.22);color:#7A5709}
+.more.haslk:hover{background:rgba(240,194,78,.34)}
+.foot{
+  height:26px;display:flex;align-items:center;gap:7px;padding:0 9px;
+  font-size:10px;letter-spacing:.04em;color:var(--ink-2);background:var(--paper-2);
+}
+.meter{display:flex;gap:1.5px}
+.meter i{width:5px;height:9px;background:var(--paper-3);border:1px solid var(--rule)}
+.meter i.on{background:var(--list);border-color:var(--list)}
+.meter i.warn{background:var(--danger);border-color:var(--danger)}
+.meter i.over{background:var(--danger);border-color:var(--danger);height:13px;margin-top:-2px}
+.foot.over{color:var(--danger);font-weight:600}
+
+/* ── titleblock ──────────────────────────────────────── */
+#titleblock{
+  position:fixed;right:14px;bottom:14px;z-index:30;width:308px;
+  background:var(--paper);color:var(--ink);border:1.5px solid #0A0F17;border-radius:2px;
+  box-shadow:0 16px 34px -14px rgba(0,0,0,.85);font-family:var(--f-mono);
+  transition:transform .22s ease;
+}
+body.insp-open #titleblock{transform:translateX(calc(-1 * var(--insp-w)))}
+#titleblock .tb-h{
+  display:flex;align-items:center;gap:6px;padding:6px 9px;
+  border-bottom:1.5px solid var(--ink);background:var(--paper-2);
+}
+#titleblock .tb-h b{flex:1;font-family:var(--f-disp);font-size:12px;letter-spacing:.16em;text-transform:uppercase}
+.tb-grid{display:grid;grid-template-columns:1fr 1fr}
+.tb-cell{padding:5px 9px;border-right:1px solid var(--rule);border-bottom:1px solid var(--rule)}
+.tb-cell:nth-child(2n){border-right:0}
+.tb-cell u{display:block;font-size:10px;letter-spacing:.08em;color:var(--ink-2);text-decoration:none}
+.tb-cell strong{font-family:var(--f-disp);font-size:14px;font-weight:600;letter-spacing:.02em}
+.tb-cell.wide{grid-column:1/-1;border-right:0}
+.tb-cell.wide span{font-size:10px;word-break:break-all;color:var(--ink)}
+.legend{padding:7px 9px 8px;display:grid;gap:5px;border-bottom:1px solid var(--rule)}
+.legend div{display:flex;align-items:center;gap:8px;font-size:10px;letter-spacing:.02em;color:var(--ink-2)}
+.legend svg{flex:none}
+.keys{padding:7px 9px 8px;border-bottom:1px solid var(--rule)}
+.keys[hidden]{display:none}
+.keys u{display:block;font-size:10px;letter-spacing:.08em;color:var(--ink-2);text-decoration:none;margin-bottom:5px}
+.keygrid{display:grid;grid-template-columns:1fr 1fr;gap:3px 8px}
+.keygrid span{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--ink-2)}
+.keygrid b{
+  width:16px;height:16px;flex:none;display:grid;place-items:center;font-weight:400;
+  border:1px solid var(--rule);border-radius:1px;font-size:10px;background:rgba(255,255,255,.5);
+}
+.keygrid b.flag{width:auto;padding:0 3px;border-color:transparent;background:none;font-weight:600;color:var(--ink)}
+.tb-note{padding:8px 9px;font-size:10px;line-height:1.45;color:var(--ink-3)}
+.tb-toggle{background:none;border:1px solid var(--rule);border-radius:1px;cursor:pointer;
+  font-family:var(--f-disp);font-size:10px;letter-spacing:.08em;padding:2px 5px;color:var(--ink-2)}
+.tb-toggle:hover{background:var(--paper-3);color:var(--ink)}
+#titleblock.min .tb-grid,#titleblock.min .legend,#titleblock.min .keys,#titleblock.min .tb-note{display:none}
+
+/* ── inspector ───────────────────────────────────────── */
+#insp{
+  position:fixed;top:52px;right:0;bottom:0;width:var(--insp-w);z-index:35;
+  background:#101927;border-left:1px solid #000;transform:translateX(100%);
+  transition:transform .22s ease;display:flex;flex-direction:column;
+}
+#insp.open{transform:none;box-shadow:-18px 0 40px -20px #000}
+#insp header{padding:14px 44px 12px 16px;border-bottom:1px solid #223044}
+#insp header:focus{outline:none}
+#insp h2{margin:0 0 3px;font-family:var(--f-disp);font-size:19px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#EFF0E9}
+#insp .path{font-family:var(--f-mono);font-size:10px;color:var(--chrome-ink-2);word-break:break-all}
+#insp .path:hover{color:#EFF0E9}
+#insp .body{overflow:auto;padding:0 16px 24px;flex:1}
+#insp h4{
+  margin:18px 0 7px;font-family:var(--f-disp);font-size:11px;font-weight:600;
+  letter-spacing:.16em;text-transform:uppercase;color:#F0C24E;
+}
+#insp h4.risk{color:#E58A7B}
+#insp table{width:100%;border-collapse:collapse;font-family:var(--f-mono);font-size:10.5px}
+#insp td{padding:3px 0;vertical-align:top;color:#B7C4D2;border-bottom:1px solid #1B2735}
+#insp td:first-child{color:#8296AC;padding-right:10px;white-space:nowrap}
+#insp .rel{display:block;padding:6px 0;border-bottom:1px solid #1B2735;font-family:var(--f-mono);font-size:10.5px;color:#B7C4D2}
+#insp .rel b{color:#EFF0E9;font-weight:500}
+#insp .rel em{font-style:normal;color:#8296AC}
+#insp .jump{
+  display:block;width:100%;text-align:left;background:none;border:0;padding:6px 0;
+  border-bottom:1px solid #1B2735;font-family:var(--f-mono);font-size:10.5px;
+  color:#B7C4D2;cursor:pointer;line-height:1.5;
+}
+#insp .jump:hover{color:#EFF0E9;background:#16233459}
+#insp .jump b{color:#EFF0E9;font-weight:500}
+#insp .jump em{font-style:normal;color:#8296AC}
+#insp .jump .go{float:right;color:#8296AC}
+#insp .warn{color:#E58A7B}
+#close{position:absolute;top:12px;right:12px;background:none;border:0;color:#8296AC;font-size:20px;cursor:pointer;line-height:1;padding:4px}
+#close:hover{color:#EFF0E9}
+
+/* ── tooltip + modal ─────────────────────────────────── */
+#tip{
+  position:fixed;z-index:60;pointer-events:none;opacity:0;transition:opacity .1s;
+  background:#EFF0E9;color:#19212D;border:1px solid #0A0F17;border-radius:2px;
+  padding:5px 8px;font-family:var(--f-mono);font-size:10.5px;
+  max-width:min(360px,80vw);
+  box-shadow:0 8px 18px -8px rgba(0,0,0,.8);
+}
+#tip.on{opacity:1}
+#modal{position:fixed;inset:0;z-index:70;display:none;place-items:center;background:rgba(8,12,19,.72)}
+#modal.on{display:grid}
+.sheetbox{width:min(620px,92vw);background:var(--paper);color:var(--ink);border:1.5px solid #000;border-radius:2px}
+.sheetbox header{display:flex;justify-content:space-between;align-items:center;padding:9px 12px;border-bottom:1.5px solid var(--ink);background:var(--paper-2)}
+.sheetbox header b{font-family:var(--f-disp);letter-spacing:.14em;text-transform:uppercase;font-size:12px}
+.sheetbox textarea{
+  width:100%;height:46vh;border:0;padding:12px;background:var(--paper);color:var(--ink);
+  font-family:var(--f-mono);font-size:11px;line-height:1.5;resize:none;display:block;
+}
+.sheetbox textarea:focus{outline:0}
+.sheetbox .actions{display:flex;gap:8px;justify-content:flex-end;padding:9px 12px;border-top:1px solid var(--rule);background:var(--paper-2)}
+.sheetbox .btn{color:var(--ink);border-color:var(--rule)}
+.sheetbox .btn:hover{background:var(--paper-3)}
+
+#empty{
+  position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:20;
+  display:none;text-align:center;
+}
+#empty.on{display:block}
+#empty p{
+  margin:0 0 12px;font-family:var(--f-disp);font-size:13px;letter-spacing:.12em;
+  text-transform:uppercase;color:#8296AC;
+}
+
+@media (max-width:860px){
+  .brand span,#site,.badge{display:none}
+  #titleblock{right:8px;bottom:8px;width:262px}
+  #insp{width:100%}
+  body.insp-open #titleblock{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* ── print: the title block finally earns its name ───── */
+@page{size:landscape;margin:12mm}
+@media print{
+  #titleblock .tb-grid{grid-template-columns:repeat(3,1fr)}
+  #titleblock .tb-cell.wide{grid-column:auto}
+  #titleblock .legend{display:flex;flex-wrap:wrap;gap:3px 16px;padding:6px 9px}
+  #titleblock .keys{display:none}
+  #titleblock .tb-note{padding:6px 9px}
+  #bar,#insp,#tip,#modal,#empty{display:none!important}
+  body{overflow:visible;background:#fff;height:auto}
+  #board{position:relative;inset:auto;overflow:hidden;background:#fff;cursor:auto;break-inside:avoid;margin:0 auto}
+  #sheet{background-image:none}
+  .card{box-shadow:none;border-color:#4A5261;break-inside:avoid}
+  .card.dim,.card.nomatch,.edge.dim{opacity:1!important}
+  .wire,.mark{stroke:#3A4553!important}
+  .mark.dot{fill:#fff!important}
+  .edge[data-behavior="Cascade"] .wire,.edge[data-behavior="Cascade"] .mark{stroke:#A33A2C!important}
+  #titleblock{position:static;width:100%;margin:18px 0 0;box-shadow:none;transform:none!important;break-inside:avoid}
+  #titleblock .tb-h .tb-toggle,#titleblock #reset{display:none}
+}
+</style>
+</head>
+<body>
+
+<div id="bar">
+  <div class="brand"><b>Site Schema</b><span>v0.5</span></div>
+  <input id="site" value="https://contoso.sharepoint.com/sites/project-delivery" spellcheck="false" readonly tabindex="-1" aria-label="Site URL (sample data, read-only)">
+  <span class="badge">SAMPLE</span>
+  <button class="btn" id="load">Live site…</button>
+  <span class="spacer"></span>
+  <span class="findwrap">
+    <input id="find" placeholder="Filter lists…" aria-label="Filter lists and columns">
+    <button id="findclear" aria-label="Clear filter" hidden>×</button>
+  </span>
+  <span class="grp" role="group" aria-label="Display options">
+    <button class="btn tgl" id="tLib" aria-pressed="true">Libraries</button>
+    <button class="btn tgl" id="tPeople" aria-pressed="false" title="Draw person columns as links to the User Information List">People</button>
+    <button class="btn tgl" id="tInternal" aria-pressed="false" title="Show internal names instead of display names">Internal</button>
+    <button class="btn tgl" id="tTrace" aria-pressed="false" title="Light the full cascade-delete chain below the selected list">Cascade</button>
+  </span>
+  <button class="btn" id="arrange" title="Re-run the auto layout (A)">Arrange</button>
+  <button class="btn" id="mermaid" title="Export a Mermaid ER diagram">Export</button>
+  <span class="grp">
+    <button class="btn" id="zout" aria-label="Zoom out">–</button>
+    <button class="btn" id="zoomval" title="Reset zoom to 100%">100%</button>
+    <button class="btn" id="zin" aria-label="Zoom in">+</button>
+    <button class="btn" id="fit" title="Fit everything in view (F)">Fit</button>
+  </span>
+</div>
+
+<div id="board">
+  <div id="sheet">
+    <svg id="wires" aria-hidden="true"></svg>
+  </div>
+</div>
+
+<div id="empty">
+  <p>No lists match that filter</p>
+  <button class="btn" id="clearfilter">Clear filter</button>
+</div>
+
+<aside id="insp" aria-label="List details" inert>
+  <button id="close" aria-label="Close details">×</button>
+  <header tabindex="-1"><h2 id="i-title"></h2><a class="path" id="i-path" target="_blank" rel="noopener"></a></header>
+  <div class="body" id="i-body"></div>
+</aside>
+
+<section id="titleblock">
+  <div class="tb-h">
+    <b>Title block</b>
+    <button class="tb-toggle" id="tbkeys" aria-expanded="false">Column keys</button>
+    <button class="tb-toggle" id="tbmin">Hide</button>
+  </div>
+  <div class="tb-grid">
+    <div class="tb-cell"><u>LISTS</u><strong id="s-lists">—</strong></div>
+    <div class="tb-cell"><u>LIBRARIES</u><strong id="s-libs">—</strong></div>
+    <div class="tb-cell"><u>LOOKUPS</u><strong id="s-lk">—</strong></div>
+    <div class="tb-cell"><u>CASCADE DELETES</u><strong id="s-cas">—</strong></div>
+    <div class="tb-cell wide"><u>SOURCE</u><span id="s-src">—</span></div>
+    <div class="tb-cell wide"><u>READ</u><span id="s-when">—</span></div>
+  </div>
+  <div class="legend">
+    <div><svg width="46" height="10"><path d="M2 5 H44" stroke="#C8584A" stroke-width="1.8"/></svg> Cascade delete — destructive</div>
+    <div><svg width="46" height="10"><path d="M2 5 H44" stroke="#19212D" stroke-width="1.6" stroke-dasharray="7 4"/></svg> Restrict delete</div>
+    <div><svg width="46" height="10"><path d="M2 5 H44" stroke="#19212D" stroke-width="1.6" stroke-dasharray="2 4"/></svg> No enforcement</div>
+    <div><svg width="46" height="10"><path d="M2 5 H44" stroke="#5A6472" stroke-width="1.3" stroke-dasharray="1 5"/></svg> Person → user list</div>
+    <div><svg width="46" height="14"><path d="M30 7 H10" stroke="#19212D" stroke-width="1.6"/><path d="M10 7 L2 2 M10 7 H2 M10 7 L2 12" stroke="#19212D" stroke-width="1.6" fill="none"/><path d="M36 2 V12" stroke="#19212D" stroke-width="1.6"/><circle cx="42" cy="7" r="3" fill="none" stroke="#19212D" stroke-width="1.6"/></svg> Many → one, optional</div>
+  </div>
+  <div class="keys" id="keysblock" hidden>
+    <u>COLUMN TYPES</u>
+    <div class="keygrid" id="typekeys"></div>
+    <u style="margin-top:8px">FLAGS</u>
+    <div class="keygrid">
+      <span><b class="flag">PK</b> Primary key</span>
+      <span><b class="flag">FK</b> Lookup column</span>
+      <span><b class="flag" style="color:#B04236">REQ</b> Required</span>
+      <span><b class="flag">IX</b> Indexed</span>
+    </div>
+  </div>
+  <p class="tb-note">Sample schema. Point <b>loadSite()</b> at <b>/_api/web/lists?$expand=Fields</b> to read a live site. Layout, filters and toggles are remembered in this browser — <button class="tb-toggle" id="reset">Reset</button></p>
+</section>
+
+<div id="tip" aria-hidden="true"></div>
+
+<div id="modal">
+  <div class="sheetbox">
+    <header><b id="m-title">Export</b><button class="btn" id="m-close">Close</button></header>
+    <textarea id="m-text" spellcheck="false" readonly></textarea>
+    <div class="actions">
+      <button class="btn" id="m-download">Download</button>
+      <button class="btn" id="m-copy">Copy to clipboard</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ══════════════════════════════════════════════════════════════
+   SAMPLE SCHEMA
+   Replace with the result of loadSite() — see the bottom of this
+   file for the REST shape this expects.
+   ══════════════════════════════════════════════════════════════ */
+const T = {
+  text:'T', note:'¶', num:'#', cur:'¤', date:'D', bool:'B', choice:'C',
+  lookup:'L', user:'@', calc:'ƒ', tax:'M', file:'F', counter:'#', url:'↗'
+};
+const f = (name, internal, type, o={}) => Object.assign({name, internal, type}, o);
+
+const SCHEMA = {
+  site: {
+    title: 'Project Delivery',
+    url: 'https://contoso.sharepoint.com/sites/project-delivery',
+    read: '11 Aug 2026, 09:24'
+  },
+  lists: [
+    { id:'clients', title:'Clients', internal:'Clients', kind:'list', items:96,
+      url:'/Lists/Clients', fields:[
+      f('ID','ID','counter',{pk:true}),
+      f('Client name','Title','text',{req:true,idx:true}),
+      f('Account owner','AccountOwner','user'),
+      f('Region','Region','choice',{req:true}),
+      f('Industry','Industry','choice'),
+      f('Tier','Tier','choice'),
+      f('Main contact','MainContactEmail','text'),
+      f('Created by','Author','user',{sys:true}),
+      f('Modified by','Editor','user',{sys:true})
+    ]},
+
+    { id:'projects', title:'Projects', internal:'Projects', kind:'list', items:428,
+      url:'/Lists/Projects', fields:[
+      f('ID','ID','counter',{pk:true}),
+      f('Project name','Title','text',{req:true,idx:true}),
+      f('Client','Client','lookup',{req:true,idx:true,to:'clients',behavior:'Restrict',projected:['Title','Region']}),
+      f('Project manager','ProjectManager','user',{req:true}),
+      f('Status','Status','choice',{req:true}),
+      f('Portfolio','Portfolio','tax'),
+      f('Start date','StartDate','date'),
+      f('Target date','TargetDate','date',{idx:true}),
+      f('Budget','Budget','cur'),
+      f('Contract value','ContractValue','cur'),
+      f('Billable','IsBillable','bool'),
+      f('Health note','HealthNote','note'),
+      f('Created by','Author','user',{sys:true}),
+      f('Modified by','Editor','user',{sys:true})
+    ]},
+
+    { id:'tasks', title:'Tasks', internal:'Tasks', kind:'list', items:12480,
+      url:'/Lists/Tasks', fields:[
+      f('ID','ID','counter',{pk:true}),
+      f('Task','Title','text',{req:true}),
+      f('Project','Project','lookup',{req:true,idx:true,to:'projects',behavior:'Cascade',projected:['Title','Status']}),
+      f('Parent task','ParentTask','lookup',{to:'tasks',behavior:'None'}),
+      f('Blocked by','BlockedBy','lookup',{to:'tasks',behavior:'None'}),
+      f('Assigned to','AssignedTo','user',{req:true}),
+      f('Reviewer','Reviewer','user'),
+      f('QA sign-off','QASignOff','user'),
+      f('Category','Category','tax'),
+      f('Status','Status','choice',{req:true}),
+      f('Due date','DueDate','date',{idx:true}),
+      f('Estimate (h)','EstimateHours','num'),
+      f('% complete','PercentComplete','num'),
+      f('Created by','Author','user',{sys:true}),
+      f('Modified by','Editor','user',{sys:true})
+    ]},
+
+    { id:'time', title:'Time Entries', internal:'TimeEntries', kind:'list', items:58210,
+      url:'/Lists/TimeEntries', fields:[
+      f('ID','ID','counter',{pk:true}),
+      f('Title','Title','text'),
+      f('Task','Task','lookup',{req:true,idx:true,to:'tasks',behavior:'Cascade'}),
+      f('Project','Project','lookup',{req:true,to:'projects',behavior:'None'}),
+      f('Employee','Employee','user',{req:true}),
+      f('Approved by','ApprovedBy','user'),
+      f('Entry date','EntryDate','date',{req:true,idx:true}),
+      f('Hours','Hours','num',{req:true}),
+      f('Billable','Billable','bool'),
+      f('Created by','Author','user',{sys:true}),
+      f('Modified by','Editor','user',{sys:true})
+    ]},
+
+    { id:'risks', title:'Risk Register', internal:'RiskRegister', kind:'list', items:312,
+      url:'/Lists/RiskRegister', fields:[
+      f('ID','ID','counter',{pk:true}),
+      f('Risk','Title','text',{req:true}),
+      f('Project','Project','lookup',{req:true,idx:true,to:'projects',behavior:'Cascade'}),
+      f('Owner','Owner','user',{req:true}),
+      f('Impact','Impact','choice',{req:true}),
+      f('Likelihood','Likelihood','choice',{req:true}),
+      f('Score','Score','calc'),
+      f('Mitigation','Mitigation','note'),
+      f('Review date','ReviewDate','date'),
+      f('Created by','Author','user',{sys:true}),
+      f('Modified by','Editor','user',{sys:true})
+    ]},
+
+    { id:'changes', title:'Change Requests', internal:'ChangeRequests', kind:'list', items:187,
+      url:'/Lists/ChangeRequests', fields:[
+      f('ID','ID','counter',{pk:true}),
+      f('Reference','Title','text',{req:true}),
+      f('Project','Project','lookup',{req:true,to:'projects',behavior:'Restrict'}),
+      f('Requested by','RequestedBy','user',{req:true}),
+      f('Status','Status','choice',{req:true}),
+      f('Cost impact','CostImpact','cur'),
+      f('Approved on','ApprovedOn','date'),
+      f('Created by','Author','user',{sys:true}),
+      f('Modified by','Editor','user',{sys:true})
+    ]},
+
+    { id:'lessons', title:'Lessons Learned', internal:'LessonsLearned', kind:'list', items:74,
+      url:'/Lists/LessonsLearned', fields:[
+      f('ID','ID','counter',{pk:true}),
+      f('Lesson','Title','text',{req:true}),
+      f('Project','Project','lookup',{to:'projects',behavior:'None'}),
+      f('Category','Category','choice'),
+      f('Submitted by','SubmittedBy','user'),
+      f('Created by','Author','user',{sys:true}),
+      f('Modified by','Editor','user',{sys:true})
+    ]},
+
+    { id:'docs', title:'Project Documents', internal:'ProjectDocuments', kind:'library', items:9640,
+      url:'/ProjectDocuments', fields:[
+      f('ID','ID','counter',{pk:true}),
+      f('Name','FileLeafRef','file',{req:true,idx:true}),
+      f('Project','Project','lookup',{req:true,idx:true,to:'projects',behavior:'None',projected:['Title']}),
+      f('Reviewer','Reviewer','user'),
+      f('Document type','DocumentType','choice',{req:true}),
+      f('Approval status','_ModerationStatus','choice'),
+      f('Version','Version','text'),
+      f('Created by','Author','user',{sys:true}),
+      f('Modified by','Editor','user',{sys:true})
+    ]},
+
+    { id:'contracts', title:'Contracts', internal:'Contracts', kind:'library', items:240,
+      url:'/Contracts', fields:[
+      f('ID','ID','counter',{pk:true}),
+      f('Name','FileLeafRef','file',{req:true}),
+      f('Client','Client','lookup',{req:true,to:'clients',behavior:'Restrict'}),
+      f('Project','Project','lookup',{to:'projects',behavior:'None'}),
+      f('Owner','Owner','user',{req:true}),
+      f('Contract status','ContractStatus','choice',{req:true}),
+      f('Signed on','SignedOn','date'),
+      f('Created by','Author','user',{sys:true}),
+      f('Modified by','Editor','user',{sys:true})
+    ]},
+
+    { id:'assets', title:'Site Assets', internal:'SiteAssets', kind:'library', items:65,
+      url:'/SiteAssets', fields:[
+      f('ID','ID','counter',{pk:true}),
+      f('Name','FileLeafRef','file',{req:true}),
+      f('Created by','Author','user',{sys:true}),
+      f('Modified by','Editor','user',{sys:true})
+    ]},
+
+    /* deliberately over the 12-column view threshold — this is what a list
+       looks like just before its views start failing */
+    { id:'resourcing', title:'Resource Plan', internal:'ResourcePlan', kind:'list', items:2065,
+      url:'/Lists/ResourcePlan', fields:[
+      f('ID','ID','counter',{pk:true}),
+      f('Assignment','Title','text',{req:true}),
+      f('Project','Project','lookup',{req:true,idx:true,to:'projects',behavior:'Cascade',projected:['Title','Status']}),
+      f('Task','Task','lookup',{to:'tasks',behavior:'None'}),
+      f('Client','Client','lookup',{to:'clients',behavior:'Restrict'}),
+      f('Resource','Resource','user',{req:true}),
+      f('Line manager','LineManager','user'),
+      f('Approver','Approver','user'),
+      f('Backup resource','BackupResource','user'),
+      f('Delivery lead','DeliveryLead','user'),
+      f('Practice','Practice','tax'),
+      f('Skill','Skill','tax'),
+      f('Discipline','Discipline','tax'),
+      f('Allocation %','AllocationPercent','num',{req:true}),
+      f('From','FromDate','date',{req:true,idx:true}),
+      f('To','ToDate','date'),
+      f('Created by','Author','user',{sys:true}),
+      f('Modified by','Editor','user',{sys:true})
+    ]},
+
+    { id:'userinfo', title:'User Information List', internal:'UserInfo', kind:'system', items:1140,
+      url:'/_catalogs/users', system:true, fields:[
+      f('ID','ID','counter',{pk:true}),
+      f('Name','Title','text'),
+      f('Account','Name','text'),
+      f('Email','EMail','text'),
+      f('Department','Department','text')
+    ]}
+  ]
+};
+
+/* ══════════════════════════════════════════════════════════════
+   GEOMETRY + STATE
+   ══════════════════════════════════════════════════════════════ */
+const CFG = {
+  W:272, HEAD:57, ROW:22, MORE:20, FOOT:26, COLGAP:132, ROWGAP:34,
+  MAXROWS:9, THRESHOLD:12, GRID:16, INSP:334, HOVER_MS:120,
+  STORE:'siteschema.v05'
+};
+const TYPE_LABEL = {
+  text:'Single line', note:'Multi line', num:'Number', cur:'Currency', date:'Date',
+  bool:'Yes/No', choice:'Choice', lookup:'Lookup', user:'Person', calc:'Calculated',
+  tax:'Managed metadata', file:'File', counter:'Counter', url:'Hyperlink'
+};
+const byId = Object.fromEntries(SCHEMA.lists.map(l => [l.id, l]));
+const BEH = {Cascade:'cascade delete', Restrict:'restrict delete', None:'no enforcement', Person:'person column'};
+const $ = s => document.querySelector(s);
+const sheet = $('#sheet'), wires = $('#wires'), board = $('#board');
+
+document.documentElement.style.setProperty('--cw', CFG.W + 'px');
+document.documentElement.style.setProperty('--insp-w', CFG.INSP + 'px');
+
+const state = {
+  pos:{}, expanded:new Set(), sel:null, hover:null, hoverEdge:null,
+  libs:true, people:false, internal:false, trace:false,
+  query:'', matches:null,
+  z:1, tx:0, ty:0
+};
+
+/* live element caches — rebuilt on render, read by paint() */
+let cardEls = {}, edgeEls = [], litRows = [];
+
+/* keys first, then foreign keys, then the rest; system columns last */
+function ordered(list){
+  const rank = fl => fl.pk ? 0 : (fl.to ? 1 : (fl.sys ? 3 : 2));
+  return list.fields.map((fl,i) => ({...fl, _i:i})).sort((a,b) => rank(a)-rank(b) || a._i-b._i);
+}
+function visibleFields(list){
+  const all = ordered(list);
+  if (state.expanded.has(list.id)) return {rows:all, hidden:0, hiddenLk:0};
+  const rows = all.filter(fl => !fl.sys).slice(0, CFG.MAXROWS);
+  /* a filter hit buried under "+ n more" is a hit you can't see — unfold it */
+  const hit = state.matches?.fields.get(list.id);
+  if (hit?.size && [...hit].some(n => !rows.some(r => r.internal === n)))
+    return {rows:all, hidden:0, hiddenLk:0};
+  const rest = all.filter(fl => !rows.includes(fl));
+  return {rows, hidden:rest.length, hiddenLk:rest.filter(fl => fl.to).length};
+}
+function cardHeight(list){
+  const {rows, hidden} = visibleFields(list);
+  return CFG.HEAD + rows.length*CFG.ROW + (hidden ? CFG.MORE : 0) + (list.system ? 0 : CFG.FOOT);
+}
+/* SharePoint counts lookup, person and managed metadata columns against the
+   12-column list view threshold — so does this meter. */
+const lookupLoad = l => l.fields.filter(fl => ['lookup','user','tax'].includes(fl.type)).length;
+
+function edges(){
+  const out = [];
+  for (const l of SCHEMA.lists){
+    if (l.system) continue;
+    for (const fl of l.fields){
+      if (fl.to) out.push({from:l.id, to:fl.to, field:fl, behavior:fl.behavior || 'None'});
+      else if (fl.type === 'user' && state.people && !fl.sys)
+        out.push({from:l.id, to:'userinfo', field:fl, behavior:'Person'});
+    }
+  }
+  return out;
+}
+
+/* Visibility is structural (toggles). Filtering is a separate axis: matches are
+   emphasised and the rest stay on the board, so relationships survive a search. */
+const visible = id => {
+  const l = byId[id];
+  if (!l) return false;
+  if (l.kind === 'library' && !state.libs) return false;
+  if (l.system && !state.people) return false;
+  return true;
+};
+const isMatch = id => !state.matches || state.matches.ids.has(id);
+
+function computeMatches(){
+  if (!state.query){ state.matches = null; return; }
+  const q = state.query.toLowerCase();
+  const ids = new Set(), fields = new Map();
+  for (const l of SCHEMA.lists){
+    const f = new Set();
+    for (const fl of l.fields)
+      if ((fl.name + ' ' + fl.internal).toLowerCase().includes(q)) f.add(fl.internal);
+    if ((l.title + ' ' + l.internal).toLowerCase().includes(q) || f.size){
+      ids.add(l.id); fields.set(l.id, f);
+    }
+  }
+  state.matches = {ids, fields};
+}
+
+/* every list an item deletion would take with it, following Cascade edges down */
+function cascadeChain(rootId){
+  const out = new Map(), stack = [rootId];
+  while (stack.length){
+    const cur = stack.pop();
+    for (const l of SCHEMA.lists){
+      if (l.system || l.id === rootId || out.has(l.id)) continue;
+      const via = l.fields.find(fl => fl.to === cur && fl.behavior === 'Cascade');
+      if (via){ out.set(l.id, {via, from:cur}); stack.push(l.id); }
+    }
+  }
+  return out;
+}
+
+/* ── layered layout: children left, parents right ──────── */
+function arrange(){
+  const live = SCHEMA.lists.filter(l => visible(l.id));
+  const depth = {}, seen = new Set();
+  const walk = id => {
+    if (depth[id] != null) return depth[id];
+    if (seen.has(id)) return 0;
+    seen.add(id);
+    const parents = (byId[id].fields || [])
+      .filter(fl => fl.to && fl.to !== id && visible(fl.to)).map(fl => fl.to);
+    const extra = state.people && byId[id].fields.some(fl => fl.type==='user' && !fl.sys) ? ['userinfo'] : [];
+    const all = parents.concat(byId[id].system ? [] : extra);
+    depth[id] = all.length ? 1 + Math.max(...all.map(walk)) : 0;
+    seen.delete(id);
+    return depth[id];
+  };
+  live.forEach(l => walk(l.id));
+  const max = Math.max(0, ...live.map(l => depth[l.id]));
+  const cols = {};
+  live.forEach(l => (cols[max - depth[l.id]] ||= []).push(l));
+
+  const heights = Object.entries(cols).map(([c, ls]) =>
+    ls.reduce((s,l) => s + cardHeight(l) + CFG.ROWGAP, -CFG.ROWGAP));
+  const tallest = Math.max(...heights, 0);
+  const x0 = 260, y0 = 220;
+
+  Object.entries(cols).forEach(([c, ls]) => {
+    ls.sort((a,b) => a.title.localeCompare(b.title));
+    const h = ls.reduce((s,l) => s + cardHeight(l) + CFG.ROWGAP, -CFG.ROWGAP);
+    let y = y0 + (tallest - h)/2;
+    ls.forEach(l => {
+      state.pos[l.id] = {x: x0 + (+c)*(CFG.W + CFG.COLGAP), y: Math.round(y)};
+      y += cardHeight(l) + CFG.ROWGAP;
+    });
+  });
+}
+
+/* ══════════════════════════════════════════════════════════════
+   RENDER CARDS
+   ══════════════════════════════════════════════════════════════ */
+const esc = s => String(s).replace(/[&<>"']/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num = n => n.toLocaleString();
+
+function renderCards(){
+  [...sheet.querySelectorAll('.card')].forEach(c => c.remove());
+  cardEls = {};
+  const live = SCHEMA.lists.filter(l => visible(l.id));
+  $('#empty').classList.toggle('on', live.length === 0 || (!!state.matches && state.matches.ids.size === 0));
+
+  for (const l of live){
+    const p = state.pos[l.id] || {x:100, y:100};
+    const {rows, hidden, hiddenLk} = visibleFields(l);
+    const load = lookupLoad(l), over = load > CFG.THRESHOLD;
+    const mf = state.matches?.fields.get(l.id);
+    const kind = l.kind === 'library' ? 'Document library' : l.kind === 'system' ? 'System list' : 'list';
+
+    const el = document.createElement('article');
+    el.className = 'card';
+    el.tabIndex = 0;
+    el.dataset.id = l.id;
+    el.dataset.kind = l.kind;
+    el.setAttribute('aria-label',
+      `${l.title}, ${kind}, ${num(l.items)} items, ${l.fields.length} columns. Enter for details.`);
+    el.style.cssText = `left:${p.x}px;top:${p.y}px;height:${cardHeight(l)}px`;
+    el.innerHTML = `
+      <div class="strip"></div>
+      <div class="head" data-drag>
+        <h3>${esc(state.internal ? l.internal : l.title)}</h3>
+        <span class="kind">${l.kind === 'library' ? 'LIB' : l.kind === 'system' ? 'SYS' : 'LIST'}</span>
+        <span class="count">${num(l.items)}</span>
+      </div>
+      <a class="sub" href="${esc(SCHEMA.site.url + l.url)}" target="_blank" rel="noopener"
+         title="Open ${esc(l.title)} in SharePoint"><span>${esc(l.url)}</span><i>↗</i></a>
+      <div class="rows">
+        ${rows.map(fl => `
+          <div class="row ${fl.pk?'pk':''} ${fl.to||(fl.type==='user'&&state.people&&!fl.sys)?'fk':''} ${fl.sys?'sys':''} ${mf?.has(fl.internal)?'match':''}"
+               data-field="${esc(fl.internal)}"
+               title="${esc(fl.name)} · ${esc(TYPE_LABEL[fl.type] || fl.type)}${fl.req?' · required':''}${fl.idx?' · indexed':''}">
+            <span class="key">${fl.pk ? 'PK' : (fl.to ? 'FK' : '')}</span>
+            <span class="ty">${T[fl.type] || '·'}</span>
+            <span class="nm">${esc(state.internal ? fl.internal : fl.name)}</span>
+            <span class="flags">${fl.req ? '<i class="req">REQ</i>' : ''}${fl.idx ? '<i>IX</i>' : ''}</span>
+          </div>`).join('')}
+      </div>
+      ${hidden ? `<button class="more ${hiddenLk?'haslk':''}" data-more aria-expanded="false">+ ${hidden} more column${hidden>1?'s':''}${
+        hiddenLk ? ` · ${hiddenLk} lookup${hiddenLk>1?'s':''}` : ''}</button>` : ''}
+      ${l.system ? '' : `
+      <div class="foot ${over?'over':''}" title="${over
+        ? `${load} lookup, person and managed metadata columns — ${load - CFG.THRESHOLD} over the ${CFG.THRESHOLD}-column view threshold. Views showing them all will fail on large lists.`
+        : `${load} of ${CFG.THRESHOLD} lookup, person and managed metadata columns used`}">
+        <span>LOOKUPS ${load}/${CFG.THRESHOLD}</span>
+        <span class="meter">${Array.from({length:Math.max(CFG.THRESHOLD, load)}, (_,i) =>
+          `<i class="${i >= CFG.THRESHOLD ? 'over' : (i<load ? (over?'warn':'on') : '')}"></i>`).join('')}</span>
+      </div>`}
+    `;
+    sheet.appendChild(el);
+    cardEls[l.id] = el;
+  }
+  paint();
+}
+
+/* ══════════════════════════════════════════════════════════════
+   WIRES — orthogonal routing, crow's-foot notation
+   ══════════════════════════════════════════════════════════════ */
+function rowY(listId, internal){
+  const l = byId[listId], {rows} = visibleFields(l);
+  let i = rows.findIndex(fl => fl.internal === internal);
+  if (i < 0) i = rows.length;                       // folded into "+ n more"
+  return state.pos[listId].y + CFG.HEAD + i*CFG.ROW + CFG.ROW/2;
+}
+function roundPath(pts, r=10){
+  let d = `M ${pts[0].x} ${pts[0].y}`;
+  for (let i = 1; i < pts.length-1; i++){
+    const a = pts[i-1], p = pts[i], b = pts[i+1];
+    const l1 = Math.hypot(p.x-a.x, p.y-a.y), l2 = Math.hypot(b.x-p.x, b.y-p.y);
+    if (!l1 || !l2){ d += ` L ${p.x} ${p.y}`; continue; }
+    const rr = Math.min(r, l1/2, l2/2);
+    const u1 = {x:(p.x-a.x)/l1, y:(p.y-a.y)/l1}, u2 = {x:(b.x-p.x)/l2, y:(b.y-p.y)/l2};
+    d += ` L ${p.x-u1.x*rr} ${p.y-u1.y*rr} Q ${p.x} ${p.y} ${p.x+u2.x*rr} ${p.y+u2.y*rr}`;
+  }
+  const last = pts.at(-1);
+  return d + ` L ${last.x} ${last.y}`;
+}
+const svgEl = (t, a) => {
+  const n = document.createElementNS('http://www.w3.org/2000/svg', t);
+  for (const k in a) n.setAttribute(k, a[k]);
+  return n;
+};
+
+/* Arrival points fan out along the parent's edge instead of stacking every
+   crow's foot on the PK row. One incoming edge still lands on the PK. */
+function edgeGeometry(){
+  const info = [];
+  for (const e of edges()){
+    if (!visible(e.from) || !visible(e.to)) continue;
+    const A = state.pos[e.from], B = state.pos[e.to];
+    if (!A || !B) continue;
+    const self = e.from === e.to;
+    const dA = self ? 1 : ((B.x + CFG.W/2 >= A.x + CFG.W/2) ? 1 : -1);
+    info.push({e, A, B, self, dA, dB: self ? 1 : -dA, ay: rowY(e.from, e.field.internal)});
+  }
+  const groups = {};
+  for (const i of info) (groups[i.e.to + '|' + i.dB] ||= []).push(i);
+  for (const g of Object.values(groups)){
+    const to = g[0].e.to, B = state.pos[to];
+    const top = B.y + CFG.HEAD + CFG.ROW/2;
+    if (g.length === 1){ g[0].by = top; continue; }
+    const bottom = B.y + cardHeight(byId[to]) - 12;
+    const step = Math.min(CFG.ROW, Math.max(0, bottom - top) / (g.length - 1));
+    g.sort((p,q) => p.ay - q.ay);
+    g.forEach((i, n) => i.by = Math.round(top + n*step));
+  }
+  return info;
+}
+
+function drawWires(){
+  wires.innerHTML = '';
+  edgeEls = [];
+  const selfSeen = {};
+
+  for (const i of edgeGeometry()){
+    const {e, A, B, ay, by, dA, dB, self} = i;
+    let pts;
+
+    if (self){                                              // self-reference
+      const n = selfSeen[e.from] = (selfSeen[e.from] ?? -1) + 1;
+      const x = A.x + CFG.W, out = x + 46 + n*22;           // stagger stacked loops
+      pts = [{x, y:ay}, {x:out, y:ay}, {x:out, y:by}, {x, y:by}];
+    } else {
+      const ax = dA === 1 ? A.x + CFG.W : A.x;
+      const bx = dB === 1 ? B.x + CFG.W : B.x;
+      const s1 = ax + dA*24, s2 = bx + dB*24;
+      const forward = dA === 1 ? s2 > s1 : s2 < s1;
+      if (forward){
+        const mid = (s1 + s2)/2;
+        pts = [{x:ax, y:ay}, {x:mid, y:ay}, {x:mid, y:by}, {x:bx, y:by}];
+      } else {
+        const chan = Math.max(A.y + cardHeight(byId[e.from]), B.y + cardHeight(byId[e.to])) + 30;
+        pts = [{x:ax, y:ay}, {x:s1, y:ay}, {x:s1, y:chan}, {x:s2, y:chan}, {x:s2, y:by}, {x:bx, y:by}];
+      }
+    }
+
+    const g = svgEl('g', {class:'edge'});
+    g.dataset.behavior = e.behavior;
+    g.dataset.from = e.from; g.dataset.to = e.to; g.dataset.field = e.field.internal;
+    const d = roundPath(pts);
+    g.appendChild(svgEl('path', {class:'wire', d}));
+    g.appendChild(svgEl('path', {class:'hit', d}));
+
+    /* many end: crow's foot touching the child card */
+    const a = pts[0], k = 13;
+    g.appendChild(svgEl('path', {class:'mark',
+      d:`M ${a.x+dA*k} ${a.y} L ${a.x} ${a.y-5} M ${a.x+dA*k} ${a.y} L ${a.x} ${a.y+5}`}));
+    /* one end: bar, plus optionality ring when the lookup allows blank */
+    const b = pts.at(-1);
+    g.appendChild(svgEl('path', {class:'mark', d:`M ${b.x+dB*11} ${b.y-6} V ${b.y+6}`}));
+    if (!e.field.req)
+      g.appendChild(svgEl('circle', {class:'mark dot', cx:b.x + dB*20, cy:b.y, r:3.6}));
+
+    wires.appendChild(g);
+    edgeEls.push({g, from:e.from, to:e.to, field:e.field.internal, behavior:e.behavior});
+  }
+  paint();
+}
+
+/* redraw at most once per frame — dragging used to rebuild every path per event */
+let wireFrame = 0;
+function queueWires(){
+  if (wireFrame) return;
+  wireFrame = requestAnimationFrame(() => { wireFrame = 0; drawWires(); });
+}
+
+/* ── highlight ─────────────────────────────────────────── */
+function paint(){
+  const focus = state.hover || state.sel;
+  const chain = (state.trace && focus) ? cascadeChain(focus) : null;
+
+  const rel = new Set();
+  if (focus){
+    rel.add(focus);
+    for (const x of edgeEls){
+      if (x.from === focus) rel.add(x.to);
+      if (x.to === focus) rel.add(x.from);
+    }
+  }
+
+  for (const id in cardEls){
+    const c = cardEls[id];
+    c.classList.toggle('sel', id === state.sel);
+    c.classList.toggle('trace', !!chain?.has(id));
+    c.classList.toggle('dim', !!focus && !rel.has(id) && !chain?.has(id));
+    c.classList.toggle('nomatch', !focus && !isMatch(id));
+  }
+
+  for (const x of edgeEls){
+    const near = !focus || x.from === focus || x.to === focus;
+    const inChain = !!chain && x.behavior === 'Cascade' &&
+      (chain.has(x.from) || x.from === focus) && (chain.has(x.to) || x.to === focus);
+    x.g.classList.toggle('trace', inChain);
+    x.g.classList.toggle('lit', !!focus && near && !inChain);
+    x.g.classList.toggle('dim', !!focus && !near && !inChain);
+    x.g.classList.toggle('hot', x.g === state.hoverEdge);
+  }
+
+  litRows.forEach(r => r.classList.remove('lit'));
+  litRows = [];
+  if (focus) for (const x of edgeEls){
+    if (x.g.classList.contains('dim')) continue;
+    const row = cardEls[x.from]?.querySelector(`.row[data-field="${CSS.escape(x.field)}"]`);
+    if (row){ row.classList.add('lit'); litRows.push(row); }
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   VIEW TRANSFORM
+   ══════════════════════════════════════════════════════════════ */
+const inspOpen = () => $('#insp').classList.contains('open');
+const panelW = () => (inspOpen() && window.innerWidth > 860) ? CFG.INSP : 0;
+
+function applyView(){
+  sheet.style.transform = `translate(${state.tx}px,${state.ty}px) scale(${state.z})`;
+  $('#zoomval').textContent = Math.round(state.z*100) + '%';
+  saveSoon();
+}
+function bounds(){
+  const cards = [...sheet.querySelectorAll('.card')];
+  if (!cards.length) return null;
+  let x1=1e9,y1=1e9,x2=-1e9,y2=-1e9;
+  cards.forEach(c => {
+    const x = parseFloat(c.style.left), y = parseFloat(c.style.top);
+    x1 = Math.min(x1,x); y1 = Math.min(y1,y);
+    x2 = Math.max(x2, x + CFG.W + 60); y2 = Math.max(y2, y + c.offsetHeight);
+  });
+  return {x:x1, y:y1, w:x2-x1, h:y2-y1};
+}
+function fit(){
+  const b = bounds();
+  if (!b) return;
+  const pad = 70, bw = board.clientWidth - panelW(), bh = board.clientHeight;
+  state.z = Math.min(1.05, (bw-pad*2)/b.w, (bh-pad*2)/b.h);
+  state.tx = pad - b.x*state.z + (bw - b.w*state.z - pad*2)/2;
+  state.ty = pad - b.y*state.z + (bh - b.h*state.z - pad*2)/2;
+  applyView();
+}
+function zoomAt(cx, cy, factor){
+  const z2 = Math.max(.2, Math.min(2.2, state.z*factor));
+  state.tx = cx - (cx - state.tx) * (z2/state.z);
+  state.ty = cy - (cy - state.ty) * (z2/state.z);
+  state.z = z2; applyView();
+}
+function centreOn(id){
+  const p = state.pos[id], el = cardEls[id];
+  if (!p || !el) return;
+  const bw = board.clientWidth - panelW();
+  state.tx = bw/2 - (p.x + CFG.W/2)*state.z;
+  state.ty = board.clientHeight/2 - (p.y + el.offsetHeight/2)*state.z;
+  applyView();
+}
+
+/* ══════════════════════════════════════════════════════════════
+   INTERACTION
+   ══════════════════════════════════════════════════════════════ */
+let drag = null, pan = null, hoverTimer = 0;
+
+board.addEventListener('pointerdown', ev => {
+  if (ev.button != null && ev.button > 1) return;
+  suppressClick = false;          // never let a stale gesture eat the next click
+  const head = ev.target.closest('[data-drag]');
+  if (head){
+    const card = head.closest('.card');
+    drag = {id:card.dataset.id, sx:ev.clientX, sy:ev.clientY, moved:false,
+            ox:state.pos[card.dataset.id].x, oy:state.pos[card.dataset.id].y, el:card};
+    card.setPointerCapture(ev.pointerId);
+    ev.preventDefault();
+    return;
+  }
+  if (!ev.target.closest('.card')){
+    /* capture is deferred until the pan actually starts: capturing here would
+       retarget the click to #board and swallow clicks on wires */
+    pan = {sx:ev.clientX, sy:ev.clientY, tx:state.tx, ty:state.ty, moved:false, pid:ev.pointerId};
+  }
+});
+window.addEventListener('pointermove', ev => {
+  if (drag){
+    const dx = ev.clientX - drag.sx, dy = ev.clientY - drag.sy;
+    if (!drag.moved && Math.hypot(dx, dy) < 4) return;   // below this it's a click, not a drag
+    drag.moved = true;
+    const g = ev.altKey ? 1 : CFG.GRID;                  // snap to the grid you can see
+    const nx = Math.round((drag.ox + dx/state.z)/g)*g;
+    const ny = Math.round((drag.oy + dy/state.z)/g)*g;
+    state.pos[drag.id] = {x:nx, y:ny};
+    drag.el.style.left = nx + 'px';
+    drag.el.style.top  = ny + 'px';
+    queueWires();
+  } else if (pan){
+    if (!pan.moved && Math.hypot(ev.clientX-pan.sx, ev.clientY-pan.sy) < 4) return;
+    if (!pan.moved){
+      pan.moved = true;
+      board.classList.add('panning');
+      try { board.setPointerCapture(pan.pid); } catch {}
+    }
+    state.tx = pan.tx + (ev.clientX - pan.sx);
+    state.ty = pan.ty + (ev.clientY - pan.sy);
+    applyView();
+  }
+});
+window.addEventListener('pointerup', () => {
+  if (drag?.moved) saveSoon();
+  /* a completed gesture must not also register as a click */
+  if (drag?.moved || pan?.moved) suppressClick = true;
+  drag = null; pan = null; board.classList.remove('panning');
+});
+
+/* wheel pans, ctrl/⌘ + wheel zooms — the convention every canvas tool uses */
+board.addEventListener('wheel', ev => {
+  ev.preventDefault();
+  if (ev.ctrlKey || ev.metaKey){
+    const r = board.getBoundingClientRect();
+    zoomAt(ev.clientX - r.left, ev.clientY - r.top, ev.deltaY < 0 ? 1.12 : 1/1.12);
+  } else {
+    const k = ev.deltaMode === 1 ? 16 : 1;
+    state.tx -= ev.deltaX * k;
+    state.ty -= ev.deltaY * k;
+    applyView();
+  }
+}, {passive:false});
+
+/* hover intent: sweeping the pointer across the board shouldn't strobe it */
+board.addEventListener('mouseover', ev => {
+  const card = ev.target.closest('.card');
+  const edge = ev.target.closest('.edge');
+  if (card && card.dataset.id !== state.hover){
+    clearTimeout(hoverTimer);
+    hoverTimer = setTimeout(() => { state.hover = card.dataset.id; paint(); }, CFG.HOVER_MS);
+  }
+  if (edge){ state.hoverEdge = edge; paint(); showTip(edge, ev); }
+});
+board.addEventListener('mouseout', ev => {
+  if (ev.target.closest('.card') && !ev.relatedTarget?.closest('.card')){
+    clearTimeout(hoverTimer);
+    state.hover = null; paint();
+  }
+  if (ev.target.closest('.edge') && !ev.relatedTarget?.closest('.edge')){
+    state.hoverEdge = null; paint();
+    $('#tip').classList.remove('on');
+  }
+});
+board.addEventListener('mousemove', ev => {
+  const t = $('#tip');
+  if (t.classList.contains('on')) placeTip(ev);
+});
+function placeTip(ev){
+  const t = $('#tip'), r = t.getBoundingClientRect();
+  let x = ev.clientX + 14, y = ev.clientY + 16;
+  if (x + r.width > innerWidth - 8) x = ev.clientX - r.width - 14;
+  if (y + r.height > innerHeight - 8) y = ev.clientY - r.height - 16;
+  t.style.left = Math.max(8, x) + 'px';
+  t.style.top  = Math.max(8, y) + 'px';
+}
+function showTip(edge, ev){
+  const {from, to, field, behavior} = edge.dataset;
+  const fl = byId[from].fields.find(x => x.internal === field);
+  const t = $('#tip');
+  t.textContent = `${byId[from].internal}.${field} → ${byId[to].internal}.ID · ` + BEH[behavior] +
+    (fl?.projected?.length ? ` · pulls ${fl.projected.join(', ')}` : '');
+  t.classList.add('on');
+  placeTip(ev);
+}
+
+let suppressClick = false;
+board.addEventListener('click', ev => {
+  if (suppressClick){ suppressClick = false; return; }   // that was a drag or a pan
+  if (ev.target.closest('a')) return;                    // let "open in SharePoint" through
+
+  const more = ev.target.closest('[data-more]');
+  if (more){
+    const id = more.closest('.card').dataset.id;
+    state.expanded.has(id) ? state.expanded.delete(id) : state.expanded.add(id);
+    renderCards(); drawWires(); saveSoon();
+    return;
+  }
+  const card = ev.target.closest('.card');
+  if (card) return select(card.dataset.id);
+  const edge = ev.target.closest('.edge');
+  if (edge) return select(edge.dataset.from);   // the list holding the lookup
+  closeInspector();
+});
+
+board.addEventListener('keydown', ev => {
+  const card = ev.target.closest('.card');
+  if (!card) return;
+  const id = card.dataset.id;
+  if (ev.key === 'Enter' || ev.key === ' '){
+    ev.preventDefault(); select(id, true);
+  } else if (ev.key.startsWith('Arrow')){
+    ev.preventDefault();
+    const step = ev.shiftKey ? 1 : CFG.GRID;
+    const d = {ArrowLeft:[-step,0], ArrowRight:[step,0], ArrowUp:[0,-step], ArrowDown:[0,step]}[ev.key];
+    if (!d) return;
+    state.pos[id] = {x:state.pos[id].x + d[0], y:state.pos[id].y + d[1]};
+    card.style.left = state.pos[id].x + 'px';
+    card.style.top  = state.pos[id].y + 'px';
+    queueWires(); saveSoon();
+  }
+});
+board.addEventListener('focusin', ev => {
+  const card = ev.target.closest('.card');
+  if (card && card.dataset.id !== state.hover){ state.hover = card.dataset.id; paint(); }
+});
+board.addEventListener('focusout', ev => {
+  if (ev.target.closest('.card') && !ev.relatedTarget?.closest('.card')){ state.hover = null; paint(); }
+});
+
+/* ── inspector ─────────────────────────────────────────── */
+let lastFocus = null;
+
+function select(id, focusPanel){
+  state.sel = id;
+  openInspector(id, focusPanel);
+  paint();
+}
+function openInspector(id, focusPanel){
+  const l = byId[id];
+  const insp = $('#insp');
+  if (!insp.classList.contains('open')) lastFocus = document.activeElement;
+
+  $('#i-title').textContent = l.title;
+  const href = SCHEMA.site.url + l.url;
+  $('#i-path').textContent = href;
+  $('#i-path').href = href;
+  $('#i-path').title = 'Open in SharePoint';
+
+  const load = lookupLoad(l), over = load > CFG.THRESHOLD;
+  const out = l.fields.filter(fl => fl.to);
+  const inc = SCHEMA.lists.flatMap(s => s.fields.filter(fl => fl.to === id).map(fl => ({s, fl})));
+  const chain = cascadeChain(id);
+  const blast = [...chain.entries()].reduce((s,[cid]) => s + byId[cid].items, 0);
+
+  $('#i-body').innerHTML = `
+    <h4>Identity</h4>
+    <table>
+      <tr><td>Internal</td><td>${esc(l.internal)}</td></tr>
+      <tr><td>Type</td><td>${l.kind === 'library' ? 'Document library' : l.kind === 'system' ? 'System list' : 'Generic list'}</td></tr>
+      <tr><td>Items</td><td>${num(l.items)}</td></tr>
+      <tr><td>Columns</td><td>${l.fields.length}</td></tr>
+      <tr><td>View load</td><td class="${over?'warn':''}">${load} of ${CFG.THRESHOLD} lookup/person/metadata columns${
+        over ? ` — ${load - CFG.THRESHOLD} over the view threshold` : ''}</td></tr>
+    </table>
+
+    ${chain.size ? `
+    <h4 class="risk">Cascade blast radius</h4>
+    <p class="rel" style="border:0;padding-bottom:2px">Deleting an item here also deletes matching items in
+      ${chain.size} list${chain.size>1?'s':''} — around ${num(blast)} items in scope.</p>
+    ${[...chain.entries()].map(([cid, {via, from}]) => `<button class="jump" data-jump="${esc(cid)}">
+        <span class="go">→</span><b>${esc(byId[cid].title)}</b> <em>· ${num(byId[cid].items)} items</em><br>
+        <em>via ${esc(via.internal)} on ${esc(byId[from].title)}</em>
+      </button>`).join('')}` : ''}
+
+    <h4>Points to (${out.length})</h4>
+    ${out.length ? out.map(fl => `<button class="jump" data-jump="${esc(fl.to)}">
+        <span class="go">→</span><b>${esc(fl.name)}</b> <em>(${esc(fl.internal)})</em> → ${esc(byId[fl.to].title)}<br>
+        <em>${BEH[fl.behavior]}${fl.req ? ' · required' : ' · optional'}${fl.projected ? ' · pulls ' + fl.projected.join(', ') : ''}</em>
+      </button>`).join('') : '<span class="rel"><em>No lookup columns.</em></span>'}
+
+    <h4>Referenced by (${inc.length})</h4>
+    ${inc.length ? inc.map(({s, fl}) => `<button class="jump" data-jump="${esc(s.id)}">
+        <span class="go">→</span><b>${esc(s.title)}</b> <em>via ${esc(fl.internal)} · ${BEH[fl.behavior]}</em>
+      </button>`).join('') : '<span class="rel"><em>Nothing looks up to this list.</em></span>'}
+
+    <h4>Columns</h4>
+    <table>${ordered(l).map(fl => `<tr>
+      <td>${esc(fl.internal)}</td>
+      <td>${fl.type}${fl.req ? ' · required' : ''}${fl.idx ? ' · indexed' : ''}${fl.to ? ' → ' + byId[fl.to].internal : ''}</td>
+    </tr>`).join('')}</table>
+
+    <h4>Read this list</h4>
+    <table><tr><td colspan="2" style="color:#B7C4D2;white-space:normal">${esc(
+      `/_api/web/lists/getbytitle('${l.title}')/items?$select=${
+        ordered(l).filter(fl=>!fl.sys).slice(0,4).map(fl => fl.to ? `${fl.internal}/Title` : fl.internal).join(',')
+      }${out.length ? '&$expand=' + out.map(fl => fl.internal).join(',') : ''}`)}</td></tr></table>
+  `;
+
+  insp.classList.add('open');
+  insp.removeAttribute('inert');
+  document.body.classList.add('insp-open');
+  if (focusPanel) $('#insp header').focus();
+}
+function closeInspector(){
+  const insp = $('#insp');
+  if (!insp.classList.contains('open')) return;
+  insp.classList.remove('open');
+  insp.setAttribute('inert', '');
+  document.body.classList.remove('insp-open');
+  state.sel = null;
+  paint();
+  if (lastFocus?.isConnected) lastFocus.focus();
+  lastFocus = null;
+}
+$('#close').onclick = closeInspector;
+$('#i-body').addEventListener('click', ev => {
+  const j = ev.target.closest('[data-jump]');
+  if (!j) return;
+  const id = j.dataset.jump;
+  if (!visible(id)){                       // e.g. jumping to a hidden library
+    if (byId[id].kind === 'library') setToggle('#tLib', 'libs', true);
+    if (byId[id].system) setToggle('#tPeople', 'people', true);
+  }
+  select(id, true);
+  centreOn(id);
+});
+
+/* ══════════════════════════════════════════════════════════════
+   TOOLBAR
+   ══════════════════════════════════════════════════════════════ */
+function setToggle(btn, key, val){
+  state[key] = val;
+  $(btn).setAttribute('aria-pressed', String(val));
+  if (key === 'libs' || key === 'people') placeNewcomers();
+  renderCards(); drawWires(); stats(); saveSoon();
+}
+function toggle(btn, key){
+  $(btn).onclick = () => setToggle(btn, key, !state[key]);
+}
+/* toggles no longer relayout — that used to wipe every card you'd moved by hand.
+   Only lists that have never had a position get one. */
+function placeNewcomers(){
+  const missing = SCHEMA.lists.filter(l => visible(l.id) && !state.pos[l.id]);
+  if (missing.length) arrange();
+}
+toggle('#tLib', 'libs');
+toggle('#tPeople', 'people');
+toggle('#tInternal', 'internal');
+$('#tTrace').onclick = () => {
+  state.trace = !state.trace;
+  $('#tTrace').setAttribute('aria-pressed', String(state.trace));
+  paint(); saveSoon();
+};
+
+function applyFilter(v){
+  state.query = v.trim();
+  $('#find').value = v;
+  $('#findclear').hidden = !state.query;
+  computeMatches();
+  renderCards(); drawWires();
+}
+$('#find').oninput = e => applyFilter(e.target.value);
+$('#findclear').onclick = () => { applyFilter(''); $('#find').focus(); };
+$('#clearfilter').onclick = () => { applyFilter(''); $('#find').focus(); };
+
+$('#arrange').onclick = () => { arrange(); renderCards(); drawWires(); fit(); saveSoon(); };
+$('#fit').onclick = fit;
+$('#zin').onclick = () => zoomAt(board.clientWidth/2, board.clientHeight/2, 1.15);
+$('#zout').onclick = () => zoomAt(board.clientWidth/2, board.clientHeight/2, 1/1.15);
+$('#zoomval').onclick = () => zoomAt(board.clientWidth/2, board.clientHeight/2, 1/state.z);
+$('#tbmin').onclick = e => {
+  const min = $('#titleblock').classList.toggle('min');
+  e.currentTarget.textContent = min ? 'Show' : 'Hide';
+};
+$('#tbkeys').onclick = e => {
+  const k = $('#keysblock');
+  k.hidden = !k.hidden;
+  e.currentTarget.setAttribute('aria-expanded', String(!k.hidden));
+};
+$('#reset').onclick = () => {
+  try { localStorage.removeItem(CFG.STORE); } catch {}
+  location.reload();
+};
+$('#load').onclick = () => {
+  openSheet('Read a live site',
+`This build ships with a sample schema so you can see the shape of the output.
+
+To read a real site, run the tool from a page on that site (a script editor
+web part, an SPFx extension, or the browser console) and call:
+
+  const lists = await loadSite();   // see the bottom of this file
+
+It issues:
+  GET /_api/web/lists?$filter=Hidden eq false&$expand=Fields
+  &$select=Title,Id,BaseTemplate,ItemCount,RootFolder/ServerRelativeUrl,
+           Fields/InternalName,Fields/Title,Fields/TypeAsString,Fields/Required,
+           Fields/Indexed,Fields/LookupList,Fields/RelationshipDeleteBehavior
+
+Then hand the result to render(). Cross-site calls need an access token, so
+serve the file from the same tenant or add your own auth.`, 'read-a-live-site.txt');
+};
+$('#mermaid').onclick = () => {
+  const live = SCHEMA.lists.filter(l => visible(l.id) && !l.system);
+  const name = l => (l.internal || l.title).replace(/\W/g, '');
+  let out = 'erDiagram\n';
+  for (const l of live)
+    for (const fl of l.fields)
+      if (fl.to && visible(fl.to))
+        out += `  ${name(l)} }o--${fl.req ? '||' : 'o|'} ${name(byId[fl.to])} : "${fl.internal}"\n`;
+  for (const l of live)
+    out += `  ${name(l)} {\n` + ordered(l).filter(fl => !fl.sys)
+      .map(fl => `    ${fl.type} ${fl.internal}${fl.pk ? ' PK' : fl.to ? ' FK' : ''}`).join('\n') + '\n  }\n';
+  openSheet('Mermaid ER diagram', out, 'site-schema.mmd');
+};
+
+/* ── modal ─────────────────────────────────────────────── */
+let sheetFile = 'export.txt', modalReturn = null;
+function openSheet(title, text, filename){
+  modalReturn = document.activeElement;
+  sheetFile = filename || 'export.txt';
+  $('#m-title').textContent = title;
+  $('#m-text').value = text;
+  $('#modal').classList.add('on');
+  $('#m-close').focus();
+}
+function closeSheet(){
+  $('#modal').classList.remove('on');
+  if (modalReturn?.isConnected) modalReturn.focus();
+  modalReturn = null;
+}
+$('#m-close').onclick = closeSheet;
+$('#modal').onclick = e => { if (e.target.id === 'modal') closeSheet(); };
+$('#m-download').onclick = () => {
+  const blob = new Blob([$('#m-text').value], {type:'text/plain'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = sheetFile;
+  a.click(); URL.revokeObjectURL(a.href);
+};
+$('#m-copy').onclick = async e => {
+  const ta = $('#m-text');
+  ta.removeAttribute('readonly'); ta.select();
+  try { await navigator.clipboard.writeText(ta.value); e.target.textContent = 'Copied'; }
+  catch { e.target.textContent = 'Press Ctrl+C'; }
+  ta.setAttribute('readonly', '');
+  setTimeout(() => e.target.textContent = 'Copy to clipboard', 1600);
+};
+/* keep tab focus inside the modal while it's up */
+$('#modal').addEventListener('keydown', e => {
+  if (e.key !== 'Tab') return;
+  const f = [...$('#modal').querySelectorAll('button,textarea')];
+  const first = f[0], last = f.at(-1);
+  if (e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
+});
+
+/* ── keyboard ──────────────────────────────────────────── */
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape'){
+    if ($('#modal').classList.contains('on')) return closeSheet();
+    if (state.query) return applyFilter('');
+    return closeInspector();
+  }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;        // don't eat Ctrl+F
+  const typing = /input|textarea/i.test(e.target.tagName);
+  if (typing) return;
+  if (e.key === 'f') fit();
+  if (e.key === 'a') { arrange(); renderCards(); drawWires(); fit(); saveSoon(); }
+  if (e.key === '/'){ e.preventDefault(); $('#find').focus(); }
+  if (e.key === '+' || e.key === '=') zoomAt(board.clientWidth/2, board.clientHeight/2, 1.15);
+  if (e.key === '-') zoomAt(board.clientWidth/2, board.clientHeight/2, 1/1.15);
+});
+
+/* ── title block figures ───────────────────────────────── */
+function stats(){
+  const live = SCHEMA.lists.filter(l => visible(l.id) && !l.system);
+  const lk = live.flatMap(l => l.fields.filter(fl => fl.to && visible(fl.to)));
+  $('#s-lists').textContent = live.filter(l => l.kind === 'list').length;
+  $('#s-libs').textContent  = live.filter(l => l.kind === 'library').length;
+  $('#s-lk').textContent    = lk.length;
+  $('#s-cas').textContent   = lk.filter(fl => fl.behavior === 'Cascade').length;
+  $('#s-src').textContent   = SCHEMA.site.url;
+  $('#s-when').textContent  = SCHEMA.site.read + ' · sample data';
+}
+function buildTypeKeys(){
+  const used = [...new Set(SCHEMA.lists.flatMap(l => l.fields.map(fl => fl.type)))];
+  $('#typekeys').innerHTML = used.map(t =>
+    `<span><b>${T[t] || '·'}</b> ${esc(TYPE_LABEL[t] || t)}</span>`).join('');
+}
+
+/* ── persistence ───────────────────────────────────────── */
+let saveTimer = 0;
+function saveSoon(){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try {
+      localStorage.setItem(CFG.STORE, JSON.stringify({
+        pos:state.pos, expanded:[...state.expanded],
+        libs:state.libs, people:state.people, internal:state.internal, trace:state.trace,
+        z:state.z, tx:state.tx, ty:state.ty
+      }));
+    } catch {}
+  }, 400);
+}
+function restore(){
+  let s = null;
+  try { s = JSON.parse(localStorage.getItem(CFG.STORE) || 'null'); } catch {}
+  if (!s) return false;
+  Object.assign(state, {
+    pos:s.pos || {}, libs:!!s.libs, people:!!s.people, internal:!!s.internal,
+    trace:!!s.trace, z:s.z || 1, tx:s.tx || 0, ty:s.ty || 0
+  });
+  state.expanded = new Set(s.expanded || []);
+  for (const [b,k] of [['#tLib','libs'],['#tPeople','people'],['#tInternal','internal'],['#tTrace','trace']])
+    $(b).setAttribute('aria-pressed', String(state[k]));
+  return Object.keys(state.pos).length > 0;
+}
+
+/* ── print ─────────────────────────────────────────────── */
+let preprint = null;
+function enterPrint(){
+  if (preprint) return;
+  const b = bounds();
+  if (!b) return;
+  preprint = {z:state.z, tx:state.tx, ty:state.ty, bw:board.style.width, bh:board.style.height};
+  const z = Math.min(1, 1000 / b.w, 620 / b.h);   // one landscape sheet
+  sheet.style.transform = `translate(${-b.x*z}px,${-b.y*z}px) scale(${z})`;
+  /* the board becomes a fixed, clipped block so the scaled sheet can't
+     overflow its layout box and fragment across pages */
+  board.style.width  = Math.ceil(b.w*z) + 'px';
+  board.style.height = Math.ceil(b.h*z) + 'px';
+}
+function exitPrint(){
+  if (!preprint) return;
+  board.style.width = preprint.bw; board.style.height = preprint.bh;
+  Object.assign(state, {z:preprint.z, tx:preprint.tx, ty:preprint.ty});
+  applyView(); preprint = null;
+}
+window.addEventListener('beforeprint', enterPrint);
+window.addEventListener('afterprint', exitPrint);
+matchMedia('print').addEventListener('change', e => e.matches ? enterPrint() : exitPrint());
+
+/* ── boot ──────────────────────────────────────────────── */
+buildTypeKeys();
+const hadLayout = restore();
+if (!hadLayout) arrange(); else placeNewcomers();
+renderCards(); drawWires(); stats();
+if (hadLayout) applyView(); else fit();
+window.addEventListener('resize', () => queueWires());
+
+/* ══════════════════════════════════════════════════════════════
+   LIVE SITE READER — uncomment and call from a page on the site.
+   Maps the REST payload onto the SCHEMA shape used above.
+   ══════════════════════════════════════════════════════════════
+
+async function loadSite(webUrl = _spPageContextInfo.webAbsoluteUrl){
+  const q = '/_api/web/lists?$filter=Hidden eq false'
+    + '&$expand=Fields,RootFolder'
+    + '&$select=Title,Id,BaseTemplate,ItemCount,RootFolder/ServerRelativeUrl,'
+    + 'Fields/InternalName,Fields/Title,Fields/TypeAsString,Fields/Required,'
+    + 'Fields/Indexed,Fields/Hidden,Fields/LookupList,Fields/RelationshipDeleteBehavior';
+  const res = await fetch(webUrl + q, {headers:{Accept:'application/json;odata=nometadata'}});
+  const {value} = await res.json();
+
+  const guid = g => (g || '').replace(/[{}]/g, '').toLowerCase();
+  const TYPE = {Text:'text', Note:'note', Number:'num', Currency:'cur', DateTime:'date',
+    Boolean:'bool', Choice:'choice', MultiChoice:'choice', Lookup:'lookup', LookupMulti:'lookup',
+    User:'user', UserMulti:'user', Calculated:'calc', TaxonomyFieldType:'tax',
+    TaxonomyFieldTypeMulti:'tax', Counter:'counter', File:'file', URL:'url'};
+  const BEHAVIOR = {0:'None', 1:'Cascade', 2:'Restrict'};
+
+  return {
+    site:{title:webUrl.split('/').pop(), url:webUrl, read:new Date().toLocaleString()},
+    lists: value.map(l => ({
+      id: guid(l.Id),
+      title: l.Title,
+      internal: l.Title.replace(/\s/g, ''),
+      kind: l.BaseTemplate === 101 ? 'library' : 'list',
+      items: l.ItemCount,
+      url: l.RootFolder.ServerRelativeUrl,
+      fields: l.Fields.filter(fd => !fd.Hidden || /^(Author|Editor)$/.test(fd.InternalName)).map(fd => ({
+        name: fd.Title,
+        internal: fd.InternalName,
+        type: TYPE[fd.TypeAsString] || 'text',
+        pk: fd.InternalName === 'ID',
+        req: fd.Required,
+        idx: fd.Indexed,
+        sys: /^(Author|Editor)$/.test(fd.InternalName),
+        to: fd.LookupList ? guid(fd.LookupList) : undefined,
+        behavior: fd.LookupList ? (BEHAVIOR[fd.RelationshipDeleteBehavior] || 'None') : undefined
+      }))
+    }))
+  };
+}
+*/
+</script>
+</body>
+</html>
